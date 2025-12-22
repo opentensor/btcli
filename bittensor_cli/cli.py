@@ -991,6 +991,7 @@ class CLIManager:
         self.config_app.command("proxies")(self.config_get_proxies)
         self.config_app.command("remove-proxy")(self.config_remove_proxy)
         self.config_app.command("update-proxy")(self.config_update_proxy)
+        self.config_app.command("clear-proxies")(self.config_clear_proxy_book)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -2087,7 +2088,7 @@ class CLIManager:
         name: Annotated[
             str,
             typer.Option(
-                help="Name of the proxy", prompt="Enter a name for this proxy"
+                help="Name of the proxy", prompt="Enter the name for this proxy"
             ),
         ],
         address: Annotated[
@@ -2114,25 +2115,104 @@ class CLIManager:
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
         if name not in self.proxies:
-            print_error(f"Proxy {name} not found in address book.")
+            print_error(
+                f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
+            )
+            self.config_get_proxies()
             return
         else:
             if isinstance(proxy_type, ProxyType):
                 proxy_type_val = proxy_type.value
             else:
                 proxy_type_val = proxy_type
+
+            var_map = {
+                "Address": address,
+                "Spawner": spawner,
+                "ProxyType": proxy_type_val,
+                "Delay": delay,
+                "Note": note,
+            }
+            num_map = {
+                1: "Address",
+                2: "Spawner",
+                3: "ProxyType",
+                4: "Delay",
+                5: "Note",
+            }
             with ProxyAddressBook.get_db() as (conn, cursor):
+                if not any(var_map.values()):
+                    entries = ProxyAddressBook.read_rows(
+                        conn, cursor, include_header=False
+                    )
+                    table = Table(
+                        Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
+                        Column("Address/Delegator", style="gold1"),
+                        Column("Spawner/Delegatee", style="medium_purple"),
+                        Column("Proxy Type", style="medium_purple"),
+                        Column("Delay", style="dim"),
+                        Column("Note", style="dim"),
+                        box=box.SIMPLE_HEAD,
+                        title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
+                    )
+                    for (
+                        name_,
+                        ss58_address_,
+                        delay_,
+                        spawner_,
+                        proxy_type_,
+                        note_,
+                    ) in entries:
+                        if name == name_:
+                            table.add_row(
+                                name_,
+                                ss58_address_,
+                                spawner_,
+                                proxy_type_,
+                                str(delay_),
+                                note_,
+                            )
+                            break
+                    console.print(table)
+                    console.print(
+                        "\n\n[1] Address/Delegator"
+                        "\n[2] Spawner/Delegator"
+                        "\n[3] Proxy Type"
+                        "\n[4] Delay"
+                        "\n[5] Note"
+                    )
+                    col_num_select = IntPrompt.ask(
+                        "Which column would you like to update?",
+                        choices=[str(i) for i in range(1, 6)],
+                    )
+                    col_select = num_map[col_num_select]
+                    value = Prompt.ask(f"Enter a value for {col_select}")
+                    var_map[col_select] = value
                 ProxyAddressBook.update_entry(
                     conn,
                     cursor,
                     name=name,
-                    ss58_address=address,
-                    proxy_type=proxy_type_val,
-                    spawner=spawner,
-                    note=note,
-                    delay=delay,
+                    ss58_address=var_map["Address"],
+                    proxy_type=var_map["ProxyType"],
+                    spawner=var_map["Spawner"],
+                    note=var_map["Note"],
+                    delay=int(dela) if (dela := var_map["Delay"]) is not None else None,
                 )
             console.print("Proxy updated")
+            self.config_get_proxies()
+
+    def config_clear_proxy_book(self):
+        """
+        Clears the proxy address book. Use with caution.
+        Really only useful if you have corrupted your proxy address book.
+        """
+        if not confirm_action(
+            "This will entirely clear your proxy address book. Are you sure you want to proceed?"
+        ):
+            return
+        else:
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.clear_table(conn, cursor)
             self.config_get_proxies()
 
     def is_valid_proxy_name_or_ss58(
@@ -9216,7 +9296,9 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         idx: int = typer.Option(
             0,
             "--index",
@@ -9299,7 +9381,9 @@ class CLIManager:
         ] = "",
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -9533,7 +9617,12 @@ class CLIManager:
 
     def proxy_execute_announced(
         self,
-        proxy: str = Options.proxy,
+        proxy: str = typer.Option(
+            "--proxy",
+            help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
+            f"have added it with {arg__('btcli config add-proxy')}.",
+            prompt=True,
+        ),
         real: Optional[str] = Options.real_proxy,
         delegate: Optional[str] = typer.Option(
             None,
@@ -9617,7 +9706,7 @@ class CLIManager:
                         console.print(
                             f"Name: {p_name}\n"
                             f"Delay: {delay_}\n"
-                            f"Spawner/Delegator: {spawner}\n"
+                            f"Spawner/Delegatee: {spawner}\n"
                             f"Proxy Type: {proxy_type}\n"
                             f"Note: {note}\n"
                         )
@@ -9697,7 +9786,7 @@ class CLIManager:
                         ):
                             call_hex = call_hex_
                             block = block_
-                            got_call_from_db = row
+                            got_call_from_db = id_
                             break
             if got_call_from_db is None:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
