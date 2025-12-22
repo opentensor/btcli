@@ -9661,7 +9661,7 @@ class CLIManager:
                         console.print(
                             f"Name: {p_name}\n"
                             f"Delay: {delay_}\n"
-                            f"Spawner/Delegator: {spawner}\n"
+                            f"Spawner/Delegatee: {spawner}\n"
                             f"Proxy Type: {proxy_type}\n"
                             f"Note: {note}\n"
                         )
