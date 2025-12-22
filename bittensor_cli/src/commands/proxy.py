@@ -12,7 +12,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
     console,
-    err_console,
+    print_error,
     unlock_key,
     ProxyAddressBook,
     is_valid_ss58_address_prompt,
@@ -106,7 +106,7 @@ async def submit_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed: {msg}[/red]")
+            print_error(f"Failed: {msg}")
 
 
 async def create_proxy(
@@ -143,7 +143,7 @@ async def create_proxy(
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -247,7 +247,7 @@ async def create_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to create pure proxy: {msg}")
+            print_error(f"Failed to create pure proxy: {msg}")
     return None
 
 
@@ -278,7 +278,7 @@ async def remove_proxy(
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -343,7 +343,7 @@ async def add_proxy(
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -448,7 +448,7 @@ async def add_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to add proxy: {msg}")
+            print_error(f"Failed to add proxy: {msg}")
     return None
 
 
@@ -478,11 +478,11 @@ async def kill_proxy(
             f"To proceed, enter [red]KILL[/red]"
         )
         if confirmation != "KILL":
-            err_console.print("Invalid input. Exiting.")
+            print_error("Invalid input. Exiting.")
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -554,8 +554,8 @@ async def execute_announced(
 
     if call_hex is None:
         if not prompt:
-            err_console.print(
-                f":cross_mark:[red]You have not provided a call, and are using"
+            print_error(
+                f"You have not provided a call, and are using"
                 f" [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}], so we are unable to request"
                 f"the information to craft this call."
             )
@@ -590,8 +590,8 @@ async def execute_announced(
                     value = FloatPrompt.ask(f"Enter the amount of Tao for {arg}")
                     value = Balance.from_tao(value)
                 elif "RuntimeCall" in type_name:
-                    err_console.print(
-                        f":cross_mark:[red]Unable to craft a Call Type for arg {arg}. {failure_}"
+                    print_error(
+                        f"Unable to craft a Call Type for arg {arg}. {failure_}"
                     )
                     return False
                 elif type_name == "NetUid":
@@ -609,9 +609,7 @@ async def execute_announced(
                     else:
                         value = False
                 else:
-                    err_console.print(
-                        f":cross_mark:[red]Unrecognized type name {type_name}. {failure_}"
-                    )
+                    print_error(f"Unrecognized type name {type_name}. {failure_}")
                     return False
                 call_args[arg] = value
             inner_call = await subtensor.substrate.compose_call(
@@ -697,5 +695,5 @@ async def execute_announced(
                 data={"success": False, "message": msg, "extrinsic_identifier": None}
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed[/red]. {msg} ")
+            print_error(f"Failed. {msg} ")
     return success
