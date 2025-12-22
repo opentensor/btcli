@@ -3,7 +3,9 @@ import sys
 
 from async_substrate_interface.errors import StateDiscardedError
 from rich.prompt import Prompt, FloatPrompt, IntPrompt
+from rich.table import Table, Column
 from scalecodec import GenericCall, ScaleBytes
+from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
@@ -54,7 +56,343 @@ class ProxyType(StrEnum):
     RootClaim = "RootClaim"
 
 
-# TODO add announce with also --reject and --remove
+async def list_proxies(
+    subtensor: "SubtensorInterface",
+    address: str,
+    json_output: bool,
+) -> None:
+    """
+    Lists all proxies for a given account by querying the chain.
+
+    Args:
+        subtensor: The SubtensorInterface instance.
+        address: The SS58 address to query proxies for.
+        json_output: Whether to output in JSON format.
+    """
+    try:
+        # Use subtensor.query() which automatically extracts .value
+        proxies_data = await subtensor.query(
+            module="Proxy",
+            storage_function="Proxies",
+            params=[address],
+        )
+
+        # Handle different possible data structures from the chain
+        # Chain returns: [(proxy_dicts_tuple,), deposit]
+        proxies_list = []
+        deposit = 0
+        if proxies_data:
+            # Handle tuple/list format (proxies_tuple, deposit)
+            if isinstance(proxies_data, (list, tuple)) and len(proxies_data) >= 2:
+                raw_proxies = proxies_data[0] if proxies_data[0] else ()
+                deposit = proxies_data[1] if len(proxies_data) > 1 else 0
+                # Unwrap nested tuples: (({...},),) -> [{...}]
+                if isinstance(raw_proxies, (list, tuple)):
+                    for item in raw_proxies:
+                        # Each item might be a tuple containing a dict
+                        if isinstance(item, (list, tuple)):
+                            for sub_item in item:
+                                if isinstance(sub_item, dict):
+                                    proxies_list.append(sub_item)
+                        elif isinstance(item, dict):
+                            proxies_list.append(item)
+
+        # Normalize proxy data - convert chain format to user-friendly format
+        normalized_proxies = []
+        for p in proxies_list:
+            if isinstance(p, dict):
+                # Handle delegate - might be bytes tuple or string
+                delegate_raw = p.get("delegate") or p.get("delegatee", "")
+                if isinstance(delegate_raw, (list, tuple)):
+                    # Convert bytes tuple to SS58 address
+                    # Unwrap nested tuple: ((bytes,),) -> bytes
+                    while (
+                        isinstance(delegate_raw, (list, tuple))
+                        and len(delegate_raw) == 1
+                    ):
+                        delegate_raw = delegate_raw[0]
+                    if (
+                        isinstance(delegate_raw, (list, tuple))
+                        and len(delegate_raw) == 32
+                    ):
+                        # Convert 32-byte tuple to SS58 address
+                        try:
+                            delegate = ss58_encode(bytes(delegate_raw), ss58_format=42)
+                        except Exception as e:
+                            # Fallback: try with substrateinterface
+                            try:
+                                from substrateinterface import Keypair
+
+                                delegate = Keypair(
+                                    public_key=bytes(delegate_raw)
+                                ).ss58_address
+                            except Exception:
+                                delegate = f"error:{e}:{delegate_raw}"
+                    else:
+                        delegate = str(delegate_raw)
+                else:
+                    delegate = str(delegate_raw) if delegate_raw else ""
+
+                # Handle proxy_type - might be dict like {'Any': ()} or string
+                proxy_type_raw = p.get("proxy_type") or p.get("proxyType", "")
+                if isinstance(proxy_type_raw, dict):
+                    # Extract the key as the proxy type
+                    proxy_type = (
+                        list(proxy_type_raw.keys())[0] if proxy_type_raw else ""
+                    )
+                else:
+                    proxy_type = str(proxy_type_raw) if proxy_type_raw else ""
+
+                normalized_proxies.append(
+                    {
+                        "delegate": delegate,
+                        "proxy_type": proxy_type,
+                        "delay": p.get("delay", 0),
+                    }
+                )
+
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": True,
+                    "address": address,
+                    "deposit": str(deposit),
+                    "proxies": normalized_proxies,
+                }
+            )
+        else:
+            if not normalized_proxies:
+                console.print(f"No proxies found for address {address}")
+                return
+
+            table = Table(
+                Column("Delegate", style="cyan"),
+                Column("Proxy Type", style="green"),
+                Column("Delay", style="yellow"),
+                title=f"Proxies for {address}",
+                caption=f"Total deposit: {deposit}",
+            )
+            for proxy in normalized_proxies:
+                table.add_row(
+                    proxy["delegate"],
+                    proxy["proxy_type"],
+                    str(proxy["delay"]),
+                )
+            console.print(table)
+
+    except Exception as e:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "message": str(e),
+                    "address": address,
+                    "proxies": None,
+                }
+            )
+        else:
+            print_error(f"Failed to list proxies: {e}")
+
+
+async def remove_all_proxies(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    prompt: bool,
+    decline: bool,
+    quiet: bool,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    period: int,
+    json_output: bool,
+) -> None:
+    """
+    Removes all proxies for the wallet's coldkey by calling the removeProxies extrinsic.
+
+    Args:
+        subtensor: The SubtensorInterface instance.
+        wallet: The wallet whose proxies will be removed.
+        prompt: Whether to prompt for confirmation.
+        decline: If True, automatically decline confirmation prompts.
+        quiet: If True, suppress output when auto-declining.
+        wait_for_inclusion: Wait for the transaction to be included in a block.
+        wait_for_finalization: Wait for the transaction to be finalized.
+        period: The era period for the extrinsic.
+        json_output: Whether to output in JSON format.
+    """
+    if prompt:
+        if not confirm_action(
+            "[bold red]Warning:[/bold red] This will remove ALL proxies for your account. "
+            "Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
+        ):
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": "Operation cancelled by user",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return None
+
+    if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
+        if not json_output:
+            print_error(ulw.message)
+        else:
+            json_console.print_json(
+                data={
+                    "success": ulw.success,
+                    "message": ulw.message,
+                    "extrinsic_identifier": None,
+                }
+            )
+        return None
+
+    call = await subtensor.substrate.compose_call(
+        call_module="Proxy",
+        call_function="remove_proxies",
+        call_params={},
+    )
+
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
+        call=call,
+        wallet=wallet,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        era={"period": period},
+    )
+
+    if success:
+        await print_extrinsic_id(receipt)
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": "All proxies removed successfully",
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
+                }
+            )
+        else:
+            console.print(
+                ":white_check_mark:[green]All proxies removed successfully![/green]"
+            )
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_identifier": None,
+                }
+            )
+        else:
+            print_error(f"Failed to remove all proxies: {msg}")
+
+
+async def reject_announcement(
+    subtensor: "SubtensorInterface",
+    wallet: "Wallet",
+    delegate: str,
+    call_hash: str,
+    prompt: bool,
+    decline: bool,
+    quiet: bool,
+    wait_for_inclusion: bool,
+    wait_for_finalization: bool,
+    period: int,
+    json_output: bool,
+) -> bool:
+    """
+    Rejects an announced proxy call by calling the reject_announcement extrinsic.
+
+    This removes a previously announced call from the pending announcements,
+    preventing it from being executed.
+
+    Args:
+        subtensor: The SubtensorInterface instance.
+        wallet: The wallet to sign the transaction (must be the real account).
+        delegate: The SS58 address of the delegate who made the announcement.
+        call_hash: The hash of the call to reject.
+        prompt: Whether to prompt for confirmation.
+        decline: If True, automatically decline confirmation prompts.
+        quiet: If True, suppress output when auto-declining.
+        wait_for_inclusion: Wait for the transaction to be included in a block.
+        wait_for_finalization: Wait for the transaction to be finalized.
+        period: The era period for the extrinsic.
+        json_output: Whether to output in JSON format.
+
+    Returns:
+        True if the rejection was successful, False otherwise.
+    """
+    if prompt:
+        if not confirm_action(
+            f"This will reject the announced call with hash {call_hash} from delegate {delegate}. "
+            "Do you want to proceed?",
+            decline=decline,
+            quiet=quiet,
+        ):
+            return False
+
+    if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
+        if not json_output:
+            print_error(ulw.message)
+        else:
+            json_console.print_json(
+                data={
+                    "success": ulw.success,
+                    "message": ulw.message,
+                    "extrinsic_identifier": None,
+                }
+            )
+        return False
+
+    call = await subtensor.substrate.compose_call(
+        call_module="Proxy",
+        call_function="reject_announcement",
+        call_params={
+            "delegate": delegate,
+            "call_hash": call_hash,
+        },
+    )
+
+    success, msg, receipt = await subtensor.sign_and_send_extrinsic(
+        call=call,
+        wallet=wallet,
+        wait_for_inclusion=wait_for_inclusion,
+        wait_for_finalization=wait_for_finalization,
+        era={"period": period},
+    )
+
+    if success:
+        await print_extrinsic_id(receipt)
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": "Announcement rejected successfully",
+                    "delegate": delegate,
+                    "call_hash": call_hash,
+                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
+                }
+            )
+        else:
+            console.print(
+                ":white_check_mark:[green]Announcement rejected successfully![/green]"
+            )
+        return True
+    else:
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": success,
+                    "message": msg,
+                    "extrinsic_identifier": None,
+                }
+            )
+        else:
+            print_error(f"Failed to reject announcement: {msg}")
+        return False
 
 
 async def submit_proxy(
@@ -85,6 +423,7 @@ async def submit_proxy(
         announce_only=announce_only,
     )
     if success:
+        await print_extrinsic_id(receipt)
         if json_output:
             json_console.print_json(
                 data={
@@ -94,8 +433,8 @@ async def submit_proxy(
                 }
             )
         else:
-            await print_extrinsic_id(receipt)
             console.print(":white_check_mark:[green]Success![/green]")
+
     else:
         if json_output:
             json_console.print_json(
@@ -169,6 +508,7 @@ async def create_proxy(
         ),
     )
     if success:
+        await print_extrinsic_id(receipt)
         created_pure = None
         created_spawner = None
         created_proxy_type = None
@@ -178,12 +518,47 @@ async def create_proxy(
                 created_pure = attrs["pure"]
                 created_spawner = attrs["who"]
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
+        arg_start = "`" if json_output else "[blue]"
+        arg_end = "`" if json_output else "[/blue]"
         msg = (
             f"Created pure '{created_pure}' "
             f"from spawner '{created_spawner}' "
             f"with proxy type '{created_proxy_type.value}' "
             f"with delay {delay}."
         )
+        console.print(msg)
+        if not prompt:
+            console.print(
+                f" You can add this to your config with {arg_start}"
+                f"btcli config add-proxy "
+                f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value} "
+                f"--delay {delay} --spawner {created_spawner}"
+                f"{arg_end}"
+            )
+        else:
+            if confirm_action(
+                "Would you like to add this to your address book?",
+                decline=decline,
+                quiet=quiet,
+            ):
+                proxy_name = Prompt.ask("Name this proxy")
+                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                with ProxyAddressBook.get_db() as (conn, cursor):
+                    ProxyAddressBook.add_entry(
+                        conn,
+                        cursor,
+                        name=proxy_name,
+                        ss58_address=created_pure,
+                        delay=delay,
+                        proxy_type=created_proxy_type.value,
+                        note=note,
+                        spawner=created_spawner,
+                    )
+                console.print(
+                    f"Added to Proxy Address Book.\n"
+                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                )
+                return None
 
         if json_output:
             json_console.print_json(
@@ -199,43 +574,7 @@ async def create_proxy(
                     "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
-        else:
-            await print_extrinsic_id(receipt)
-            console.print(msg)
-            if not prompt:
-                console.print(
-                    f" You can add this to your config with [blue]"
-                    f"btcli config add-proxy "
-                    f"--name <PROXY_NAME> --address {created_pure} --proxy-type {created_proxy_type.value} "
-                    f"--delay {delay} --spawner {created_spawner}"
-                    f"[/blue]"
-                )
-            else:
-                if confirm_action(
-                    "Would you like to add this to your address book?",
-                    decline=decline,
-                    quiet=quiet,
-                ):
-                    proxy_name = Prompt.ask("Name this proxy")
-                    note = Prompt.ask(
-                        "[Optional] Add a note for this proxy", default=""
-                    )
-                    with ProxyAddressBook.get_db() as (conn, cursor):
-                        ProxyAddressBook.add_entry(
-                            conn,
-                            cursor,
-                            name=proxy_name,
-                            ss58_address=created_pure,
-                            delay=delay,
-                            proxy_type=created_proxy_type.value,
-                            note=note,
-                            spawner=created_spawner,
-                        )
-                    console.print(
-                        f"Added to Proxy Address Book.\n"
-                        f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
-                    )
-                    return None
+
     else:
         if json_output:
             json_console.print_json(
@@ -370,6 +709,7 @@ async def add_proxy(
         era={"period": period},
     )
     if success:
+        await print_extrinsic_id(receipt)
         delegatee = None
         delegator = None
         created_proxy_type = None
@@ -380,12 +720,46 @@ async def add_proxy(
                 delegator = attrs["delegator"]
                 created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
                 break
+        arg_start = "`" if json_output else "[blue]"
+        arg_end = "`" if json_output else "[/blue]"
         msg = (
             f"Added proxy delegatee '{delegatee}' "
             f"from delegator '{delegator}' "
             f"with proxy type '{created_proxy_type.value}' "
             f"with delay {delay}."
         )
+        console.print(msg)
+        if not prompt:
+            console.print(
+                f" You can add this to your config with {arg_start}"
+                f"btcli config add-proxy "
+                f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value} --delegator "
+                f"{delegator} --delay {delay}"
+                f"{arg_end}"
+            )
+        else:
+            if confirm_action(
+                "Would you like to add this to your address book?",
+                decline=decline,
+                quiet=quiet,
+            ):
+                proxy_name = Prompt.ask("Name this proxy")
+                note = Prompt.ask("[Optional] Add a note for this proxy", default="")
+                with ProxyAddressBook.get_db() as (conn, cursor):
+                    ProxyAddressBook.add_entry(
+                        conn,
+                        cursor,
+                        name=proxy_name,
+                        ss58_address=delegator,
+                        delay=delay,
+                        proxy_type=created_proxy_type.value,
+                        note=note,
+                        spawner=delegatee,
+                    )
+                console.print(
+                    f"Added to Proxy Address Book.\n"
+                    f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
+                )
 
         if json_output:
             json_console.print_json(
@@ -401,42 +775,7 @@ async def add_proxy(
                     "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
                 }
             )
-        else:
-            await print_extrinsic_id(receipt)
-            console.print(msg)
-            if not prompt:
-                console.print(
-                    f" You can add this to your config with [blue]"
-                    f"btcli config add-proxy "
-                    f"--name <PROXY_NAME> --address {delegatee} --proxy-type {created_proxy_type.value} --delegator "
-                    f"{delegator} --delay {delay}"
-                    f"[/blue]"
-                )
-            else:
-                if confirm_action(
-                    "Would you like to add this to your address book?",
-                    decline=decline,
-                    quiet=quiet,
-                ):
-                    proxy_name = Prompt.ask("Name this proxy")
-                    note = Prompt.ask(
-                        "[Optional] Add a note for this proxy", default=""
-                    )
-                    with ProxyAddressBook.get_db() as (conn, cursor):
-                        ProxyAddressBook.add_entry(
-                            conn,
-                            cursor,
-                            name=proxy_name,
-                            ss58_address=delegator,
-                            delay=delay,
-                            proxy_type=created_proxy_type.value,
-                            note=note,
-                            spawner=delegatee,
-                        )
-                    console.print(
-                        f"Added to Proxy Address Book.\n"
-                        f"Show this information with [{COLORS.G.ARG}]btcli config proxies[/{COLORS.G.ARG}]"
-                    )
+
     else:
         if json_output:
             json_console.print_json(

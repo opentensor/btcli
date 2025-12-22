@@ -1237,6 +1237,12 @@ class CLIManager:
             "execute",
             rich_help_panel=HELP_PANELS["PROXY"]["MGMT"],
         )(self.proxy_execute_announced)
+        self.proxy_app.command("list", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_list
+        )
+        self.proxy_app.command("reject", rich_help_panel=HELP_PANELS["PROXY"]["MGMT"])(
+            self.proxy_reject
+        )
 
         # Sub command aliases
         # Wallet
@@ -9449,13 +9455,19 @@ class CLIManager:
     def proxy_remove(
         self,
         delegate: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                prompt="Enter the SS58 address of the delegate to remove, e.g. 5dxds...",
                 help="The SS58 address of the delegate to remove",
             ),
-        ] = "",
+        ] = None,
+        all_proxies: Annotated[
+            bool,
+            typer.Option(
+                "--all",
+                help="Remove all proxies for the account",
+            ),
+        ] = False,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
@@ -9487,10 +9499,10 @@ class CLIManager:
         [green]$[/green] btcli proxy remove --all
 
         """
-        # TODO should add a --all flag to call Proxy.remove_proxies ?
         logger.debug(
             "args:\n"
             f"delegate: {delegate}\n"
+            f"all_proxies: {all_proxies}\n"
             f"network: {network}\n"
             f"proxy_type: {proxy_type}\n"
             f"delay: {delay}\n"
@@ -9499,6 +9511,31 @@ class CLIManager:
             f"era: {period}\n"
         )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+
+        # Validate that either --all or --delegate is provided, but not both
+        if all_proxies and delegate:
+            err_console.print(
+                ":cross_mark:[red]Cannot use both --all and --delegate. "
+                "Use --all to remove all proxies or --delegate to remove a specific proxy.[/red]"
+            )
+            raise typer.Exit(1)
+
+        if not all_proxies and not delegate:
+            if prompt:
+                delegate = Prompt.ask(
+                    "Enter the SS58 address of the delegate to remove, e.g. 5dxds..."
+                )
+                if not is_valid_ss58_address(delegate):
+                    err_console.print(
+                        f":cross_mark:[red]Invalid SS58 address: {delegate}[/red]"
+                    )
+                    raise typer.Exit(1)
+            else:
+                err_console.print(
+                    ":cross_mark:[red]Either --delegate or --all must be specified.[/red]"
+                )
+                raise typer.Exit(1)
+
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
             wallet_path=wallet_path,
@@ -9506,22 +9543,38 @@ class CLIManager:
             ask_for=[WO.NAME, WO.PATH],
             validate=WV.WALLET,
         )
-        return self._run_command(
-            proxy_commands.remove_proxy(
-                subtensor=self.initialize_chain(network),
-                wallet=wallet,
-                delegate=delegate,
-                proxy_type=proxy_type,
-                delay=delay,
-                prompt=prompt,
-                decline=decline,
-                quiet=quiet,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-                period=period,
-                json_output=json_output,
+
+        if all_proxies:
+            return self._run_command(
+                proxy_commands.remove_all_proxies(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
             )
-        )
+        else:
+            return self._run_command(
+                proxy_commands.remove_proxy(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    proxy_type=proxy_type,
+                    delegate=delegate,
+                    delay=delay,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
+            )
 
     def proxy_kill(
         self,
@@ -9810,6 +9863,266 @@ class CLIManager:
                 json_output=json_output,
             )
         )
+        if success and got_call_from_db is not None:
+            with ProxyAnnouncements.get_db() as (conn, cursor):
+                ProxyAnnouncements.mark_as_executed(conn, cursor, got_call_from_db)
+
+    def proxy_list(
+        self,
+        address: Annotated[
+            Optional[str],
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address to list proxies for. If not provided, uses the wallet's coldkey.",
+            ),
+        ] = None,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Lists all proxies for an account.
+
+        Queries the chain to display all proxy delegates configured for the specified address,
+        including their proxy types and delay settings.
+
+        [bold]Common Examples:[/bold]
+        1. List proxies for your wallet
+        [green]$[/green] btcli proxy list
+
+        2. List proxies for a specific address
+        [green]$[/green] btcli proxy list --address 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+
+        # If no address provided, use wallet's coldkey
+        if address is None:
+            wallet = self.wallet_ask(
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.NONE,
+            )
+            address = wallet.coldkeypub.ss58_address
+
+        logger.debug(f"args:\naddress: {address}\nnetwork: {network}\n")
+
+        return self._run_command(
+            proxy_commands.list_proxies(
+                subtensor=self.initialize_chain(network),
+                address=address,
+                json_output=json_output,
+            )
+        )
+
+    def proxy_reject(
+        self,
+        delegate: Annotated[
+            Optional[str],
+            typer.Option(
+                callback=is_valid_ss58_address_param,
+                help="The SS58 address of the delegate who made the announcement. If omitted, the wallet's coldkey ss58 is used.",
+            ),
+        ] = None,
+        call_hash: Annotated[
+            Optional[str],
+            typer.Option(
+                help="The hash of the announced call to reject",
+            ),
+        ] = None,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: str = Options.wallet_name,
+        wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
+        prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        period: int = Options.period,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Rejects an announced proxy call.
+
+        Removes a previously announced call from the pending announcements, preventing it
+        from being executed. This must be called by the real account (the account that
+        granted the proxy permissions).
+
+        [bold]Common Examples:[/bold]
+        1. Reject an announced call
+        [green]$[/green] btcli proxy reject --delegate 5GDel... --call-hash 0x1234...
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+
+        logger.debug(
+            "args:\n"
+            f"delegate: {delegate}\n"
+            f"call_hash: {call_hash}\n"
+            f"network: {network}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"era: {period}\n"
+        )
+
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+
+        delegate = delegate or wallet.coldkeypub.ss58_address
+
+        # Try to find the announcement in the local DB
+        got_call_from_db: Optional[int] = None
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            announcements = ProxyAnnouncements.read_rows(conn, cursor)
+
+        if not call_hash:
+            potential_call_matches = []
+            for row in announcements:
+                (
+                    id_,
+                    address,
+                    epoch_time,
+                    block_,
+                    call_hash_,
+                    call_hex_,
+                    call_serialized,
+                    executed_int,
+                ) = row
+                executed = bool(executed_int)
+                if address == delegate and executed is False:
+                    potential_call_matches.append(row)
+
+            if len(potential_call_matches) == 0:
+                if not prompt:
+                    if json_output:
+                        json_console.print_json(
+                            data={
+                                "success": False,
+                                "message": f"No pending announcements found for delegate {delegate}. Please provide --call-hash explicitly.",
+                                "extrinsic_identifier": None,
+                            }
+                        )
+                    else:
+                        err_console.print(
+                            f":cross_mark:[red]Error: No pending announcements found for delegate {delegate}. "
+                            f"Please provide --call-hash explicitly."
+                        )
+                    return
+                call_hash = Prompt.ask(
+                    "Enter the call hash of the announcement to reject"
+                )
+            elif len(potential_call_matches) == 1:
+                call_hash = potential_call_matches[0][4]
+                got_call_from_db = potential_call_matches[0][0]
+                console.print(f"Found announcement with call hash: {call_hash}")
+            else:
+                if not prompt:
+                    if json_output:
+                        json_console.print_json(
+                            data={
+                                "success": False,
+                                "message": f"Multiple pending announcements found for delegate {delegate}. Please provide --call-hash explicitly.",
+                                "extrinsic_identifier": None,
+                            }
+                        )
+                    else:
+                        err_console.print(
+                            f":cross_mark:[red]Error: Multiple pending announcements found for delegate {delegate}. "
+                            f"Please run without {arg__('--no-prompt')} to select one, or provide --call-hash explicitly."
+                        )
+                    return
+                else:
+                    console.print(
+                        f"Found {len(potential_call_matches)} pending announcements. "
+                        f"Please select the one to reject:"
+                    )
+                    for row in potential_call_matches:
+                        (
+                            id_,
+                            address,
+                            epoch_time,
+                            block_,
+                            call_hash_,
+                            call_hex_,
+                            call_serialized,
+                            executed_int,
+                        ) = row
+                        console.print(
+                            f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\n"
+                            f"Call Hash: {call_hash_}\nCall:\n"
+                        )
+                        console.print_json(call_serialized)
+                        if confirm_action(
+                            "Is this the announcement to reject?",
+                            decline=decline,
+                            quiet=quiet,
+                        ):
+                            call_hash = call_hash_
+                            got_call_from_db = id_
+                            break
+                    if call_hash is None:
+                        if json_output:
+                            json_console.print_json(
+                                data={
+                                    "success": False,
+                                    "message": "No announcement selected.",
+                                    "extrinsic_identifier": None,
+                                }
+                            )
+                        else:
+                            console.print("No announcement selected.")
+                        return
+        else:
+            # call_hash provided, try to find it in DB
+            for row in announcements:
+                (
+                    id_,
+                    address,
+                    epoch_time,
+                    block_,
+                    call_hash_,
+                    call_hex_,
+                    call_serialized,
+                    executed_int,
+                ) = row
+                executed = bool(executed_int)
+                if (
+                    call_hash_ == call_hash
+                    and address == delegate
+                    and executed is False
+                ):
+                    got_call_from_db = id_
+                    break
+
+        success = self._run_command(
+            proxy_commands.reject_announcement(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=delegate,
+                call_hash=call_hash,
+                prompt=prompt,
+                decline=decline,
+                quiet=quiet,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                period=period,
+                json_output=json_output,
+            )
+        )
+
         if success and got_call_from_db is not None:
             with ProxyAnnouncements.get_db() as (conn, cursor):
                 ProxyAnnouncements.mark_as_executed(conn, cursor, got_call_from_db)

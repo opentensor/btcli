@@ -11,6 +11,11 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
 from unittest.mock import AsyncMock, patch, MagicMock, Mock
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.commands.proxy import (
+    list_proxies,
+    remove_all_proxies,
+    reject_announcement,
+)
 
 
 def test_parse_mnemonic():
@@ -805,3 +810,640 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
         )
 
         mock_get_current.assert_not_called()
+
+
+# ============================================================================
+# Tests for proxy list command
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_list_proxies_success():
+    """Test that list_proxies correctly queries and displays proxies"""
+    mock_subtensor = AsyncMock()
+
+    # Mock the query result - list_proxies uses subtensor.query() not substrate.query
+    # Returns tuple: (proxies_list, deposit)
+    mock_subtensor.query = AsyncMock(
+        return_value=(
+            [
+                {"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0},
+                {"delegate": "5GDel2...", "proxy_type": "Transfer", "delay": 100},
+            ],
+            1000000,  # deposit
+        )
+    )
+
+    with patch("bittensor_cli.src.commands.proxy.console") as mock_console:
+        await list_proxies(
+            subtensor=mock_subtensor,
+            address="5GTest...",
+            json_output=False,
+        )
+
+        # Verify query was called correctly
+        mock_subtensor.query.assert_awaited_once_with(
+            module="Proxy",
+            storage_function="Proxies",
+            params=["5GTest..."],
+        )
+
+        # Verify console output was called (table was printed)
+        assert mock_console.print.called
+
+
+@pytest.mark.asyncio
+async def test_list_proxies_json_output():
+    """Test that list_proxies outputs JSON correctly"""
+    mock_subtensor = AsyncMock()
+
+    # Mock the query result - list_proxies uses subtensor.query()
+    mock_subtensor.query = AsyncMock(
+        return_value=(
+            [{"delegate": "5GDel1...", "proxy_type": "Staking", "delay": 0}],
+            500000,
+        )
+    )
+
+    with patch("bittensor_cli.src.commands.proxy.json_console") as mock_json_console:
+        await list_proxies(
+            subtensor=mock_subtensor,
+            address="5GTest...",
+            json_output=True,
+        )
+
+        # Verify JSON output was called
+        mock_json_console.print_json.assert_called_once()
+        call_args = mock_json_console.print_json.call_args
+        data = call_args.kwargs["data"]
+        assert data["success"] is True
+        assert data["address"] == "5GTest..."
+        assert len(data["proxies"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_proxies_empty():
+    """Test that list_proxies handles empty proxy list"""
+    mock_subtensor = AsyncMock()
+
+    # Mock the query result - empty proxies list
+    mock_subtensor.query = AsyncMock(return_value=([], 0))
+
+    with patch("bittensor_cli.src.commands.proxy.console") as mock_console:
+        await list_proxies(
+            subtensor=mock_subtensor,
+            address="5GTest...",
+            json_output=False,
+        )
+
+        # Verify "no proxies found" message
+        mock_console.print.assert_called_once()
+        assert "No proxies found" in str(mock_console.print.call_args)
+
+
+@pytest.mark.asyncio
+async def test_list_proxies_error_handling():
+    """Test that list_proxies handles errors gracefully"""
+    mock_subtensor = AsyncMock()
+    mock_subtensor.query = AsyncMock(side_effect=Exception("Connection error"))
+
+    with patch("bittensor_cli.src.commands.proxy.print_error") as mock_print_error:
+        await list_proxies(
+            subtensor=mock_subtensor,
+            address="5GTest...",
+            json_output=False,
+        )
+
+        # Verify error was printed
+        mock_print_error.assert_called_once()
+        assert "Failed to list proxies" in str(mock_print_error.call_args)
+
+
+# ============================================================================
+# Tests for proxy remove --all command
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_remove_all_proxies_success():
+    """Test that remove_all_proxies successfully removes all proxies"""
+    mock_subtensor = MagicMock()
+    mock_substrate = AsyncMock()
+    mock_subtensor.substrate = mock_substrate
+
+    mock_call = MagicMock()
+    mock_substrate.compose_call = AsyncMock(return_value=mock_call)
+
+    mock_receipt = AsyncMock()
+    mock_receipt.get_extrinsic_identifier = AsyncMock(return_value="12345-1")
+    mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+        return_value=(True, "", mock_receipt)
+    )
+
+    mock_wallet = MagicMock()
+
+    with (
+        patch("bittensor_cli.src.commands.proxy.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.commands.proxy.console") as mock_console,
+        patch("bittensor_cli.src.commands.proxy.print_extrinsic_id"),
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+
+        await remove_all_proxies(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            prompt=False,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        # Verify compose_call was called with remove_proxies
+        mock_substrate.compose_call.assert_awaited_once_with(
+            call_module="Proxy",
+            call_function="remove_proxies",
+            call_params={},
+        )
+
+        # Verify success message
+        assert mock_console.print.called
+        assert "All proxies removed" in str(mock_console.print.call_args)
+
+
+@pytest.mark.asyncio
+async def test_remove_all_proxies_with_prompt_declined():
+    """Test that remove_all_proxies exits when user declines prompt"""
+    mock_subtensor = MagicMock()
+    mock_wallet = MagicMock()
+
+    with patch("bittensor_cli.src.commands.proxy.confirm_action") as mock_confirm:
+        mock_confirm.return_value = False
+
+        result = await remove_all_proxies(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            prompt=True,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        assert result is None
+        mock_confirm.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_remove_all_proxies_unlock_failure():
+    """Test that remove_all_proxies handles wallet unlock failure"""
+    mock_subtensor = MagicMock()
+    mock_wallet = MagicMock()
+
+    with (
+        patch("bittensor_cli.src.commands.proxy.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.commands.proxy.print_error") as mock_print_error,
+    ):
+        mock_unlock.return_value = MagicMock(success=False, message="Wrong password")
+
+        result = await remove_all_proxies(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            prompt=False,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        assert result is None
+        mock_print_error.assert_called_once()
+
+
+# ============================================================================
+# Tests for proxy reject command
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_reject_announcement_success():
+    """Test that reject_announcement successfully rejects an announcement"""
+    mock_subtensor = MagicMock()
+    mock_substrate = AsyncMock()
+    mock_subtensor.substrate = mock_substrate
+
+    mock_call = MagicMock()
+    mock_substrate.compose_call = AsyncMock(return_value=mock_call)
+
+    mock_receipt = AsyncMock()
+    mock_receipt.get_extrinsic_identifier = AsyncMock(return_value="12345-1")
+    mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+        return_value=(True, "", mock_receipt)
+    )
+
+    mock_wallet = MagicMock()
+
+    with (
+        patch("bittensor_cli.src.commands.proxy.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.commands.proxy.console") as mock_console,
+        patch("bittensor_cli.src.commands.proxy.print_extrinsic_id"),
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+
+        await reject_announcement(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate="5GDelegate...",
+            call_hash="0x1234abcd",
+            prompt=False,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        # Verify compose_call was called with reject_announcement
+        mock_substrate.compose_call.assert_awaited_once_with(
+            call_module="Proxy",
+            call_function="reject_announcement",
+            call_params={
+                "delegate": "5GDelegate...",
+                "call_hash": "0x1234abcd",
+            },
+        )
+
+        # Verify success message
+        assert mock_console.print.called
+        assert "rejected successfully" in str(mock_console.print.call_args)
+
+
+@pytest.mark.asyncio
+async def test_reject_announcement_json_output():
+    """Test that reject_announcement outputs JSON correctly"""
+    mock_subtensor = MagicMock()
+    mock_substrate = AsyncMock()
+    mock_subtensor.substrate = mock_substrate
+
+    mock_call = MagicMock()
+    mock_substrate.compose_call = AsyncMock(return_value=mock_call)
+
+    mock_receipt = AsyncMock()
+    mock_receipt.get_extrinsic_identifier = AsyncMock(return_value="12345-1")
+    mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+        return_value=(True, "", mock_receipt)
+    )
+
+    mock_wallet = MagicMock()
+
+    with (
+        patch("bittensor_cli.src.commands.proxy.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.commands.proxy.json_console") as mock_json_console,
+        patch("bittensor_cli.src.commands.proxy.print_extrinsic_id"),
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+
+        await reject_announcement(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate="5GDelegate...",
+            call_hash="0x1234abcd",
+            prompt=False,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=True,
+        )
+
+        # Verify JSON output
+        mock_json_console.print_json.assert_called_once()
+        call_args = mock_json_console.print_json.call_args
+        data = call_args.kwargs["data"]
+        assert data["success"] is True
+        assert data["delegate"] == "5GDelegate..."
+        assert data["call_hash"] == "0x1234abcd"
+
+
+@pytest.mark.asyncio
+async def test_reject_announcement_with_prompt_declined():
+    """Test that reject_announcement exits when user declines prompt"""
+    mock_subtensor = MagicMock()
+    mock_wallet = MagicMock()
+
+    with patch("bittensor_cli.src.commands.proxy.confirm_action") as mock_confirm:
+        mock_confirm.return_value = False
+
+        result = await reject_announcement(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate="5GDelegate...",
+            call_hash="0x1234abcd",
+            prompt=True,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        # Function returns False when user declines confirmation
+        assert result is False
+        mock_confirm.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_reject_announcement_failure():
+    """Test that reject_announcement handles extrinsic failure"""
+    mock_subtensor = MagicMock()
+    mock_substrate = AsyncMock()
+    mock_subtensor.substrate = mock_substrate
+
+    mock_call = MagicMock()
+    mock_substrate.compose_call = AsyncMock(return_value=mock_call)
+    mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+        return_value=(False, "Announcement not found", None)
+    )
+
+    mock_wallet = MagicMock()
+
+    with (
+        patch("bittensor_cli.src.commands.proxy.unlock_key") as mock_unlock,
+        patch("bittensor_cli.src.commands.proxy.print_error") as mock_print_error,
+    ):
+        mock_unlock.return_value = MagicMock(success=True)
+
+        await reject_announcement(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate="5GDelegate...",
+            call_hash="0x1234abcd",
+            prompt=False,
+            decline=False,
+            quiet=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            json_output=False,
+        )
+
+        # Verify error message
+        mock_print_error.assert_called_once()
+        assert "Failed to reject" in str(mock_print_error.call_args)
+
+
+# ============================================================================
+# Tests for CLI proxy_remove with --all flag
+# ============================================================================
+
+
+def test_proxy_remove_all_and_delegate_mutually_exclusive():
+    """Test that --all and --delegate cannot be used together"""
+    cli_manager = CLIManager()
+
+    with pytest.raises(typer.Exit):
+        cli_manager.proxy_remove(
+            delegate="5GDelegate...",
+            all_proxies=True,  # Both specified
+            network=None,
+            proxy_type=None,
+            delay=0,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            prompt=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+    # Error message is printed to stderr, test passes if typer.Exit is raised
+
+
+def test_proxy_remove_requires_delegate_or_all():
+    """Test that either --delegate or --all must be specified"""
+    cli_manager = CLIManager()
+
+    with pytest.raises(typer.Exit):
+        cli_manager.proxy_remove(
+            delegate=None,
+            all_proxies=False,  # Neither specified
+            network=None,
+            proxy_type=None,
+            delay=0,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            prompt=False,  # No prompt to ask for delegate
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+    # Error message is printed to stderr, test passes if typer.Exit is raised
+
+
+def test_proxy_remove_with_all_flag_calls_remove_all_proxies():
+    """Test that --all flag calls remove_all_proxies"""
+    cli_manager = CLIManager()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain") as mock_init_chain,
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+        patch("bittensor_cli.cli.proxy_commands.remove_all_proxies"),
+    ):
+        mock_wallet = Mock()
+        mock_wallet_ask.return_value = mock_wallet
+        mock_subtensor = Mock()
+        mock_init_chain.return_value = mock_subtensor
+
+        cli_manager.proxy_remove(
+            delegate=None,
+            all_proxies=True,
+            network=None,
+            proxy_type=None,
+            delay=0,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            prompt=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Verify _run_command was called (which wraps remove_all_proxies)
+        mock_run_command.assert_called_once()
+
+
+def test_proxy_remove_with_delegate_calls_remove_proxy():
+    """Test that --delegate flag calls remove_proxy"""
+    cli_manager = CLIManager()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain") as mock_init_chain,
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+        patch("bittensor_cli.cli.proxy_commands.remove_proxy"),
+    ):
+        mock_wallet = Mock()
+        mock_wallet_ask.return_value = mock_wallet
+        mock_subtensor = Mock()
+        mock_init_chain.return_value = mock_subtensor
+
+        cli_manager.proxy_remove(
+            delegate="5GDelegate...",
+            all_proxies=False,
+            network=None,
+            proxy_type=None,
+            delay=0,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            prompt=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Verify _run_command was called
+        mock_run_command.assert_called_once()
+
+
+# ============================================================================
+# Tests for CLI proxy_list command
+# ============================================================================
+
+
+def test_proxy_list_with_address():
+    """Test that proxy_list uses provided address"""
+    cli_manager = CLIManager()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "initialize_chain") as mock_init_chain,
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+        patch("bittensor_cli.cli.proxy_commands.list_proxies"),
+    ):
+        mock_subtensor = Mock()
+        mock_init_chain.return_value = mock_subtensor
+
+        cli_manager.proxy_list(
+            address="5GAddress...",
+            network=None,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Verify _run_command was called
+        mock_run_command.assert_called_once()
+
+
+def test_proxy_list_without_address_uses_wallet():
+    """Test that proxy_list uses wallet coldkey when no address provided"""
+    cli_manager = CLIManager()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain") as mock_init_chain,
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+    ):
+        mock_wallet = Mock()
+        mock_wallet.coldkeypub.ss58_address = "5GWalletColdkey..."
+        mock_wallet_ask.return_value = mock_wallet
+        mock_subtensor = Mock()
+        mock_init_chain.return_value = mock_subtensor
+
+        cli_manager.proxy_list(
+            address=None,  # No address provided
+            network=None,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Verify wallet_ask was called to get wallet
+        mock_wallet_ask.assert_called_once()
+        # Verify _run_command was called
+        mock_run_command.assert_called_once()
+
+
+# ============================================================================
+# Tests for CLI proxy_reject command
+# ============================================================================
+
+
+def test_proxy_reject_calls_reject_announcement():
+    """Test that proxy_reject calls reject_announcement"""
+    cli_manager = CLIManager()
+
+    # Create a mock context manager for the database
+    mock_db_context = MagicMock()
+    mock_db_context.__enter__ = MagicMock(return_value=(MagicMock(), MagicMock()))
+    mock_db_context.__exit__ = MagicMock(return_value=False)
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
+        patch.object(cli_manager, "initialize_chain") as mock_init_chain,
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+        patch("bittensor_cli.cli.proxy_commands.reject_announcement"),
+        patch(
+            "bittensor_cli.cli.ProxyAnnouncements.get_db", return_value=mock_db_context
+        ),
+    ):
+        mock_wallet = Mock()
+        mock_wallet.coldkeypub = Mock()
+        mock_wallet.coldkeypub.ss58_address = "5GDelegate..."
+        mock_wallet_ask.return_value = mock_wallet
+        mock_subtensor = Mock()
+        mock_init_chain.return_value = mock_subtensor
+
+        cli_manager.proxy_reject(
+            delegate="5GDelegate...",
+            call_hash="0x1234abcd",
+            network=None,
+            wallet_name="test",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test",
+            prompt=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=16,
+            quiet=False,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Verify _run_command was called
+        mock_run_command.assert_called_once()
