@@ -15,6 +15,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     unlock_key,
     print_extrinsic_id,
     json_console,
@@ -209,7 +210,7 @@ async def set_claim_type(
     if success:
         ext_id = await ext_receipt.get_extrinsic_identifier()
         msg = "Successfully changed claim type"
-        console.print(f":white_heavy_check_mark: [green]{msg}[/green]")
+        print_success(msg)
         await print_extrinsic_id(ext_receipt)
         if json_output:
             json_console.print(

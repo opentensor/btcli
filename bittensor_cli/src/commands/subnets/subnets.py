@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_and_populate_table,
+    print_success,
     print_verbose,
     print_error,
     get_metadata_table,
@@ -297,8 +298,8 @@ async def register_subnetwork_extrinsic(
                     ""
                 )
             else:
-                console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                print_success(
+                    f"[dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
                 )
             return True, int(attributes[0]), ext_id
 
@@ -2626,8 +2627,8 @@ async def set_identity(
             return False, None
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
+        print_success(
+            "[dark_sea_green3]Successfully set subnet identity\n"
         )
 
         subnet = await subtensor.subnet(netuid)
@@ -2811,8 +2812,8 @@ async def start_subnet(
 
         if success:
             await print_extrinsic_id(response)
-            console.print(
-                f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
+            print_success(
+                f"Successfully started subnet {netuid}'s emission schedule."
             )
             return True
         else:
@@ -2895,7 +2896,7 @@ async def set_symbol(
                 }
             )
         else:
-            console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
+            print_success(f"[dark_sea_green3] {message}\n")
         return True
     else:
         if json_output:

@@ -37,9 +37,9 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     convert_blocks_to_time,
-    err_console,
     json_console,
     print_error,
+    print_success,
     print_verbose,
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
@@ -137,9 +137,7 @@ async def associate_hotkey(
         )
 
         if not success:
-            console.print(
-                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
-            )
+            print_error(f"Failed to associate hotkey: {err_msg}")
             return False
 
         console.print(
@@ -1843,7 +1841,7 @@ async def set_id(
                 json_console.print(json.dumps(output_dict))
             return False
         else:
-            console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
+            print_success("[dark_sea_green3]Success!")
             ext_id = await ext_receipt.get_extrinsic_identifier()
             await print_extrinsic_id(ext_receipt)
             output_dict["success"] = True
@@ -2117,8 +2115,8 @@ async def schedule_coldkey_swap(
             print_error(f"Failed to schedule coldkey swap: {err_msg}")
             return False
 
-        console.print(
-            ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
+        print_success(
+            "Successfully scheduled coldkey swap"
         )
         await print_extrinsic_id(ext_receipt)
         for event in await ext_receipt.triggered_events:

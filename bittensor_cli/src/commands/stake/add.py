@@ -20,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
+    print_success,
     print_verbose,
     unlock_key,
     json_console,
@@ -192,10 +193,7 @@ async def stake_add(
                     block_hash=block_hash,
                 ),
             )
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Finalized. "
-                f"Stake added to netuid: {netuid_}[/dark_sea_green3]"
-            )
+            print_success(f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_}[/dark_sea_green3]")
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
@@ -287,10 +285,7 @@ async def stake_add(
                     block_hash=new_block_hash,
                 ),
             )
-            console.print(
-                f":white_heavy_check_mark: "
-                f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
-            )
+            print_success(f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]")
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
                 f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"

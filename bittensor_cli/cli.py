@@ -57,6 +57,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import (
 from bittensor_cli.src.bittensor.utils import (
     console,
     err_console,
+    print_success,
     verbose_console,
     json_console,
     is_valid_ss58_address,
@@ -6519,7 +6520,6 @@ class CLIManager:
         if mechanism_count == current_count:
             visible_count = max(mechanism_count - 1, 0)
             message = (
-                ":white_heavy_check_mark: "
                 f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
                 f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
             )
@@ -6534,7 +6534,7 @@ class CLIManager:
                     )
                 )
             else:
-                console.print(message)
+                print_success(message)
             return True
 
         wallet = self.wallet_ask(

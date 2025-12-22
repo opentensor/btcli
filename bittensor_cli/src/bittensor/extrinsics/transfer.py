@@ -12,6 +12,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     print_verbose,
     is_valid_bittensor_address_or_public_key,
     print_error,
@@ -219,11 +220,12 @@ async def transfer_extrinsic(
         success, block_hash, err_msg, ext_receipt = await do_transfer()
 
         if success:
-            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-            console.print(f"[green]Block Hash: {block_hash}[/green]")
+            print_success(
+                f"Finalized. Block Hash: {block_hash}"
+            )
 
         else:
-            console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
 
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):

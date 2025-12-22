@@ -23,6 +23,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     print_verbose,
     normalize_hyperparameters,
     unlock_key,
@@ -410,15 +411,13 @@ async def set_hyperparameter_extrinsic(
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
         if arbitrary_extrinsic:
-            console.print(
-                f":white_heavy_check_mark: "
+            print_success(
                 f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
             )
             return True, "", ext_id
         # Successful registration, final check for membership
         else:
-            console.print(
-                f":white_heavy_check_mark: "
+            print_success(
                 f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
             )
             return True, "", ext_id
@@ -641,7 +640,7 @@ async def vote_senate_extrinsic(
                     vote_data.ayes.count(hotkey_ss58) > 0
                     or vote_data.nays.count(hotkey_ss58) > 0
                 ):
-                    console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
+                    print_success("Vote cast.")
                     return True
                 else:
                     # hotkey not found in ayes/nays
@@ -729,9 +728,7 @@ async def set_take_extrinsic(
         print_error(err)
         ext_id = None
     else:
-        console.print(
-            ":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]"
-        )
+        print_success("Success")
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
     return success, ext_id
@@ -1293,7 +1290,7 @@ async def trim(
             )
         else:
             await print_extrinsic_id(ext_receipt)
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]{msg}[/dark_sea_green3]"
+            print_success(
+                f"[dark_sea_green3]{msg}[/dark_sea_green3]"
             )
         return True
