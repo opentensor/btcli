@@ -3927,7 +3927,7 @@ class CLIManager:
                 decline=decline,
                 quiet=quiet,
             ):
-                console.print(":cross_mark: Aborted!")
+                print_error("Aborted!")
                 raise typer.Exit()
 
         identity = prompt_for_identity(
