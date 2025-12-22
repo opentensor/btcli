@@ -29,7 +29,7 @@ from bittensor_wallet.utils import (
     is_valid_ss58_address as btwallet_is_valid_ss58_address,
 )
 from rich import box
-from rich.prompt import Confirm, FloatPrompt, Prompt, IntPrompt
+from rich.prompt import FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from rich.tree import Tree
 from typing_extensions import Annotated
@@ -43,6 +43,8 @@ from bittensor_cli.src import (
     Constants,
     COLORS,
     HYPERPARAMS,
+    HYPERPARAMS_METADATA,
+    RootSudoOnly,
     WalletOptions,
 )
 from bittensor_cli.src.bittensor import utils
@@ -71,6 +73,7 @@ from bittensor_cli.src.bittensor.utils import (
     ensure_address_book_tables_exist,
     ProxyAddressBook,
     ProxyAnnouncements,
+    confirm_action,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -104,6 +107,7 @@ from bittensor_cli.src.commands.subnets import (
     subnets,
     mechanisms as subnet_mechanisms,
 )
+from bittensor_cli.src.commands.axon import axon
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -235,6 +239,15 @@ class Options:
         "--wallet.hotkey",
         help="Hotkey name or SS58 address of the hotkey",
     )
+    coldkey_ss58 = typer.Option(
+        None,
+        "--ss58",
+        "--coldkey-ss58",
+        "--coldkey_ss58",
+        "--key",
+        "-k",
+        help="Coldkey address of the wallet",
+    )
     mnemonic = typer.Option(
         None,
         help='Mnemonic used to regenerate your key. For example: "horse cart dog ..."',
@@ -337,6 +350,11 @@ class Options:
         " /--no_prompt",
         " /-y",
         help="Enable or disable interactive prompts.",
+    )
+    decline = typer.Option(
+        False,
+        "--no",
+        help="Automatically decline any confirmation prompts. The prompt message is still displayed unless --quiet is specified.",
     )
     verbose = typer.Option(
         False,
@@ -528,7 +546,7 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
             try:
                 return int(answer)
             except ValueError:
-                err_console.print(f"Invalid netuid: {answer}")
+                print_error(f"Invalid netuid: {answer}")
                 return get_optional_netuid(None, False)
     else:
         return netuid
@@ -557,12 +575,12 @@ def parse_mnemonic(mnemonic: str) -> str:
             key=lambda x: int(x[0]),
         )
         if int(items[0][0]) != 1:
-            err_console.print("Numbered mnemonics must begin with 1")
+            print_error("Numbered mnemonics must begin with 1")
             raise typer.Exit()
         if [int(x[0]) for x in items] != list(
             range(int(items[0][0]), int(items[-1][0]) + 1)
         ):
-            err_console.print(
+            print_error(
                 "Missing or duplicate numbers in a numbered mnemonic. "
                 "Double-check your numbered mnemonics and try again."
             )
@@ -713,12 +731,12 @@ def debug_callback(value: bool):
             or os.path.expanduser(defaults.config.debug_file_path)
         )
         if not debug_file_loc.exists():
-            err_console.print(
-                f"[red]Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
+            print_error(
+                f"Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
                 f" not run a command which has logged debug output, or you deleted this file. Debug logging only occurs"
                 f" if {arg__('use_cache')} is set to True in your config ({arg__('btcli config set')}). If the debug "
                 f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
-                f" the same location, and re-run this {arg__('btcli --debug')} command.[/red]"
+                f" the same location, and re-run this {arg__('btcli --debug')} command."
             )
             raise typer.Exit()
         save_file_loc_ = Prompt.ask(
@@ -727,8 +745,10 @@ def debug_callback(value: bool):
         ).strip()
         save_file_loc = Path(os.path.expanduser(save_file_loc_))
         if not save_file_loc.parent.exists():
-            if Confirm.ask(
-                f"The directory '{save_file_loc.parent}' does not exist. Would you like to create it?"
+            if confirm_action(
+                f"The directory '{save_file_loc.parent}' does not exist. Would you like to create it?",
+                decline=False,
+                quiet=False,
             ):
                 save_file_loc.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -847,6 +867,7 @@ class CLIManager:
         self.liquidity_app = typer.Typer(epilog=_epilog)
         self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
+        self.axon_app = typer.Typer(epilog=_epilog)
         self.proxy_app = typer.Typer(epilog=_epilog)
 
         # config alias
@@ -946,6 +967,14 @@ class CLIManager:
             no_args_is_help=True,
         )
 
+        # axon app
+        self.app.add_typer(
+            self.axon_app,
+            name="axon",
+            short_help="Axon serving commands",
+            no_args_is_help=True,
+        )
+
         # proxy app
         self.app.add_typer(
             self.proxy_app,
@@ -962,6 +991,7 @@ class CLIManager:
         self.config_app.command("proxies")(self.config_get_proxies)
         self.config_app.command("remove-proxy")(self.config_remove_proxy)
         self.config_app.command("update-proxy")(self.config_update_proxy)
+        self.config_app.command("clear-proxies")(self.config_clear_proxy_book)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -1036,6 +1066,10 @@ class CLIManager:
         self.wallet_app.command(
             "verify", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
         )(self.wallet_verify)
+
+        # axon commands
+        self.axon_app.command("reset")(self.axon_reset)
+        self.axon_app.command("set")(self.axon_set)
 
         # stake commands
         self.stake_app.command(
@@ -1441,7 +1475,7 @@ class CLIManager:
                 result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
-                err_console.print(f"Unable to connect to the chain: {self.subtensor}")
+                print_error(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             except (
@@ -1451,13 +1485,13 @@ class CLIManager:
                 RuntimeError,
             ) as e:
                 if isinstance(e, SubstrateRequestException):
-                    err_console.print(str(e))
+                    print_error(str(e))
                 elif isinstance(e, RuntimeError):
                     pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             except Exception as e:
-                err_console.print(f"An unknown error has occurred: {e}")
+                print_error(f"An unknown error has occurred: {e}")
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             finally:
@@ -1471,7 +1505,7 @@ class CLIManager:
                             await self.subtensor.substrate.close()
                         except Exception as e:  # ensures we always exit cleanly
                             if not isinstance(e, (typer.Exit, RuntimeError)):
-                                err_console.print(f"An unknown error has occurred: {e}")
+                                print_error(f"An unknown error has occurred: {e}")
                     if exception_occurred:
                         raise typer.Exit()
 
@@ -1573,14 +1607,24 @@ class CLIManager:
         self.proxies = proxies
 
     def verbosity_handler(
-        self, quiet: bool, verbose: bool, json_output: bool = False, prompt: bool = True
+        self,
+        quiet: bool,
+        verbose: bool,
+        json_output: bool = False,
+        prompt: bool = True,
+        decline: bool = False,
     ) -> None:
         if json_output and prompt:
             raise typer.BadParameter(
-                f"Cannot specify both '--json-output' and '--prompt'"
+                "Cannot specify both '--json-output' and '--prompt'"
+            )
+        if not prompt and decline:
+            raise typer.BadParameter(
+                "Cannot specify both '--no-prompt' and '--no'. "
+                "The '--no' flag requires prompts to be enabled."
             )
         if quiet and verbose:
-            err_console.print("Cannot specify both `--quiet` and `--verbose`")
+            print_error("Cannot specify both `--quiet` and `--verbose`")
             raise typer.Exit()
         if json_output and verbose:
             verbosity_console_handler(3)
@@ -1662,6 +1706,8 @@ class CLIManager:
             show_default=False,
         ),
         dashboard_path: Optional[str] = Options.dashboard_path,
+        decline: bool = Options.decline,
+        quiet: bool = Options.quiet,
     ):
         """
         Sets or updates configuration values in the BTCLI config file.
@@ -1713,9 +1759,11 @@ class CLIManager:
             arg = config_keys[choice - 1]
 
             if arg in bools:
-                nc = Confirm.ask(
+                nc = confirm_action(
                     f"What value would you like to assign to [red]{arg}[/red]?",
                     default=True,
+                    decline=decline,
+                    quiet=quiet,
                 )
                 self.config[arg] = nc
 
@@ -1742,9 +1790,11 @@ class CLIManager:
 
         if n := args.get("network"):
             if n in Constants.networks:
-                if not Confirm.ask(
+                if not confirm_action(
                     f"You provided a network {arg__(n)} which is mapped to {arg__(Constants.network_map[n])}\n"
-                    "Do you want to continue?"
+                    "Do you want to continue?",
+                    decline=decline,
+                    quiet=quiet,
                 ):
                     typer.Exit()
             else:
@@ -1757,15 +1807,19 @@ class CLIManager:
                             if value == network
                         )
                         args["network"] = known_network
-                        if not Confirm.ask(
+                        if not confirm_action(
                             f"You provided an endpoint {arg__(n)} which is mapped to {arg__(known_network)}\n"
-                            "Do you want to continue?"
+                            "Do you want to continue?",
+                            decline=decline,
+                            quiet=quiet,
                         ):
                             raise typer.Exit()
                     else:
-                        if not Confirm.ask(
+                        if not confirm_action(
                             f"You provided a chain endpoint URL {arg__(n)}\n"
-                            "Do you want to continue?"
+                            "Do you want to continue?",
+                            decline=decline,
+                            quiet=quiet,
                         ):
                             raise typer.Exit()
                 else:
@@ -1801,6 +1855,8 @@ class CLIManager:
         ),
         all_items: bool = typer.Option(False, "--all"),
         dashboard_path: Optional[str] = Options.dashboard_path,
+        decline: bool = Options.decline,
+        quiet: bool = Options.quiet,
     ):
         """
         Clears the fields in the config file and sets them to 'None'.
@@ -1816,7 +1872,9 @@ class CLIManager:
                 [green]$[/green] btcli config clear --all
         """
         if all_items:
-            if Confirm.ask("Do you want to clear all configurations?"):
+            if confirm_action(
+                "Do you want to clear all configurations?", decline=decline, quiet=quiet
+            ):
                 self.config = {}
                 print("All configurations have been cleared and set to 'None'.")
             else:
@@ -1839,7 +1897,11 @@ class CLIManager:
         if not any(args.values()):
             for arg in args.keys():
                 if self.config.get(arg) is not None:
-                    if Confirm.ask(f"Do you want to clear the {arg__(arg)} config?"):
+                    if confirm_action(
+                        f"Do you want to clear the {arg__(arg)} config?",
+                        decline=decline,
+                        quiet=quiet,
+                    ):
                         logger.debug(f"Config: clearing {arg}.")
                         self.config[arg] = None
                         console.print(f"Cleared {arg__(arg)} config and set to 'None'.")
@@ -1851,9 +1913,11 @@ class CLIManager:
             for arg, should_clear in args.items():
                 if should_clear:
                     if self.config.get(arg) is not None:
-                        if Confirm.ask(
+                        if confirm_action(
                             f"Do you want to clear the {arg__(arg)}"
-                            f" [bold cyan]({self.config.get(arg)})[/bold cyan] config?"
+                            f" [bold cyan]({self.config.get(arg)})[/bold cyan] config?",
+                            decline=decline,
+                            quiet=quiet,
                         ):
                             self.config[arg] = None
                             logger.debug(f"Config: clearing {arg}.")
@@ -1945,7 +2009,7 @@ class CLIManager:
         Adds a new pure proxy to the address book.
         """
         if self.proxies.get(name) is not None:
-            err_console.print(
+            print_error(
                 f"Proxy {name} already exists. Use `btcli config update-proxy` to update it."
             )
             raise typer.Exit()
@@ -1996,7 +2060,7 @@ class CLIManager:
                 ProxyAddressBook.delete_entry(conn, cursor, name=name)
             console.print(f"Removed {name} from the address book.")
         else:
-            err_console.print(f"Proxy {name} not found in address book.")
+            print_error(f"Proxy {name} not found in address book.")
         self.config_get_proxies()
 
     def config_get_proxies(self):
@@ -2005,8 +2069,8 @@ class CLIManager:
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-            Column("Address", style="gold1"),
-            Column("Spawner/Delegator", style="medium_purple"),
+            Column("Address/Delegator", style="gold1"),
+            Column("Spawner/Delegatee", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
             Column("Delay", style="dim"),
             Column("Note", style="dim"),
@@ -2024,7 +2088,7 @@ class CLIManager:
         name: Annotated[
             str,
             typer.Option(
-                help="Name of the proxy", prompt="Enter a name for this proxy"
+                help="Name of the proxy", prompt="Enter the name for this proxy"
             ),
         ],
         address: Annotated[
@@ -2051,25 +2115,104 @@ class CLIManager:
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
         if name not in self.proxies:
-            err_console.print(f"Proxy {name} not found in address book.")
+            print_error(
+                f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
+            )
+            self.config_get_proxies()
             return
         else:
             if isinstance(proxy_type, ProxyType):
                 proxy_type_val = proxy_type.value
             else:
                 proxy_type_val = proxy_type
+
+            var_map = {
+                "Address": address,
+                "Spawner": spawner,
+                "ProxyType": proxy_type_val,
+                "Delay": delay,
+                "Note": note,
+            }
+            num_map = {
+                1: "Address",
+                2: "Spawner",
+                3: "ProxyType",
+                4: "Delay",
+                5: "Note",
+            }
             with ProxyAddressBook.get_db() as (conn, cursor):
+                if not any(var_map.values()):
+                    entries = ProxyAddressBook.read_rows(
+                        conn, cursor, include_header=False
+                    )
+                    table = Table(
+                        Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
+                        Column("Address/Delegator", style="gold1"),
+                        Column("Spawner/Delegatee", style="medium_purple"),
+                        Column("Proxy Type", style="medium_purple"),
+                        Column("Delay", style="dim"),
+                        Column("Note", style="dim"),
+                        box=box.SIMPLE_HEAD,
+                        title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
+                    )
+                    for (
+                        name_,
+                        ss58_address_,
+                        delay_,
+                        spawner_,
+                        proxy_type_,
+                        note_,
+                    ) in entries:
+                        if name == name_:
+                            table.add_row(
+                                name_,
+                                ss58_address_,
+                                spawner_,
+                                proxy_type_,
+                                str(delay_),
+                                note_,
+                            )
+                            break
+                    console.print(table)
+                    console.print(
+                        "\n\n[1] Address/Delegator"
+                        "\n[2] Spawner/Delegator"
+                        "\n[3] Proxy Type"
+                        "\n[4] Delay"
+                        "\n[5] Note"
+                    )
+                    col_num_select = IntPrompt.ask(
+                        "Which column would you like to update?",
+                        choices=[str(i) for i in range(1, 6)],
+                    )
+                    col_select = num_map[col_num_select]
+                    value = Prompt.ask(f"Enter a value for {col_select}")
+                    var_map[col_select] = value
                 ProxyAddressBook.update_entry(
                     conn,
                     cursor,
                     name=name,
-                    ss58_address=address,
-                    proxy_type=proxy_type_val,
-                    spawner=spawner,
-                    note=note,
-                    delay=delay,
+                    ss58_address=var_map["Address"],
+                    proxy_type=var_map["ProxyType"],
+                    spawner=var_map["Spawner"],
+                    note=var_map["Note"],
+                    delay=int(dela) if (dela := var_map["Delay"]) is not None else None,
                 )
             console.print("Proxy updated")
+            self.config_get_proxies()
+
+    def config_clear_proxy_book(self):
+        """
+        Clears the proxy address book. Use with caution.
+        Really only useful if you have corrupted your proxy address book.
+        """
+        if not confirm_action(
+            "This will entirely clear your proxy address book. Are you sure you want to proceed?"
+        ):
+            return
+        else:
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.clear_table(conn, cursor)
             self.config_get_proxies()
 
     def is_valid_proxy_name_or_ss58(
@@ -2093,7 +2236,7 @@ class CLIManager:
         if address is None:
             if announce_only is True:
                 raise typer.BadParameter(
-                    f"Cannot supply '--announce-only' without supplying '--proxy'"
+                    "Cannot supply '--announce-only' without supplying '--proxy'"
                 )
             return None
         outer_proxy_from_config = self.proxies.get(address, {})
@@ -2176,13 +2319,13 @@ class CLIManager:
             safe_staking = True
             console.print(
                 "[dim][blue]Safe staking[/blue]: "
-                f"[bold cyan]enabled[/bold cyan] "
+                "[bold cyan]enabled[/bold cyan] "
                 "by default. Set this using "
                 "[dark_sea_green3 italic]`btcli config set`[/dark_sea_green3 italic] "
                 "or "
                 "[dark_sea_green3 italic]`--safe/--unsafe`[/dark_sea_green3 italic] flag[/dim]"
             )
-            logger.debug(f"Safe staking enabled.")
+            logger.debug("Safe staking enabled.")
             return safe_staking
 
     def ask_partial_stake(
@@ -2235,12 +2378,12 @@ class CLIManager:
         """Resolve the mechanism ID to use."""
 
         if mechanism_count is None or mechanism_count <= 0:
-            err_console.print(f"Subnet {netuid} does not exist.")
+            print_error(f"Subnet {netuid} does not exist.")
             raise typer.Exit()
 
         if mechanism_id is not None:
             if mechanism_id < 0 or mechanism_id >= mechanism_count:
-                err_console.print(
+                print_error(
                     f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
                     f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
                 )
@@ -2258,7 +2401,7 @@ class CLIManager:
             )
             if 0 <= selected_mechanism_id < mechanism_count:
                 return selected_mechanism_id
-            err_console.print(
+            print_error(
                 f"Mechanism ID {selected_mechanism_id} is out of range for subnet {netuid}. "
                 f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
             )
@@ -2339,16 +2482,16 @@ class CLIManager:
         if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet does not exist. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
+                print_error(
+                    f"Error: Wallet does not exist. \n"
+                    f"Please verify your wallet information: {wallet}"
                 )
                 raise typer.Exit()
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
+                print_error(
+                    f"Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
+                    f"Please verify your wallet information: {wallet}"
                 )
                 raise typer.Exit()
         if return_wallet_and_hotkey:
@@ -2365,9 +2508,7 @@ class CLIManager:
                         )
                     ).strip()
                     if not is_valid_ss58_address(hotkey):
-                        err_console.print(
-                            f"[red]Error: {hotkey} is not valid SS58 address."
-                        )
+                        print_error(f"Error: {hotkey} is not valid SS58 address.")
                         raise typer.Exit(1)
                     else:
                         return wallet, hotkey
@@ -2467,8 +2608,8 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, False)
         if include_hotkeys and exclude_hotkeys:
-            utils.err_console.print(
-                "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
+            print_error(
+                "You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
             raise typer.Exit()
 
@@ -2638,6 +2779,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         json_output: bool = Options.json_output,
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
@@ -2668,7 +2810,7 @@ class CLIManager:
         """
         netuid = get_optional_netuid(netuid, all_netuids)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
 
         # Warning for netuid 0 - only swaps on root network, not a full swap
         if netuid == 0 and prompt:
@@ -2687,9 +2829,11 @@ class CLIManager:
                 f"--wallet-hotkey {wallet_hotkey or '<original_hotkey>'}[/bold green]\n"
             )
 
-            if not Confirm.ask(
+            if not confirm_action(
                 "Are you SURE you want to proceed with --netuid 0 (only root network swap)?",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 return
         original_wallet = self.wallet_ask(
@@ -2742,7 +2886,6 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2750,7 +2893,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet (coldkey) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 
@@ -2795,7 +2938,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
@@ -3737,6 +3880,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         json_output: bool = Options.json_output,
     ):
         """
@@ -3756,7 +3900,7 @@ class CLIManager:
 
         [bold]Note[/bold]: This command should only be used if the user is willing to incur the a recycle fee associated with setting an identity on the blockchain. It is a high-level command that makes changes to the blockchain state and should not be used programmatically as part of other scripts or applications.
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         wallet = self.wallet_ask(
             wallet_name,
@@ -3776,9 +3920,11 @@ class CLIManager:
         )
 
         if prompt:
-            if not Confirm.ask(
+            if not confirm_action(
                 "Cost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
-                " are you sure you wish to continue?"
+                " are you sure you wish to continue?",
+                decline=decline,
+                quiet=quiet,
             ):
                 console.print(":cross_mark: Aborted!")
                 raise typer.Exit()
@@ -3816,16 +3962,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        coldkey_ss58=typer.Option(
-            None,
-            "--ss58",
-            "--coldkey_ss58",
-            "--coldkey.ss58_address",
-            "--coldkey.ss58",
-            "--key",
-            "-k",
-            help="Coldkey address of the wallet",
-        ),
+        coldkey_ss58: Optional[str] = Options.coldkey_ss58,
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -3894,6 +4031,7 @@ class CLIManager:
         message: str = typer.Option("", help="The message to encode and sign"),
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        decline: bool = Options.decline,
         json_output: bool = Options.json_output,
     ):
         """
@@ -3910,14 +4048,16 @@ class CLIManager:
         [green]$[/green] btcli wallet sign --wallet-name default --wallet-hotkey hotkey --message
         '{"something": "here", "timestamp": 1719908486}'
         """
-        self.verbosity_handler(quiet, verbose, json_output, False)
+        self.verbosity_handler(quiet, verbose, json_output, False, decline)
         if use_hotkey is None:
-            use_hotkey = Confirm.ask(
+            use_hotkey = confirm_action(
                 f"Would you like to sign the transaction using your [{COLORS.G.HK}]hotkey[/{COLORS.G.HK}]?"
                 f"\n[Type [{COLORS.G.HK}]y[/{COLORS.G.HK}] for [{COLORS.G.HK}]hotkey[/{COLORS.G.HK}]"
                 f" and [{COLORS.G.CK}]n[/{COLORS.G.CK}] for [{COLORS.G.CK}]coldkey[/{COLORS.G.CK}]] "
                 f"(default is [{COLORS.G.CK}]coldkey[/{COLORS.G.CK}])",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             )
 
         ask_for = [WO.HOTKEY, WO.PATH, WO.NAME] if use_hotkey else [WO.NAME, WO.PATH]
@@ -4078,6 +4218,166 @@ class CLIManager:
             )
         )
 
+    def axon_reset(
+        self,
+        netuid: int = Options.netuid,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Reset the axon information for a neuron on the network.
+
+        This command removes the serving endpoint by setting the IP to 0.0.0.0 and port to 1,
+        indicating the neuron is no longer serving.
+
+        USAGE
+
+        The command requires you to specify the netuid where the neuron is registered.
+        It will reset the axon information for the hotkey associated with the wallet.
+
+        EXAMPLE
+
+        [green]$[/green] btcli axon reset --netuid 1 --wallet-name my_wallet --wallet-hotkey my_hotkey
+
+        [bold]NOTE[/bold]: This command is used to stop serving on a specific subnet. The neuron will
+        remain registered but will not be reachable by other neurons until a new axon is set.
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        subtensor = self.initialize_chain(network)
+
+        logger.debug(
+            "args:\n"
+            f"netuid: {netuid}\n"
+            f"wallet: {wallet}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
+
+        return self._run_command(
+            axon.reset(
+                wallet=wallet,
+                subtensor=subtensor,
+                netuid=netuid,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
+            )
+        )
+
+    def axon_set(
+        self,
+        netuid: int = Options.netuid,
+        ip: str = typer.Option(
+            ...,
+            "--ip",
+            help="IP address to set for the axon (e.g., '192.168.1.1')",
+            prompt="Enter the IP address for the axon (e.g., '192.168.1.1' or '2001:db8::1')",
+        ),
+        port: int = typer.Option(
+            ...,
+            "--port",
+            help="Port number to set for the axon (0-65535)",
+            prompt="Enter the port number for the axon (0-65535)",
+        ),
+        ip_type: int = typer.Option(
+            4,
+            "--ip-type",
+            help="IP type (4 for IPv4, 6 for IPv6)",
+        ),
+        protocol: int = typer.Option(
+            4,
+            "--protocol",
+            help="Protocol version",
+        ),
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
+        network: Optional[list[str]] = Options.network,
+        prompt: bool = Options.prompt,
+        wait_for_inclusion: bool = Options.wait_for_inclusion,
+        wait_for_finalization: bool = Options.wait_for_finalization,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Set the axon information for a neuron on the network.
+
+        This command configures the serving endpoint for a neuron by specifying its IP address
+        and port, allowing other neurons to connect to it.
+
+        USAGE
+
+        The command requires you to specify the netuid, IP address, and port number.
+        It will set the axon information for the hotkey associated with the wallet.
+
+        EXAMPLE
+
+        [green]$[/green] btcli axon set --netuid 1 --ip 192.168.1.100 --port 8091 --wallet-name my_wallet --wallet-hotkey my_hotkey
+
+        [bold]NOTE[/bold]: This command is used to advertise your serving endpoint on the network.
+        Make sure the IP and port are accessible from the internet if you want other neurons to connect.
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=[WO.NAME, WO.HOTKEY],
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        subtensor = self.initialize_chain(network)
+
+        logger.debug(
+            "args:\n"
+            f"netuid: {netuid}\n"
+            f"ip: {ip}\n"
+            f"port: {port}\n"
+            f"ip_type: {ip_type}\n"
+            f"protocol: {protocol}\n"
+            f"wallet: {wallet}\n"
+            f"prompt: {prompt}\n"
+            f"wait_for_inclusion: {wait_for_inclusion}\n"
+            f"wait_for_finalization: {wait_for_finalization}\n"
+        )
+
+        return self._run_command(
+            axon.set_axon(
+                wallet=wallet,
+                subtensor=subtensor,
+                netuid=netuid,
+                ip=ip,
+                port=port,
+                ip_type=ip_type,
+                protocol=protocol,
+                prompt=prompt,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                json_output=json_output,
+            )
+        )
+
     # Stake
 
     def get_auto_stake(
@@ -4085,14 +4385,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
-        coldkey_ss58=typer.Option(
-            None,
-            "--ss58",
-            "--coldkey_ss58",
-            "--coldkey.ss58_address",
-            "--coldkey.ss58",
-            help="Coldkey address of the wallet",
-        ),
+        coldkey_ss58: Optional[str] = Options.coldkey_ss58,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4143,6 +4436,7 @@ class CLIManager:
         netuid: Optional[int] = Options.netuid_not_req,
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         prompt: bool = Options.prompt,
@@ -4152,7 +4446,7 @@ class CLIManager:
     ):
         """Set the auto-stake destination hotkey for a coldkey."""
 
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
 
         wallet = self.wallet_ask(
@@ -4210,6 +4504,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt_user=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -4220,14 +4516,7 @@ class CLIManager:
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         wallet_path: Optional[str] = Options.wallet_path,
-        coldkey_ss58=typer.Option(
-            None,
-            "--ss58",
-            "--coldkey_ss58",
-            "--coldkey.ss58_address",
-            "--coldkey.ss58",
-            help="Coldkey address of the wallet",
-        ),
+        coldkey_ss58: Optional[str] = Options.coldkey_ss58,
         live: bool = Options.live,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4344,6 +4633,7 @@ class CLIManager:
         mev_protection: bool = Options.mev_protection,
         period: int = Options.period,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4386,7 +4676,7 @@ class CLIManager:
 
         """
         netuids = netuids or []
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
@@ -4413,7 +4703,12 @@ class CLIManager:
             return
 
         if stake_all and not amount:
-            if not Confirm.ask("Stake all the available TAO tokens?", default=False):
+            if not confirm_action(
+                "Stake all the available TAO tokens?",
+                default=False,
+                decline=decline,
+                quiet=quiet,
+            ):
                 return
 
         if (
@@ -4585,6 +4880,8 @@ class CLIManager:
                 stake_all=stake_all,
                 amount=amount,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 all_hotkeys=all_hotkeys,
                 include_hotkeys=include_hotkeys,
                 exclude_hotkeys=exclude_hotkeys,
@@ -4657,6 +4954,7 @@ class CLIManager:
             "-i",
             help="Enter interactive mode for unstaking.",
         ),
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -4694,7 +4992,7 @@ class CLIManager:
         • [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
         • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if not unstake_all and not unstake_all_alpha:
             safe_staking = self.ask_safe_staking(safe_staking)
@@ -4875,6 +5173,8 @@ class CLIManager:
                     include_hotkeys=include_hotkeys,
                     exclude_hotkeys=exclude_hotkeys,
                     prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
                     json_output=json_output,
                     era=period,
                     mev_protection=mev_protection,
@@ -4945,6 +5245,8 @@ class CLIManager:
                 exclude_hotkeys=exclude_hotkeys,
                 amount=amount,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 interactive=interactive,
                 netuid=netuid,
                 safe_staking=safe_staking,
@@ -5003,6 +5305,7 @@ class CLIManager:
         period: int = Options.period,
         mev_protection: bool = Options.mev_protection,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5031,13 +5334,15 @@ class CLIManager:
         2. Move stake without MEV protection:
             [green]$[/green] btcli stake move --no-mev-protection
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if prompt:
-            if not Confirm.ask(
+            if not confirm_action(
                 "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
                 "coldkey ownership. Do you wish to continue? ",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 raise typer.Exit()
         else:
@@ -5161,6 +5466,8 @@ class CLIManager:
                 era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
                 mev_protection=mev_protection,
             )
@@ -5208,6 +5515,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5247,14 +5555,16 @@ class CLIManager:
         Transfer stake without MEV protection:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if prompt:
-            if not Confirm.ask(
+            if not confirm_action(
                 "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
                 "which have enabled it. You should ensure that the destination coldkey is "
                 "[bold]not a validator hotkey[/bold] before continuing. Do you wish to continue?",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 raise typer.Exit()
         else:
@@ -5359,6 +5669,8 @@ class CLIManager:
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
                 mev_protection=mev_protection,
             )
@@ -5405,9 +5717,13 @@ class CLIManager:
         announce_only: bool = Options.announce_only,
         period: int = Options.period,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5434,8 +5750,14 @@ class CLIManager:
 
         2. Swap stake without MEV protection:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        3. Swap stake with custom tolerance and partial stake:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --rate-tolerance 0.01 --allow-partial-stake
+
+        4. Swap stake without safe staking:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         console.print(
             "[dim]This command moves stake from one subnet to another subnet while keeping "
@@ -5464,6 +5786,11 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
@@ -5475,6 +5802,9 @@ class CLIManager:
             f"proxy: {proxy}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
@@ -5486,10 +5816,15 @@ class CLIManager:
                 origin_netuid=origin_netuid,
                 destination_netuid=dest_netuid,
                 amount=amount,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 swap_all=swap_all,
                 era=period,
                 interactive_selection=interactive_selection,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
@@ -5510,7 +5845,11 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         period: int = Options.period,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -5533,7 +5872,7 @@ class CLIManager:
         Start the wizard:
         [green]$[/green] btcli stake wizard
         """
-        self.verbosity_handler(quiet, verbose)
+        self.verbosity_handler(quiet, verbose, False, prompt, decline)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -5605,11 +5944,17 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
                     mev_protection=mev_protection,
                 )
             )
         elif operation == "swap":
             # Execute swap operation
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             result, ext_id = self._run_command(
                 move_stake.swap_stake(
                     wallet=wallet,
@@ -5618,9 +5963,14 @@ class CLIManager:
                     destination_netuid=wizard_result["destination_netuid"],
                     amount=wizard_result.get("amount"),
                     swap_all=False,
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
                     mev_protection=mev_protection,
                 )
             )
@@ -5807,7 +6157,7 @@ class CLIManager:
         )
 
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or `--all`, not both.")
+            print_error("Specify either a netuid or `--all`, not both.")
             raise typer.Exit()
 
         if all_netuids:
@@ -5883,11 +6233,11 @@ class CLIManager:
         )
 
         if len(proportions) != len(children):
-            err_console.print("You must have as many proportions as you have children.")
+            print_error("You must have as many proportions as you have children.")
             raise typer.Exit()
 
         if sum(proportions) > 1.0:
-            err_console.print("Your proportion total must not exceed 1.0.")
+            print_error("Your proportion total must not exceed 1.0.")
             raise typer.Exit()
 
         wallet = self.wallet_ask(
@@ -5968,7 +6318,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or '--all', not both.")
+            print_error("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -6063,7 +6413,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or '--all', not both.")
+            print_error("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -6159,7 +6509,7 @@ class CLIManager:
 
         if mechanism_count is None:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Mechanism count not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
@@ -6359,6 +6709,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6368,11 +6719,17 @@ class CLIManager:
 
         This command allows subnet owners to modify hyperparameters such as its tempo, emission rates, and other hyperparameters.
 
+        When listing hyperparameters, descriptions, ownership information, and side-effects are displayed to help you make informed decisions.
+
+        You can also set custom hyperparameters not in the standard list by using the exact parameter name from the chain metadata.
+
         EXAMPLE
 
         [green]$[/green] btcli sudo set --netuid 1 --param tempo --value 400
+
+        [green]$[/green] btcli sudo set --netuid 1 --param custom_param_name --value 123
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
 
         if not param_name or not param_value:
@@ -6381,12 +6738,21 @@ class CLIManager:
                 exit_early=False,
             )
             if not hyperparams:
-                # TODO this will cause a hanging connection, subtensor needs to be gracefully exited
+                # Ensure we don't leave the websocket connection hanging.
+                if self.subtensor:
+                    try:
+                        self.event_loop.run_until_complete(
+                            self.subtensor.substrate.close()
+                        )
+                    except Exception:
+                        pass
+                    finally:
+                        self.subtensor = None
                 raise typer.Exit()
 
         if not param_name:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Param name not supplied with `--no-prompt` flag. Cannot continue"
                 )
                 return False
@@ -6394,9 +6760,42 @@ class CLIManager:
                 [field.name for field in fields(SubnetHyperparameters)]
             )
             console.print("Available hyperparameters:\n")
+
+            # Create a table to show hyperparameters with descriptions
+
+            param_table = Table(
+                Column("[white]#", style="dim", width=4),
+                Column("[white]HYPERPARAMETER", style=COLORS.SU.HYPERPARAMETER),
+                Column("[white]OWNER SETTABLE", style="bright_cyan", width=18),
+                Column("[white]DESCRIPTION", style="dim", overflow="fold"),
+                box=box.SIMPLE,
+                show_edge=False,
+                pad_edge=False,
+            )
+
             for idx, param in enumerate(hyperparam_list, start=1):
-                console.print(f"  {idx}. {param}")
+                metadata = HYPERPARAMS_METADATA.get(param, {})
+                description = metadata.get("description", "No description available.")
+
+                # Check ownership from HYPERPARAMS
+                _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
+                if root_sudo == RootSudoOnly.TRUE:
+                    owner_settable_str = "[red]No (Root Only)[/red]"
+                elif root_sudo == RootSudoOnly.COMPLICATED:
+                    owner_settable_str = "[yellow]COMPLICATED[/yellow]"
+                else:
+                    owner_settable_str = "[green]Yes[/green]"
+
+                param_table.add_row(
+                    str(idx),
+                    f"[bold]{param}[/bold]",
+                    owner_settable_str,
+                    description,
+                )
+
+            console.print(param_table)
             console.print()
+
             choice = IntPrompt.ask(
                 "Enter the [bold]number[/bold] of the hyperparameter",
                 choices=[str(i) for i in range(1, len(hyperparam_list) + 1)],
@@ -6404,13 +6803,50 @@ class CLIManager:
             )
             param_name = hyperparam_list[choice - 1]
 
+            # Show additional info for selected parameter
+            metadata = HYPERPARAMS_METADATA.get(param_name, {})
+            if metadata:
+                console.print(f"\n[bold cyan]Selected:[/bold cyan] {param_name}")
+                description = metadata.get("description", "No description available.")
+                docs_link = metadata.get("docs_link", "")
+                if docs_link:
+                    # Show description text followed by clickable blue [link] at the end
+                    console.print(
+                        f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
+                    )
+                else:
+                    console.print(f"{description}")
+                side_effects = metadata.get("side_effects", "")
+                if side_effects:
+                    console.print(f"[dim]Side Effects:[/dim] {side_effects}")
+                if docs_link:
+                    console.print(
+                        f"[dim]📚 Docs:[/dim] [link]https://{docs_link}[/link]\n"
+                    )
+
         if param_name in ["alpha_high", "alpha_low"]:
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
-                    f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
-                    f"values cannot be set with `--no-prompt`"
+                err_msg = (
+                    "alpha_high and alpha_low values cannot be set with `--no-prompt`. "
+                    "They must be set together via the alpha_values parameter."
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    print_error(
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
+                        f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
+                        f"values cannot be set with `--no-prompt`"
+                    )
                 return False
             param_name = "alpha_values"
             low_val = FloatPrompt.ask(f"Enter the new value for {arg__('alpha_low')}")
@@ -6418,14 +6854,32 @@ class CLIManager:
             param_value = f"{low_val},{high_val}"
         if param_name == "yuma_version":
             if not prompt:
-                err_console.print(
-                    f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
-                    f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                err_msg = (
+                    "yuma_version is set using a different hyperparameter (yuma3_enabled), "
+                    "and thus cannot be set with `--no-prompt`"
                 )
+                if json_output:
+                    json_str = json.dumps(
+                        {
+                            "success": False,
+                            "err_msg": err_msg,
+                            "extrinsic_identifier": None,
+                        },
+                        ensure_ascii=True,
+                    )
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                else:
+                    print_error(
+                        f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
+                        f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
+                    )
                 return False
-            if Confirm.ask(
+            if confirm_action(
                 f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}] can only be used to toggle Yuma 3. "
-                f"Would you like to toggle Yuma 3?"
+                f"Would you like to toggle Yuma 3?",
+                decline=decline,
+                quiet=quiet,
             ):
                 param_name = "yuma3_enabled"
                 question = Prompt.ask(
@@ -6436,15 +6890,31 @@ class CLIManager:
             else:
                 return False
         if param_name == "subnet_is_active":
-            err_console.print(
-                f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
-                f"is set by using {arg__('btcli subnets start')} command."
+            err_msg = (
+                "subnet_is_active is set by using the 'btcli subnets start' command, "
+                "not via sudo set"
             )
+            if json_output:
+                json_str = json.dumps(
+                    {
+                        "success": False,
+                        "err_msg": err_msg,
+                        "extrinsic_identifier": None,
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(
+                    f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
+                    f"is set by using {arg__('btcli subnets start')} command."
+                )
             return False
 
         if not param_value:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Param value not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
@@ -6467,29 +6937,58 @@ class CLIManager:
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
-        result, err_msg, ext_id = self._run_command(
-            sudo.sudo_set_hyperparameter(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                netuid=netuid,
-                proxy=proxy,
-                param_name=param_name,
-                param_value=param_value,
-                prompt=prompt,
-                json_output=json_output,
-            )
-        )
         if json_output:
-            json_console.print(
-                json.dumps(
+            try:
+                result, err_msg, ext_id = self._run_command(
+                    sudo.sudo_set_hyperparameter(
+                        wallet=wallet,
+                        subtensor=self.initialize_chain(network),
+                        netuid=netuid,
+                        proxy=proxy,
+                        param_name=param_name,
+                        param_value=param_value,
+                        prompt=prompt,
+                        json_output=json_output,
+                    )
+                )
+                json_str = json.dumps(
                     {
                         "success": result,
                         "err_msg": err_msg,
                         "extrinsic_identifier": ext_id,
-                    }
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                return result
+            except Exception as e:
+                # Ensure JSON output even on exceptions
+                json_str = json.dumps(
+                    {
+                        "success": False,
+                        "err_msg": str(e),
+                        "extrinsic_identifier": None,
+                    },
+                    ensure_ascii=True,
+                )
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+                raise
+        else:
+            result, err_msg, ext_id = self._run_command(
+                sudo.sudo_set_hyperparameter(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    netuid=netuid,
+                    proxy=proxy,
+                    param_name=param_name,
+                    param_value=param_value,
+                    prompt=prompt,
+                    json_output=json_output,
                 )
             )
-        return result
+            return result
 
     def sudo_get(
         self,
@@ -6501,6 +7000,8 @@ class CLIManager:
     ):
         """
         Shows a list of the hyperparameters for the specified subnet.
+
+        Displays hyperparameter values along with descriptions, ownership information (which parameters can be set by subnet owners vs root sudo), and side-effects.
 
         EXAMPLE
 
@@ -6735,6 +7236,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         period: int = Options.period,
     ):
         """
@@ -6763,6 +7265,8 @@ class CLIManager:
                 proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
             )
         )
 
@@ -6889,8 +7393,8 @@ class CLIManager:
         if not current_only and subtensor.network in non_archives + [
             Constants.network_map[x] for x in non_archives
         ]:
-            err_console.print(
-                f"[red]Error[/red] Running this command without {arg__('--current')} requires use of an archive node. "
+            print_error(
+                f"Error: Running this command without {arg__('--current')} requires use of an archive node. "
                 f"Try running again with the {arg__('--network archive')} flag."
             )
             return False
@@ -7525,7 +8029,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
+            print_error(
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
                 "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
             )
@@ -7570,6 +8074,7 @@ class CLIManager:
         period: int = Options.period,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         symbol: str = typer.Argument(help="The symbol to set for your subnet."),
@@ -7588,10 +8093,10 @@ class CLIManager:
         If --json-output is used, the output will be in the following schema:
         [#AFEFFF]{success: [dark_orange]bool[/dark_orange], message: [dark_orange]str[/dark_orange]}[/#AFEFFF]
         """
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if len(symbol) > 1:
-            err_console.print("Your symbol must be a single character.")
+            print_error("Your symbol must be a single character.")
             return False
         wallet = self.wallet_ask(
             wallet_name,
@@ -7616,6 +8121,8 @@ class CLIManager:
                 proxy=proxy,
                 period=period,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -7685,7 +8192,7 @@ class CLIManager:
             )
 
         if len(uids) != len(weights):
-            err_console.print(
+            print_error(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             return
@@ -7787,7 +8294,7 @@ class CLIManager:
                 "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
             )
         if len(uids) != len(weights):
-            err_console.print(
+            print_error(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             return
@@ -7918,12 +8425,13 @@ class CLIManager:
             help="High price for the adding liquidity position.",
         ),
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if not netuid:
             netuid = Prompt.ask(
@@ -7960,7 +8468,7 @@ class CLIManager:
             )
 
         if price_low >= price_high:
-            err_console.print("The low price must be lower than the high price.")
+            print_error("The low price must be lower than the high price.")
             return False
         logger.debug(
             f"args:\n"
@@ -7982,6 +8490,8 @@ class CLIManager:
                 price_low=price_low,
                 price_high=price_high,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -8044,13 +8554,14 @@ class CLIManager:
             help="Whether to remove all liquidity positions for given subnet.",
         ),
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
         """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
 
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if all_liquidity_ids and position_id:
             print_error("Cannot specify both --all and --position-id.")
@@ -8091,6 +8602,8 @@ class CLIManager:
                 proxy=proxy,
                 position_id=position_id,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 all_liquidity_ids=all_liquidity_ids,
                 json_output=json_output,
             )
@@ -8118,12 +8631,13 @@ class CLIManager:
             help="Liquidity amount for modification.",
         ),
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
         """Modifies the liquidity position for the given subnet."""
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if not netuid:
             netuid = IntPrompt.ask(
@@ -8170,6 +8684,8 @@ class CLIManager:
                 position_id=position_id,
                 liquidity_delta=liquidity_delta,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -8780,7 +9296,9 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         idx: int = typer.Option(
             0,
             "--index",
@@ -8791,6 +9309,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         period: int = Options.period,
@@ -8843,6 +9362,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
                 period=period,
             )
@@ -8860,11 +9381,14 @@ class CLIManager:
         ] = "",
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         period: int = Options.period,
@@ -8913,6 +9437,8 @@ class CLIManager:
                 proxy_type=proxy_type,
                 delay=delay,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 period=period,
@@ -8937,6 +9463,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         period: int = Options.period,
@@ -8987,6 +9514,8 @@ class CLIManager:
                 proxy_type=proxy_type,
                 delay=delay,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 period=period,
@@ -9088,7 +9617,12 @@ class CLIManager:
 
     def proxy_execute_announced(
         self,
-        proxy: str = Options.proxy,
+        proxy: str = typer.Option(
+            "--proxy",
+            help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
+            f"have added it with {arg__('btcli config add-proxy')}.",
+            prompt=True,
+        ),
         real: Optional[str] = Options.real_proxy,
         delegate: Optional[str] = typer.Option(
             None,
@@ -9107,6 +9641,7 @@ class CLIManager:
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         period: int = Options.period,
@@ -9114,7 +9649,7 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         outer_proxy_from_config = self.proxies.get(proxy, {})
         proxy_from_config = outer_proxy_from_config.get("address")
         delay = 0
@@ -9155,27 +9690,31 @@ class CLIManager:
                 got_delay_from_config = True
             elif len(potential_matches) > 1:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: The proxy ss58 you provided: {proxy} matched the address book"
+                    print_error(
+                        f"Error: The proxy ss58 you provided: {proxy} matched the address book"
                         f" ambiguously (more than one match). To use this (rather than the address book name), you will "
                         f"have to use without {arg__('--no-prompt')}"
                     )
                     return
                 else:
                     console.print(
-                        f"The proxy ss58 you provided matches the address book ambiguously. The results will be"
-                        f"iterated, for you to select your intended proxy."
+                        "The proxy ss58 you provided matches the address book ambiguously. The results will be "
+                        "iterated, for you to select your intended proxy."
                     )
                     for row in potential_matches:
                         p_name, ss58_address, delay_, spawner, proxy_type, note = row
                         console.print(
                             f"Name: {p_name}\n"
                             f"Delay: {delay_}\n"
-                            f"Spawner/Delegator: {spawner}\n"
+                            f"Spawner/Delegatee: {spawner}\n"
                             f"Proxy Type: {proxy_type}\n"
                             f"Note: {note}\n"
                         )
-                        if Confirm.ask("Is this the intended proxy?"):
+                        if confirm_action(
+                            "Is this the intended proxy?",
+                            decline=decline,
+                            quiet=quiet,
+                        ):
                             delay = delay_
                             got_delay_from_config = True
                             break
@@ -9201,7 +9740,11 @@ class CLIManager:
                     executed_int,
                 ) = row
                 executed = bool(executed_int)
-                if call_hash_ == call_hash and address == proxy and executed is False:
+                if (
+                    (call_hash_ == call_hash or f"0x{call_hash_}" == call_hash)
+                    and address == proxy
+                    and executed is False
+                ):
                     potential_call_matches.append(row)
             if len(potential_call_matches) == 1:
                 block = potential_call_matches[0][3]
@@ -9209,8 +9752,8 @@ class CLIManager:
                 got_call_from_db = potential_call_matches[0][0]
             elif len(potential_call_matches) > 1:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: The call hash you have provided matches {len(potential_call_matches)}"
+                    print_error(
+                        f"Error: The call hash you have provided matches {len(potential_call_matches)}"
                         f" possible entries. In order to choose which one, you will need to run "
                         f"without {arg__('--no-prompt')}"
                     )
@@ -9236,10 +9779,14 @@ class CLIManager:
                             f"Time: {datetime.datetime.fromtimestamp(epoch_time)}\nCall:\n"
                         )
                         console.print_json(call_serialized)
-                        if Confirm.ask("Is this the intended call?"):
+                        if confirm_action(
+                            "Is this the intended call?",
+                            decline=decline,
+                            quiet=quiet,
+                        ):
                             call_hex = call_hex_
                             block = block_
-                            got_call_from_db = row
+                            got_call_from_db = id_
                             break
             if got_call_from_db is None:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
@@ -9280,7 +9827,7 @@ class CLIManager:
         Allows for converting between tao and rao using the specified flags
         """
         if from_tao is None and from_rao is None:
-            err_console.print("Specify `--rao` and/or `--tao`.")
+            print_error("Specify `--rao` and/or `--tao`.")
             raise typer.Exit()
         if from_rao is not None:
             rao = int(float(from_rao))
@@ -9317,7 +9864,7 @@ class CLIManager:
         """
         additional_networks = additional_networks or []
         if any(not x.startswith("ws") for x in additional_networks):
-            err_console.print(
+            print_error(
                 "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint"
                 f" (starting with [{COLORS.G.LINKS}]ws://[/{COLORS.G.LINKS}] or "
                 f"[{COLORS.G.LINKS}]wss://[/{COLORS.G.LINKS}]).",

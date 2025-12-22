@@ -5,16 +5,15 @@ from typing import Optional, TYPE_CHECKING
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Table
-from rich.prompt import Confirm
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
     json_console,
     get_subnet_name,
     is_valid_ss58_address,
     print_error,
-    err_console,
     unlock_key,
     print_extrinsic_id,
 )
@@ -178,6 +177,8 @@ async def set_auto_stake_destination(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt_user: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """Set the auto-stake destination hotkey for a coldkey on a subnet."""
@@ -246,7 +247,12 @@ async def set_auto_stake_destination(
         )
         console.print(table)
 
-        if not Confirm.ask("\nSet this auto-stake destination?", default=True):
+        if not confirm_action(
+            "\nSet this auto-stake destination?",
+            default=True,
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     if not unlock_key(wallet).success:
@@ -295,5 +301,5 @@ async def set_auto_stake_destination(
         )
         return True
 
-    err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+    print_error(f"Failed: {error_message}")
     return False

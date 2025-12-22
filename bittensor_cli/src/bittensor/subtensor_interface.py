@@ -38,7 +38,7 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import encrypt_extrinsic
 from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
-    err_console,
+    print_error,
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
@@ -136,8 +136,8 @@ class SubtensorInterface:
                 await self.substrate.initialize()
                 return self
             except TimeoutError:  # TODO verify
-                err_console.print(
-                    "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
+                print_error(
+                    "\nError: Timeout occurred connecting to substrate. "
                     f"Verify your chain and network settings: {self}"
                 )
                 raise typer.Exit(code=1)
@@ -1280,7 +1280,9 @@ class SubtensorInterface:
                             call=call_to_announce,
                         )
                     console.print(
-                        f"Added entry {call_to_announce.call_hash} at block {block} to your ProxyAnnouncements address book."
+                        f"Added entry [green]{call_to_announce.call_hash.hex()}[/green] "
+                        f"at block {block} to your ProxyAnnouncements address book. You can execute this with\n"
+                        f"[blue]btcli proxy execute --call-hash {call_to_announce.call_hash.hex()}[/blue]"
                     )
                 return True, inner_hash, response
             else:
@@ -2525,5 +2527,5 @@ async def best_connection(networks: list[str]):
                 t2 = time.monotonic()
             results[network] = [t2 - t1, latency, t2 - pt1]
         except Exception as e:
-            err_console.print(f"Error attempting network {network}: {e}")
+            print_error(f"Error attempting network {network}: {e}")
     return results

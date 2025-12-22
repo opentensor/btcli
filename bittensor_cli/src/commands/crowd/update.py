@@ -1,9 +1,9 @@
 import asyncio
 import json
-from typing import Optional
+from typing import Optional, Union
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table, Column, box
 
 from bittensor_cli.src import COLORS
@@ -11,6 +11,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -32,6 +33,8 @@ async def update_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Update parameters of a non-finalized crowdloan.
@@ -216,7 +219,7 @@ async def update_crowdloan(
                 cap = candidate_cap
                 break
 
-    value: Optional[Balance | int] = None
+    value: Optional[Union[Balance, int]] = None
     call_function: Optional[str] = None
     param_name: Optional[str] = None
     update_type: Optional[str] = None
@@ -331,8 +334,11 @@ async def update_crowdloan(
 
     console.print(table)
 
-    if prompt and not Confirm.ask(
-        f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
+    if prompt and not confirm_action(
+        f"\n[bold]Proceed with updating {update_type}?[/bold]",
+        default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(

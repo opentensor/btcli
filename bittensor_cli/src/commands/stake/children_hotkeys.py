@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table
 from rich.text import Text
 from async_substrate_interface.errors import SubstrateRequestException
@@ -11,8 +11,9 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    print_error,
     float_to_u16,
     float_to_u64,
     u16_to_float,
@@ -61,6 +62,8 @@ async def set_children_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets children hotkeys with proportions assigned from the parent.
@@ -86,18 +89,22 @@ async def set_children_extrinsic(
     # Ask before moving on.
     if prompt:
         if all_revoked:
-            if not Confirm.ask(
-                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?"
+            if not confirm_action(
+                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
         else:
-            if not Confirm.ask(
+            if not confirm_action(
                 "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
                     "\n".join(
                         f"  {child[1]}: {child[0]}"
                         for child in children_with_proportions
                     )
-                )
+                ),
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
 
@@ -142,7 +149,7 @@ async def set_children_extrinsic(
                 modifier = "finalized"
             return True, f"{operation} successfully {modifier}.", ext_id
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+            print_error(f"Failed: {error_message}")
             return False, error_message, None
 
 
@@ -156,6 +163,8 @@ async def set_childkey_take_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets childkey take.
@@ -177,8 +186,10 @@ async def set_childkey_take_extrinsic(
 
     # Ask before moving on.
     if prompt:
-        if not Confirm.ask(
-            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
+        if not confirm_action(
+            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "Operation Cancelled", None
 
@@ -228,7 +239,7 @@ async def set_childkey_take_extrinsic(
                     console.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 return True, f"Successfully {modifier} childkey take", ext_id
             else:
-                console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+                print_error(f"Failed: {error_message}")
                 return False, error_message, None
 
         except SubstrateRequestException as e:
@@ -259,7 +270,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             return int(childkey_take_)
 
     except SubstrateRequestException as e:
-        err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
+        print_error(f"Error querying ChildKeys: {format_error_message(e)}")
         return None
 
 
@@ -477,7 +488,7 @@ async def get_children(
             if children:
                 netuid_children_tuples.append((netuid_, children))
             if not success:
-                err_console.print(
+                print_error(
                     f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
         await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
@@ -486,7 +497,7 @@ async def get_children(
             get_hotkey_pub_ss58(wallet), netuid
         )
         if not success:
-            err_console.print(f"Failed to get children from subtensor: {err_mg}")
+            print_error(f"Failed to get children from subtensor: {err_mg}")
         if children:
             netuid_children_tuples = [(netuid, children)]
             await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
@@ -513,10 +524,10 @@ async def set_children(
     hotkey = get_hotkey_pub_ss58(wallet)
     for child in children:
         if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+            print_error(f"Invalid SS58 address: {child}")
             return
         if child == hotkey:
-            err_console.print(":cross_mark:[red] Cannot set yourself as a child.[/red]")
+            print_error("Cannot set yourself as a child.")
             return
 
     total_proposed = sum(proportions)
@@ -562,9 +573,7 @@ async def set_children(
                 ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
             )
         else:
-            console.print(
-                f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
-            )
+            console.print(f"Unable to set children hotkeys. {message}")
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
@@ -650,9 +659,7 @@ async def revoke_children(
                 f"It will be completed around block {completion_block}. The current block is {current_block}"
             )
         else:
-            console.print(
-                f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"
-            )
+            console.print(f"Unable to revoke children hotkeys. {message}")
     else:
         # revoke children from ALL netuids
         netuids = await subtensor.get_all_subnet_netuids()
@@ -690,7 +697,7 @@ async def revoke_children(
                     f"is {current_block}"
                 )
             else:
-                err_console.print(
+                print_error(
                     f"Childkey revocation failed for netuid {netuid_}: {message}."
                 )
     if json_output:
@@ -707,6 +714,8 @@ async def childkey_take(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> list[tuple[Optional[int], bool, Optional[str]]]:
     """
     Get or Set childkey take.
@@ -717,9 +726,7 @@ async def childkey_take(
 
     def validate_take_value(take_value: float) -> bool:
         if not (0 <= take_value <= 0.18):
-            err_console.print(
-                f":cross_mark:[red] Invalid take value: {take_value}[/red]"
-            )
+            print_error(f"Invalid take value: {take_value}")
             return False
         return True
 
@@ -783,9 +790,7 @@ async def childkey_take(
             )
             return True, ext_id_
         else:
-            console.print(
-                f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
-            )
+            print_error(f"Unable to set childkey take. {message}")
             return False, ext_id_
 
     # Print childkey take for other user and return (dont offer to change take rate)
@@ -812,7 +817,9 @@ async def childkey_take(
 
     # Validate child SS58 addresses
     if not take:
-        if not Confirm.ask("Would you like to change the child take?"):
+        if not confirm_action(
+            "Would you like to change the child take?", decline=decline, quiet=quiet
+        ):
             return [(netuid, False, None)]
         new_take_value = -1.0
         while not validate_take_value(new_take_value):

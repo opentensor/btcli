@@ -4,6 +4,7 @@ from collections import namedtuple
 import math
 import os
 import sqlite3
+import sys
 import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,7 +24,7 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
@@ -42,10 +43,51 @@ BT_DOCS_LINK = "https://docs.learnbittensor.org"
 GLOBAL_MAX_SUBNET_COUNT = 4096
 MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
-console = Console()
-json_console = Console()
-err_console = Console(stderr=True)
-verbose_console = Console(quiet=True)
+# Detect if we're in a test environment (pytest captures stdout, making it non-TTY)
+# or if NO_COLOR is set, disable colors
+# Also check for pytest environment variables
+_is_pytest = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None
+_no_color = os.getenv("NO_COLOR", "") != "" or not sys.stdout.isatty() or _is_pytest
+# Force no terminal detection when in pytest or when stdout is not a TTY
+_force_terminal = False if (_is_pytest or not sys.stdout.isatty()) else None
+console = Console(no_color=_no_color, force_terminal=_force_terminal)
+json_console = Console(
+    markup=False, highlight=False, force_terminal=False, no_color=True
+)
+err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_terminal)
+verbose_console = Console(
+    quiet=True, no_color=_no_color, force_terminal=_force_terminal
+)
+
+
+def confirm_action(
+    message: str,
+    default: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """
+    Ask for user confirmation with support for auto-decline via --no flag.
+
+    When decline=True (--no flag is set):
+    - Prints the prompt message (unless quiet=True / --quiet is specified)
+    - Automatically returns False (declines)
+
+    Args:
+        message: The confirmation message to display.
+        default: Default value if user just presses Enter (only used in interactive mode).
+        decline: If True, automatically decline without prompting.
+        quiet: If True, suppresses the prompt message when auto-declining.
+
+    Returns:
+        True if confirmed, False if declined.
+    """
+    if decline:
+        if not quiet:
+            console.print(f"{message} [Auto-declined via --no flag]")
+        return False
+    return Confirm.ask(message, default=default)
+
 
 jinja_env = Environment(
     loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
@@ -88,30 +130,30 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console_: Console):
-    console_.print(
-        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
-    )
+def print_console(message: str, colour: str, console_: Console, title: str = ""):
+    title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
+    console_.print(f"{title_part}[{colour}]{message}[/{colour}]\n")
 
 
 def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
         status.stop()
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
         status.start()
     else:
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
 
 
 def print_error(message: str, status=None):
     """Print error messages while temporarily pausing the status spinner."""
+    error_message = f":cross_mark: {message}"
     if status:
         status.stop()
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
         status.start()
     else:
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
 
 
 RAO_PER_TAO = 1e9
@@ -877,6 +919,16 @@ class TableDefinition:
             return [header] + rows
 
     @classmethod
+    def clear_table(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+    ):
+        """Truncates the table. Use with caution."""
+        cursor.execute(f"DELETE FROM {cls.name}")
+        conn.commit()
+
+    @classmethod
     def update_entry(cls, *args, **kwargs):
         """
         Updates an existing entry in the table.
@@ -932,7 +984,7 @@ class AddressBook(TableDefinition):
             f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         note_ = note or row[1]
         conn.execute(
@@ -980,7 +1032,7 @@ class ProxyAddressBook(TableDefinition):
             f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         spawner_ = spawner or row[1]
         proxy_type_ = proxy_type or row[2]
@@ -988,7 +1040,7 @@ class ProxyAddressBook(TableDefinition):
         note_ = note or row[4]
         conn.execute(
             f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
-            (ss58_address_, spawner_, proxy_type_, note_, delay, name),
+            (ss58_address_, spawner_, proxy_type_, delay, note_, name),
         )
         conn.commit()
 
@@ -1082,7 +1134,7 @@ class ProxyAnnouncements(TableDefinition):
         call_hash: str,
     ):
         conn.execute(
-            f"DELETE FROM {cls.name} WHERE call_hash = ?, address = ?, epoch_time = ?, block = ?",
+            f"DELETE FROM {cls.name} WHERE call_hash = ? AND address = ? AND epoch_time = ? AND block = ?",
             (call_hash, address, epoch_time, block),
         )
         conn.commit()
@@ -1456,7 +1508,7 @@ def retry_prompt(
         if not rejection(var):
             return var
         else:
-            err_console.print(rejection_text)
+            print_error(rejection_text)
 
 
 def validate_netuid(value: int) -> int:
@@ -1772,13 +1824,13 @@ def unlock_key(
     except PasswordError:
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
             return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
         return UnlockStatus(False, err_msg)
 
 

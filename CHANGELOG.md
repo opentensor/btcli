@@ -1,5 +1,35 @@
 # Changelog
 
+## 9.17.0 /2025-12-22
+
+## What's Changed
+* feat: add cli for axon set and reset by @Mobile-Crest in https://github.com/opentensor/btcli/pull/726
+* json console and tests by @thewhaleking in https://github.com/opentensor/btcli/pull/744
+* Consolidates the `--coldkey-ss58` param into a predefined Option. by @thewhaleking in https://github.com/opentensor/btcli/pull/750
+* Testing: Disables non fast blocks for hyperparam by @ibraheem-abe in https://github.com/opentensor/btcli/pull/755
+* Feat: Improve Subnet Hyperparameters cmd #607 by @SmartDever02 in https://github.com/opentensor/btcli/pull/746
+* feat: show weights difference when setting root weights by @MkDev11 in https://github.com/opentensor/btcli/pull/747
+* Feat/Add `--no` flag to auto-decline confirmation prompts 194 by @MkDev11 in https://github.com/opentensor/btcli/pull/748
+* Improve subnets register command and error message by @Mobile-Crest in https://github.com/opentensor/btcli/pull/754
+* fix: resolve SQL syntax error in ProxyAnnouncements and improve event loop by @leonace924 in https://github.com/opentensor/btcli/pull/769
+* pr fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/768
+* Account for 0x-prepended call hashes by @thewhaleking in https://github.com/opentensor/btcli/pull/772
+* Unit test fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/775
+* fix: remove unused --hotkey option from wallet inspect command by @calm329 in https://github.com/opentensor/btcli/pull/770
+* Fix: update the err_console.print to print_error to make consistency in error printing with cross mark by @leonace924 in https://github.com/opentensor/btcli/pull/778
+* Feat: Safe staking in swap_stake by @ibraheem-abe in https://github.com/opentensor/btcli/pull/779
+* proxy execute improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/774
+* Adds CONTRIBUTING guide by @thewhaleking in https://github.com/opentensor/btcli/pull/777
+
+## New Contributors
+* @Mobile-Crest made their first contribution in https://github.com/opentensor/btcli/pull/726
+* @SmartDever02 made their first contribution in https://github.com/opentensor/btcli/pull/746
+* @MkDev11 made their first contribution in https://github.com/opentensor/btcli/pull/747
+* @leonace924 made their first contribution in https://github.com/opentensor/btcli/pull/769
+* @calm329 made their first contribution in https://github.com/opentensor/btcli/pull/770
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.16.0...v9.17.0
+
 ## 9.16.0 /2025-12-09
 
 ## What's Changed

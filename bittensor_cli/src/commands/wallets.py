@@ -15,8 +15,6 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from rich.prompt import Confirm
-
 from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
@@ -36,6 +34,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import (
 )
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
+    confirm_action,
     console,
     convert_blocks_to_time,
     err_console,
@@ -84,6 +83,8 @@ async def associate_hotkey(
     hotkey_ss58: str,
     hotkey_display: str,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ):
     """Associates a hotkey with a wallet"""
@@ -110,7 +111,9 @@ async def associate_hotkey(
             f"{hotkey_display.capitalize()} is not associated with any wallet"
         )
 
-    if prompt and not Confirm.ask("Do you want to continue with the association?"):
+    if prompt and not confirm_action(
+        "Do you want to continue with the association?", decline=decline, quiet=quiet
+    ):
         return False
 
     if not unlock_key(wallet).success:
@@ -268,7 +271,7 @@ async def regen_hotkey(
     json_str: Optional[str] = None
     if json_path:
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
-            err_console.print(f"File {json_path} does not exist")
+            print_error(f"File {json_path} does not exist")
             return False
         with open(json_path, "r") as f:
             json_str = f.read()
@@ -602,7 +605,7 @@ async def wallet_balance(
 
     elif not all_balances:
         if not wallet.coldkeypub_file.exists_on_device():
-            err_console.print("[bold red]No wallets found.[/bold red]")
+            print_error("[bold red]No wallets found.[/bold red]")
             return
 
     with console.status("Retrieving balances", spinner="aesthetic") as status:
@@ -860,14 +863,12 @@ async def wallet_list(
     wallets = utils.get_coldkey_wallets_for_path(wallet_path)
     print_verbose(f"Using wallets path: {wallet_path}")
     if not wallets:
-        err_console.print(f"[red]No wallets found in dir: {wallet_path}[/red]")
+        print_error(f"No wallets found in dir: {wallet_path}")
 
     if wallet_name:
         wallets = [wallet for wallet in wallets if wallet.name == wallet_name]
         if not wallets:
-            err_console.print(
-                f"[red]Wallet '{wallet_name}' not found in dir: {wallet_path}[/red]"
-            )
+            print_error(f"Wallet '{wallet_name}' not found in dir: {wallet_path}")
 
     root = Tree("Wallets")
     main_data_dict = {"wallets": []}
@@ -1735,7 +1736,7 @@ async def faucet(
         max_successes=max_successes,
     )
     if not success:
-        err_console.print("Faucet run failed.")
+        print_error("Faucet run failed.")
 
 
 async def swap_hotkey(
@@ -1836,7 +1837,7 @@ async def set_id(
         )
 
         if not success:
-            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            print_error(f"Failed! {err_msg}")
             output_dict["error"] = err_msg
             if json_output:
                 json_console.print(json.dumps(output_dict))
@@ -1873,7 +1874,7 @@ async def get_id(
         identity = await subtensor.query_identity(ss58_address)
 
     if not identity:
-        err_console.print(
+        print_error(
             f"[blue]Existing identity not found[/blue]"
             f" for [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]"
             f" on {subtensor}"
@@ -2004,8 +2005,8 @@ async def verify(
                     )
                 )
             else:
-                err_console.print(
-                    f":cross_mark: Invalid SS58 address or hex public key (64 chars, with or without 0x prefix)- {str(e)}"
+                print_error(
+                    f"Invalid SS58 address or hex public key (64 chars, with or without 0x prefix)- {str(e)}"
                 )
             return False
 
@@ -2022,7 +2023,7 @@ async def verify(
                 )
             )
         else:
-            err_console.print(f"[red]:cross_mark: Invalid signature format: {str(e)}")
+            print_error(f"Invalid signature format: {str(e)}")
         return False
 
     is_valid = keypair.verify(message.encode("utf-8"), signature_bytes)
@@ -2038,7 +2039,7 @@ async def verify(
             console.print("[dark_sea_green3]Signature is valid!\n")
             console.print(f"[yellow]Signer:[/yellow] {signer_address}")
         else:
-            err_console.print(":cross_mark: [red]Signature verification failed!")
+            print_error("Signature verification failed!")
 
     return is_valid
 
@@ -2048,6 +2049,8 @@ async def schedule_coldkey_swap(
     subtensor: SubtensorInterface,
     new_coldkey_ss58: str,
     force_swap: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
 ) -> bool:
     """Schedules a coldkey swap operation to be executed at a future block.
@@ -2077,13 +2080,13 @@ async def schedule_coldkey_swap(
                 "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
             )
 
-    prompt = (
+    prompt_msg = (
         "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
         f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
         f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
         "Are you sure you want to continue?"
     )
-    if not Confirm.ask(prompt):
+    if not confirm_action(prompt_msg, decline=decline, quiet=quiet):
         return False
 
     if not unlock_key(wallet).success:

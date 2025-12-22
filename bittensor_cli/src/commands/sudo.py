@@ -1,25 +1,27 @@
 import asyncio
 import json
+import re
+import sys
 from typing import TYPE_CHECKING, Union, Optional, Type
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
 from rich import box
 from rich.table import Column, Table
-from rich.prompt import Confirm
 from scalecodec import GenericCall
 
 from bittensor_cli.src import (
     HYPERPARAMS,
     HYPERPARAMS_MODULE,
+    HYPERPARAMS_METADATA,
     RootSudoOnly,
     DelegatesDetails,
     COLOR_PALETTE,
 )
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
     print_error,
     print_verbose,
     normalize_hyperparameters,
@@ -264,6 +266,8 @@ async def set_hyperparameter_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """Sets a hyperparameter for a specific subnetwork.
 
@@ -306,12 +310,14 @@ async def set_hyperparameter_extrinsic(
         )
         extrinsic = parameter
         if not arbitrary_extrinsic:
-            err_msg = ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
-            err_console.print(err_msg)
+            err_msg = "Invalid hyperparameter specified."
+            print_error(err_msg)
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
-        if not Confirm.ask(
-            "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm"
+        if not confirm_action(
+            "This hyperparam is only settable by root sudo users. If you are not, this will fail. Please confirm",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "This hyperparam is only settable by root sudo users", None
 
@@ -335,7 +341,7 @@ async def set_hyperparameter_extrinsic(
 
             if len(value) < len(non_netuid_fields):
                 err_msg = "Not enough values provided in the list for all parameters"
-                err_console.print(err_msg)
+                print_error(err_msg)
                 return False, err_msg, None
 
             call_params.update(
@@ -365,8 +371,10 @@ async def set_hyperparameter_extrinsic(
         if not prompt:
             to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
         else:
-            to_sudo_or_not_to_sudo = Confirm.ask(
-                f"This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?"
+            to_sudo_or_not_to_sudo = confirm_action(
+                "This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?",
+                decline=decline,
+                quiet=quiet,
             )
         if to_sudo_or_not_to_sudo:
             call = await substrate.compose_call(
@@ -376,16 +384,14 @@ async def set_hyperparameter_extrinsic(
             )
         else:
             if subnet_owner != coldkey_ss58:
-                err_msg = ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-                err_console.print(err_msg)
+                err_msg = "This wallet doesn't own the specified subnet."
+                print_error(err_msg)
                 return False, err_msg, None
             call = call_
     else:
         if subnet_owner != coldkey_ss58:
-            err_msg = (
-                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-            )
-            err_console.print(err_msg)
+            err_msg = "This wallet doesn't own the specified subnet."
+            print_error(err_msg)
             return False, err_msg, None
         call = call_
     with console.status(
@@ -398,7 +404,7 @@ async def set_hyperparameter_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
     if not success:
-        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        print_error(f"Failed: {err_msg}")
         return False, err_msg, None
     else:
         ext_id = await ext_receipt.get_extrinsic_identifier()
@@ -439,7 +445,7 @@ async def _get_senate_members(
             decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
         ]
     except (IndexError, TypeError):
-        err_console.print("Unable to retrieve senate members.")
+        print_error("Unable to retrieve senate members.")
         return []
 
 
@@ -467,7 +473,7 @@ async def _get_proposals(
             f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
         ]
     except (IndexError, TypeError):
-        err_console.print("Unable to retrieve proposal vote data")
+        print_error("Unable to retrieve proposal vote data")
         return {}
 
     call_data_, vote_data_ = await asyncio.gather(
@@ -583,6 +589,8 @@ async def vote_senate_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Votes ayes or nays on proposals.
 
@@ -604,7 +612,7 @@ async def vote_senate_extrinsic(
 
     if prompt:
         # Prompt user for confirmation.
-        if not Confirm.ask(f"Cast a vote of {vote}?"):
+        if not confirm_action(f"Cast a vote of {vote}?", decline=decline, quiet=quiet):
             return False
 
     with console.status(":satellite: Casting vote..", spinner="aesthetic"):
@@ -622,7 +630,7 @@ async def vote_senate_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
         if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             return False
         # Successful vote, final check for data
         else:
@@ -637,9 +645,7 @@ async def vote_senate_extrinsic(
                     return True
                 else:
                     # hotkey not found in ayes/nays
-                    err_console.print(
-                        ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
-                    )
+                    print_error("Unknown error. Couldn't find vote.")
                     return False
             else:
                 return False
@@ -720,7 +726,7 @@ async def set_take_extrinsic(
             )
 
     if not success:
-        err_console.print(err)
+        print_error(err)
         ext_id = None
     else:
         console.print(
@@ -751,7 +757,15 @@ async def sudo_set_hyperparameter(
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
             f"Value is {param_value} but must be {value}"
         )
-        err_console.print(err_msg)
+        if json_output:
+            json_str = json.dumps(
+                {"success": False, "err_msg": err_msg, "extrinsic_identifier": None},
+                ensure_ascii=True,
+            )
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            print_error(err_msg)
         return False, err_msg, None
     if json_output:
         prompt = False
@@ -767,55 +781,185 @@ async def sudo_set_hyperparameter(
     return success, err_msg, ext_id
 
 
+def _sanitize_json_string(
+    value: Union[str, int, float, bool, None],
+) -> Union[str, int, float, bool, None]:
+    """Sanitize string values for JSON output by removing control characters.
+
+    Non-string values are returned as-is.
+    """
+    if isinstance(value, str):
+        # Remove all control characters (0x00-0x1F and 0x7F-0x9F) and replace with space
+        sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", value)
+        # Collapse multiple spaces into single space
+        sanitized = " ".join(sanitized.split())
+        return sanitized
+    return value
+
+
 async def get_hyperparameters(
-    subtensor: "SubtensorInterface", netuid: int, json_output: bool = False
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    json_output: bool = False,
+    show_descriptions: bool = True,
 ) -> bool:
     """View hyperparameters of a subnetwork."""
     print_verbose("Fetching hyperparameters")
-    if not await subtensor.subnet_exists(netuid):
-        print_error(f"Subnet with netuid {netuid} does not exist.")
-        return False
-    subnet, subnet_info = await asyncio.gather(
-        subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
-    )
-    if subnet_info is None:
-        print_error(f"Subnet with netuid {netuid} does not exist.")
+    try:
+        if not await subtensor.subnet_exists(netuid):
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+        subnet, subnet_info = await asyncio.gather(
+            subtensor.get_subnet_hyperparameters(netuid), subtensor.subnet(netuid)
+        )
+        if subnet_info is None:
+            error_msg = f"Subnet with netuid {netuid} does not exist."
+            if json_output:
+                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
+                sys.stdout.write(json_str + "\n")
+                sys.stdout.flush()
+            else:
+                print_error(error_msg)
+            return False
+    except Exception as e:
+        if json_output:
+            json_str = json.dumps({"error": str(e)}, ensure_ascii=True)
+            sys.stdout.write(json_str + "\n")
+            sys.stdout.flush()
+        else:
+            raise
         return False
 
-    table = Table(
-        Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
-        Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
-        Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
-        title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
-        f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
-        f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
-        f"[/{COLOR_PALETTE.G.SUBHEAD}]"
-        f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
-        show_footer=True,
-        width=None,
-        pad_edge=False,
-        box=box.SIMPLE,
-        show_edge=True,
-    )
+    # Determine if we should show extended info (descriptions, ownership)
+    show_extended = show_descriptions and not json_output
+
+    if show_extended:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            Column("[white]OWNER SETTABLE", style="bright_cyan"),
+            Column("[white]DESCRIPTION", style="dim", overflow="fold"),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
+    else:
+        table = Table(
+            Column("[white]HYPERPARAMETER", style=COLOR_PALETTE.SU.HYPERPARAMETER),
+            Column("[white]VALUE", style=COLOR_PALETTE.SU.VALUE),
+            Column("[white]NORMALIZED", style=COLOR_PALETTE.SU.NORMAL),
+            title=f"[{COLOR_PALETTE.G.HEADER}]\nSubnet Hyperparameters\n NETUID: "
+            f"[{COLOR_PALETTE.G.SUBHEAD}]{netuid}"
+            f"{f' ({subnet_info.subnet_name})' if subnet_info.subnet_name is not None else ''}"
+            f"[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" - Network: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
+            show_footer=True,
+            width=None,
+            pad_edge=False,
+            box=box.SIMPLE,
+            show_edge=True,
+        )
     dict_out = []
 
     normalized_values = normalize_hyperparameters(subnet, json_output=json_output)
     sorted_values = sorted(normalized_values, key=lambda x: x[0])
     for param, value, norm_value in sorted_values:
         if not json_output:
-            table.add_row("  " + param, value, norm_value)
+            if show_extended:
+                # Get metadata for this hyperparameter
+                metadata = HYPERPARAMS_METADATA.get(param, {})
+                description = metadata.get("description", "No description available.")
+
+                # Check actual ownership from HYPERPARAMS
+                _, root_sudo = HYPERPARAMS.get(param, ("", RootSudoOnly.FALSE))
+                if root_sudo == RootSudoOnly.TRUE:
+                    owner_settable_str = "[red]No (Root Only)[/red]"
+                elif root_sudo == RootSudoOnly.COMPLICATED:
+                    owner_settable_str = "[yellow]COMPLICATED (Owner/Sudo)[/yellow]"
+                else:
+                    owner_settable_str = "[green]Yes[/green]"
+
+                # Format description with docs link if available
+                docs_link = metadata.get("docs_link", "")
+                if docs_link:
+                    # Use Rich markup to create description with clickable bright blue [link] at the end
+                    description_with_link = f"{description} [bright_blue underline link=https://{docs_link}]link[/]"
+                else:
+                    description_with_link = description
+
+                table.add_row(
+                    "  " + param,
+                    value,
+                    norm_value,
+                    owner_settable_str,
+                    description_with_link,
+                )
+            else:
+                table.add_row("  " + param, value, norm_value)
         else:
+            metadata = HYPERPARAMS_METADATA.get(param, {})
+            # Sanitize all string fields for JSON output - remove control characters
+            description = metadata.get("description", "No description available.")
+            side_effects = metadata.get("side_effects", "No side effects documented.")
+            docs_link = metadata.get("docs_link", "")
+
+            # Sanitize all string values to ensure valid JSON output
             dict_out.append(
                 {
-                    "hyperparameter": param,
-                    "value": value,
-                    "normalized_value": norm_value,
+                    "hyperparameter": _sanitize_json_string(str(param)),
+                    "value": _sanitize_json_string(value),
+                    "normalized_value": _sanitize_json_string(norm_value),
+                    "owner_settable": bool(metadata.get("owner_settable", False)),
+                    "description": _sanitize_json_string(description),
+                    "side_effects": _sanitize_json_string(side_effects),
+                    "docs_link": _sanitize_json_string(docs_link),
                 }
             )
     if json_output:
-        json_console.print(json.dumps(dict_out))
+        # Use ensure_ascii=True to properly escape all non-ASCII and control characters
+        # Write directly to stdout to avoid any Rich Console formatting
+        import sys
+
+        json_str = json.dumps(dict_out, ensure_ascii=True)
+        sys.stdout.write(json_str + "\n")
+        sys.stdout.flush()
+        return True
     else:
         console.print(table)
+        if show_extended:
+            console.print(
+                "\n[dim]💡 Tip: Use [bold]btcli sudo set --param <name> --value <value>[/bold] to modify hyperparameters."
+            )
+            console.print(
+                "[dim]💡 Tip: Subnet owners can set parameters marked '[green]Yes[/green]'. "
+                "Parameters marked '[red]No (Root Only)[/red]' require root sudo access."
+            )
+            console.print(
+                "[dim]💡 Tip: To set custom hyperparameters not in this list, use the exact parameter name from the chain metadata."
+            )
+            console.print(
+                f"[dim]   Example: [bold]btcli sudo set --netuid {netuid} --param custom_param_name --value 123[/bold]"
+            )
+            console.print(
+                "[dim]   The parameter name must match exactly as defined in the chain's AdminUtils pallet metadata."
+            )
+            console.print(
+                "[dim]📚 For detailed documentation, visit: [link]https://docs.bittensor.com[/link]"
+            )
     return True
 
 
@@ -867,7 +1011,7 @@ async def get_senate(
         )
         dict_output.append({"name": member_name, "ss58_address": ss58_address})
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     return console.print(table)
 
 
@@ -960,7 +1104,7 @@ async def proposals(
             }
         )
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        json_console.print(json.dumps(dict_output, ensure_ascii=True))
     console.print(table)
     console.print(
         "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
@@ -978,12 +1122,12 @@ async def senate_vote(
     """Vote in Bittensor's governance protocol proposals"""
 
     if not proposal_hash:
-        err_console.print(
+        print_error(
             "Aborting: Proposal hash not specified. View all proposals with the `proposals` command."
         )
         return False
     elif not _validate_proposal_hash(proposal_hash):
-        err_console.print(
+        print_error(
             "Aborting. Proposal hash is invalid. Proposal hashes should start with '0x' and be 32 bytes long"
         )
         return False
@@ -991,7 +1135,7 @@ async def senate_vote(
     print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if not await _is_senate_member(subtensor, hotkey_ss58=hotkey_ss58):
-        err_console.print(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
+        print_error(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
         return False
 
     # Unlock the wallet.
@@ -1001,7 +1145,7 @@ async def senate_vote(
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
     vote_data = await subtensor.get_vote_data(proposal_hash, reuse_block=True)
     if not vote_data:
-        err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
+        print_error("Failed: Proposal not found.")
         return False
 
     success = await vote_senate_extrinsic(
@@ -1038,7 +1182,7 @@ async def set_take(
 
     async def _do_set_take() -> tuple[bool, Optional[str]]:
         if take > 0.18 or take < 0:
-            err_console.print("ERROR: Take value should not exceed 18% or be below 0%")
+            print_error("ERROR: Take value should not exceed 18% or be below 0%")
             return False, None
 
         block_hash = await subtensor.substrate.get_chain_head()
@@ -1047,7 +1191,7 @@ async def set_take(
             hotkey_ss58, block_hash=block_hash
         )
         if not len(netuids_registered) > 0:
-            err_console.print(
+            print_error(
                 f"Hotkey [{COLOR_PALETTE.G.HK}]{hotkey_ss58}[/{COLOR_PALETTE.G.HK}] is not registered to"
                 f" any subnet. Please register using [{COLOR_PALETTE.G.SUBHEAD}]`btcli subnets register`"
                 f"[{COLOR_PALETTE.G.SUBHEAD}] and try again."
@@ -1064,7 +1208,7 @@ async def set_take(
         success, ext_id = result
 
         if not success:
-            err_console.print("Could not set the take")
+            print_error("Could not set the take")
             return False, None
         else:
             new_take = await get_current_take(subtensor, wallet)
@@ -1091,6 +1235,8 @@ async def trim(
     max_n: int,
     period: int,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> bool:
     """
@@ -1108,14 +1254,16 @@ async def trim(
         if json_output:
             json_console.print_json(data={"success": False, "message": err_msg})
         else:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(err_msg)
         return False
     if prompt and not json_output:
-        if not Confirm.ask(
+        if not confirm_action(
             f"You are about to trim UIDs on SN{netuid} to a limit of {max_n}",
             default=False,
+            decline=decline,
+            quiet=quiet,
         ):
-            err_console.print(":cross_mark: [red]User aborted.[/red]")
+            print_error("User aborted.")
     call = await subtensor.substrate.compose_call(
         call_module="AdminUtils",
         call_function="sudo_trim_to_max_allowed_uids",
@@ -1134,7 +1282,7 @@ async def trim(
                 }
             )
         else:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(err_msg)
         return False
     else:
         ext_id = await ext_receipt.get_extrinsic_identifier()

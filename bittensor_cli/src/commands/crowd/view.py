@@ -19,7 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 
-def _shorten(account: str | None) -> str:
+def _shorten(account: Optional[str]) -> str:
     if not account:
         return "-"
     return f"{account[:6]}…{account[-6:]}"

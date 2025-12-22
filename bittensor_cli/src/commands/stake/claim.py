@@ -4,7 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.table import Table, Column
 from rich import box
@@ -12,8 +12,9 @@ from rich import box
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    print_error,
     unlock_key,
     print_extrinsic_id,
     json_console,
@@ -38,6 +39,8 @@ async def set_claim_type(
     proxy: Optional[str],
     netuids: Optional[str] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
@@ -81,7 +84,7 @@ async def set_claim_type(
             )
         except ValueError as e:
             msg = f"Invalid netuid format: {e}"
-            err_console.print(f"[red]{msg}[/red]")
+            print_error(msg)
             if json_output:
                 json_console.print(json.dumps({"success": False, "message": msg}))
             return False, msg, None
@@ -104,7 +107,9 @@ async def set_claim_type(
 
     # Full wizard
     if claim_type is None and selected_netuids is None:
-        new_claim_info = await _ask_for_claim_types(wallet, subtensor, all_subnets)
+        new_claim_info = await _ask_for_claim_types(
+            wallet, subtensor, all_subnets, decline=decline, quiet=quiet
+        )
         if new_claim_info is None:
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
@@ -135,7 +140,7 @@ async def set_claim_type(
             invalid = [n for n in selected_netuids if n not in all_subnets]
             if invalid:
                 msg = f"Invalid subnets (not available): {group_subnets(invalid)}"
-                err_console.print(msg)
+                print_error(msg)
                 if json_output:
                     json_console.print(json.dumps({"success": False, "message": msg}))
                 return False, msg, None
@@ -174,7 +179,9 @@ async def set_claim_type(
             )
         )
 
-        if not Confirm.ask("\nProceed with this change?"):
+        if not confirm_action(
+            "\nProceed with this change?", decline=decline, quiet=quiet
+        ):
             msg = "Operation cancelled."
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -183,7 +190,7 @@ async def set_claim_type(
 
     if not (unlock := unlock_key(wallet)).success:
         msg = f"Failed to unlock wallet: {unlock.message}"
-        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        print_error(msg)
         if json_output:
             json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
@@ -217,7 +224,7 @@ async def set_claim_type(
         return True, msg, ext_id
     else:
         msg = f"Failed to set claim type: {err_msg}"
-        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        print_error(msg)
         if json_output:
             json_console.print(json.dumps({"success": False, "message": msg}))
         return False, msg, None
@@ -229,6 +236,8 @@ async def process_pending_claims(
     netuids: Optional[list[int]] = None,
     proxy: Optional[str] = None,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
     verbose: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
@@ -338,7 +347,7 @@ async def process_pending_claims(
     )
 
     if prompt:
-        if not Confirm.ask("Do you want to proceed?"):
+        if not confirm_action("Do you want to proceed?", decline=decline, quiet=quiet):
             msg = "Operation cancelled by user"
             console.print(f"[yellow]{msg}[/yellow]")
             if json_output:
@@ -356,7 +365,7 @@ async def process_pending_claims(
 
     if not (unlock := unlock_key(wallet)).success:
         msg = f"Failed to unlock wallet: {unlock.message}"
-        err_console.print(f":cross_mark: [red]{msg}[/red]")
+        print_error(msg)
         if json_output:
             json_console.print(
                 json.dumps(
@@ -396,7 +405,7 @@ async def process_pending_claims(
             return True, msg, ext_id
         else:
             msg = f"Failed to claim root emissions: {err_msg}"
-            err_console.print(f":cross_mark: [red]{msg}[/red]")
+            print_error(msg)
             if json_output:
                 json_console.print(
                     json.dumps(
@@ -427,28 +436,22 @@ def _prompt_claim_selection(claimable_stake: dict) -> Optional[list[int]]:
             else:
                 selected = [int(netuid_input.strip())]
         except ValueError:
-            err_console.print(
-                ":cross_mark: [red]Invalid input. Please enter numbers only.[/red]"
-            )
+            print_error("Invalid input. Please enter numbers only.")
             continue
 
         if len(selected) > 5:
-            err_console.print(
-                f":cross_mark: [red]You selected {len(selected)} netuids. Maximum is 5. Please try again.[/red]"
+            print_error(
+                f"You selected {len(selected)} netuids. Maximum is 5. Please try again."
             )
             continue
 
         if len(selected) == 0:
-            err_console.print(
-                ":cross_mark: [red]Please select at least one netuid.[/red]"
-            )
+            print_error("Please select at least one netuid.")
             continue
 
         invalid_netuids = [n for n in selected if n not in available_netuids]
         if invalid_netuids:
-            err_console.print(
-                f":cross_mark: [red]Invalid netuids: {', '.join(map(str, invalid_netuids))}[/red]"
-            )
+            print_error(f"Invalid netuids: {', '.join(map(str, invalid_netuids))}")
             continue
 
         selected = list(dict.fromkeys(selected))
@@ -514,6 +517,8 @@ async def _ask_for_claim_types(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     all_subnets: list,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> Optional[dict]:
     """
     Interactive prompts for claim type selection.
@@ -548,8 +553,11 @@ async def _ask_for_claim_types(
     if primary_choice == "cancel":
         return None
 
-    apply_to_all = Confirm.ask(
-        f"\nSet {primary_choice.capitalize()} to ALL subnets?", default=True
+    apply_to_all = confirm_action(
+        f"\nSet {primary_choice.capitalize()} to ALL subnets?",
+        default=True,
+        decline=decline,
+        quiet=quiet,
     )
 
     if apply_to_all:
@@ -565,7 +573,12 @@ async def _ask_for_claim_types(
         )
 
     return await _prompt_claim_netuids(
-        wallet, subtensor, all_subnets, mode=primary_choice
+        wallet,
+        subtensor,
+        all_subnets,
+        mode=primary_choice,
+        decline=decline,
+        quiet=quiet,
     )
 
 
@@ -574,6 +587,8 @@ async def _prompt_claim_netuids(
     subtensor: "SubtensorInterface",
     all_subnets: list,
     mode: str = "keep",
+    decline: bool = False,
+    quiet: bool = False,
 ) -> Optional[dict]:
     """
     Interactive subnet selection.
@@ -613,17 +628,17 @@ async def _prompt_claim_netuids(
         )
 
         if not subnet_input.strip():
-            err_console.print("[red]No subnets entered. Please try again.[/red]")
+            print_error("No subnets entered. Please try again.")
             continue
 
         try:
             selected = parse_subnet_range(subnet_input, total_subnets=len(all_subnets))
             invalid = [s for s in selected if s not in all_subnets]
             if invalid:
-                err_console.print(
-                    f"[red]Invalid subnets (not available): {group_subnets(invalid)}[/red]"
+                print_error(
+                    f"Invalid subnets (not available): {group_subnets(invalid)}"
                 )
-                err_console.print("[yellow]Please try again.[/yellow]")
+                print_error("[yellow]Please try again.[/yellow]")
                 continue
 
             if mode == "keep":
@@ -631,7 +646,9 @@ async def _prompt_claim_netuids(
             else:
                 keep_subnets = [n for n in all_subnets if n not in selected]
 
-            if _preview_subnet_selection(keep_subnets, all_subnets):
+            if _preview_subnet_selection(
+                keep_subnets, all_subnets, decline=decline, quiet=quiet
+            ):
                 if not keep_subnets:
                     return {"type": "Swap"}
                 elif set(keep_subnets) == set(all_subnets):
@@ -647,12 +664,15 @@ async def _prompt_claim_netuids(
                 )
 
         except ValueError as e:
-            err_console.print(
-                f"Invalid subnet selection: {e}\n[yellow]Please try again."
-            )
+            print_error(f"Invalid subnet selection: {e}\nPlease try again.")
 
 
-def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -> bool:
+def _preview_subnet_selection(
+    keep_subnets: list[int],
+    all_subnets: list[int],
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
     """Show preview and ask for confirmation."""
 
     swap_subnets = [n for n in all_subnets if n not in keep_subnets]
@@ -678,7 +698,9 @@ def _preview_subnet_selection(keep_subnets: list[int], all_subnets: list[int]) -
 
     console.print(Panel(preview_content))
 
-    return Confirm.ask("\nIs this correct?", default=True)
+    return confirm_action(
+        "\nIs this correct?", default=True, decline=decline, quiet=quiet
+    )
 
 
 def _format_claim_type_display(

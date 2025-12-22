@@ -3,14 +3,14 @@ import json
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
-from rich.prompt import Confirm
 from rich.table import Column, Table
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     unlock_key,
     console,
-    err_console,
+    print_error,
     json_console,
     print_extrinsic_id,
 )
@@ -251,6 +251,8 @@ async def add_liquidity(
     price_low: Balance,
     price_high: Balance,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     json_output: bool,
 ) -> tuple[bool, str]:
     """Add liquidity position to provided subnet."""
@@ -272,7 +274,9 @@ async def add_liquidity(
             f"\tusing wallet with name: {wallet.name}"
         )
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False, "User cancelled operation."
 
     success, message, ext_receipt = await add_liquidity_extrinsic(
@@ -304,7 +308,7 @@ async def add_liquidity(
                 "[green]LiquidityPosition has been successfully added.[/green]"
             )
         else:
-            err_console.print(f"[red]Error: {message}[/red]")
+            print_error(f"Error: {message}")
     return success, message
 
 
@@ -502,7 +506,7 @@ async def show_liquidity_list(
             )
             return
         else:
-            err_console.print(f"Error: {err_msg}")
+            print_error(f"Error: {err_msg}")
             return
     liquidity_table = Table(
         Column("ID", justify="center"),
@@ -567,6 +571,8 @@ async def remove_liquidity(
     proxy: Optional[str],
     position_id: Optional[int] = None,
     prompt: Optional[bool] = None,
+    decline: bool = False,
+    quiet: bool = False,
     all_liquidity_ids: Optional[bool] = None,
     json_output: bool = False,
 ) -> None:
@@ -582,7 +588,7 @@ async def remove_liquidity(
                     data={"success": False, "err_msg": msg, "positions": positions}
                 )
             else:
-                return err_console.print(f"Error: {msg}")
+                return print_error(f"Error: {msg}")
             return None
         else:
             position_ids = [p.id for p in positions]
@@ -596,7 +602,9 @@ async def remove_liquidity(
         for pos in position_ids:
             console.print(f"\tPosition id: {pos}")
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return None
 
     # TODO does this never break because of the nonce?
@@ -619,7 +627,7 @@ async def remove_liquidity(
                 await print_extrinsic_id(ext_receipt)
                 console.print(f"[green] Position {posid} has been removed.")
             else:
-                err_console.print(f"[red] Error removing {posid}: {msg}")
+                print_error(f"Error removing {posid}: {msg}")
     else:
         json_table = {}
         for (success, msg, ext_receipt), posid in zip(results, position_ids):
@@ -641,6 +649,8 @@ async def modify_liquidity(
     position_id: int,
     liquidity_delta: Balance,
     prompt: Optional[bool] = None,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """Modify liquidity position in provided subnet."""
@@ -649,7 +659,7 @@ async def modify_liquidity(
         if json_output:
             json_console.print(json.dumps({"success": False, "err_msg": err_msg}))
         else:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False
 
     if prompt:
@@ -661,7 +671,9 @@ async def modify_liquidity(
             f"\tLiquidity delta: {liquidity_delta}"
         )
 
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     success, msg, ext_receipt = await modify_liquidity_extrinsic(
@@ -683,5 +695,5 @@ async def modify_liquidity(
             await print_extrinsic_id(ext_receipt)
             console.print(f"[green] Position {position_id} has been modified.")
         else:
-            err_console.print(f"[red] Error modifying {position_id}: {msg}")
+            print_error(f"Error modifying {position_id}: {msg}")
     return success

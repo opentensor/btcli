@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from rich.table import Table
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
@@ -15,8 +15,8 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
@@ -40,6 +40,8 @@ async def stake_add(
     stake_all: bool,
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     all_hotkeys: bool,
     include_hotkeys: list[str],
     exclude_hotkeys: list[str],
@@ -353,7 +355,7 @@ async def stake_add(
             # Check that the subnet exists.
             subnet_info = all_subnets.get(netuid)
             if not subnet_info:
-                err_console.print(f"Subnet with netuid: {netuid} does not exist.")
+                print_error(f"Subnet with netuid: {netuid} does not exist.")
                 continue
             current_stake_balances.append(hotkey_stake_map[hotkey[1]][netuid])
 
@@ -373,8 +375,8 @@ async def stake_add(
 
             # Check enough to stake.
             if amount_to_stake > remaining_wallet_balance:
-                err_console.print(
-                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                print_error(
+                    f"Not enough stake:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
                 return
@@ -462,7 +464,9 @@ async def stake_add(
     _print_table_and_slippage(table, max_slippage, safe_staking)
 
     if prompt:
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return
     if not unlock_key(wallet).success:
         return

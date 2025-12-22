@@ -3,19 +3,16 @@ from typing import Optional, Union
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
-from async_substrate_interface.errors import SubstrateRequestException
-
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import (
     SubtensorInterface,
     GENESIS_ADDRESS,
 )
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    print_error,
     print_verbose,
-    format_error_message,
     is_valid_bittensor_address_or_public_key,
     print_error,
     unlock_key,
@@ -33,6 +30,8 @@ async def transfer_extrinsic(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     proxy: Optional[str] = None,
     announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
@@ -96,8 +95,8 @@ async def transfer_extrinsic(
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
-        err_console.print(
-            f":cross_mark: [red]Invalid destination SS58 address[/red]:[bold white]\n  {destination}[/bold white]"
+        print_error(
+            f"Invalid destination SS58 address:[bold white]\n  {destination}[/bold white]"
         )
         return False, None
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
@@ -140,8 +139,8 @@ async def transfer_extrinsic(
 
     if proxy:
         if proxy_balance < (amount + existential_deposit) and not allow_death:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{proxy_balance}[/bright_cyan]\n"
                 f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
                 f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
@@ -149,8 +148,8 @@ async def transfer_extrinsic(
             )
             return False, None
         if account_balance < fee:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
                 f"  fee: [bright_cyan]{fee}[/bright_cyan]\n"
                 f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
@@ -158,15 +157,15 @@ async def transfer_extrinsic(
             return False, None
         if account_balance < amount and allow_death:
             print_error(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_red]{account_balance}[/bright_red]\n"
                 f"  amount: [bright_red]{amount}[/bright_red]\n"
             )
             return False, None
     else:
         if account_balance < (amount + fee + existential_deposit) and not allow_death:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
                 f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
                 f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
@@ -176,7 +175,7 @@ async def transfer_extrinsic(
             return False, None
         elif account_balance < (amount + fee) and allow_death:
             print_error(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_red]{account_balance}[/bright_red]\n"
                 f"  amount: [bright_red]{amount}[/bright_red]\n"
                 f"  for fee: [bright_red]{fee}[/bright_red]"
@@ -189,14 +188,16 @@ async def transfer_extrinsic(
     if prompt:
         hk_owner = await subtensor.get_hotkey_owner(destination, check_exists=False)
         if hk_owner and hk_owner not in (destination, GENESIS_ADDRESS):
-            if not Confirm.ask(
+            if not confirm_action(
                 f"The destination appears to be a hotkey, owned by [bright_magenta]{hk_owner}[/bright_magenta]. "
                 f"Only proceed if you are absolutely sure that [bright_magenta]{destination}[/bright_magenta] is the "
                 f"correct destination.",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, None
-        if not Confirm.ask(
+        if not confirm_action(
             "Do you want to transfer:[bold white]\n"
             f"  amount: [bright_cyan]{amount if not transfer_all else account_balance}[/bright_cyan]\n"
             f"  from: [light_goldenrod2]{wallet.name}[/light_goldenrod2] : "
@@ -204,7 +205,9 @@ async def transfer_extrinsic(
             f"  to: [bright_magenta]{destination}[/bright_magenta]\n  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
             f"[bright_yellow]Transferring is not the same as staking. To instead stake, use "
             f"[dark_orange]btcli stake add[/dark_orange] instead[/bright_yellow].\n"
-            f"Proceed with transfer?"
+            f"Proceed with transfer?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None
 
