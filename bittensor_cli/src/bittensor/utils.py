@@ -984,7 +984,7 @@ class AddressBook(TableDefinition):
             f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         note_ = note or row[1]
         conn.execute(
