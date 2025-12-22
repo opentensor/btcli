@@ -156,6 +156,17 @@ def print_error(message: str, status=None):
         print_console(error_message, "red", err_console)
 
 
+def print_success(message: str, status=None):
+    """Print success messages while temporarily pausing the status spinner."""
+    success_message = f":white_check_mark: {message}"
+    if status:
+        status.stop()
+        print_console(success_message, "green", console)
+        status.start()
+    else:
+        print_console(success_message, "green", console)
+
+
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615
@@ -1922,14 +1933,12 @@ async def print_extrinsic_id(
     if substrate:
         query = await substrate.rpc_request("system_chainType", [])
         if query.get("result") == "Live":
-            console.print(
-                f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}: "
+            print_success(
+                f"Your extrinsic has been included as {ext_id}: "
                 f"[blue]https://tao.app/extrinsic/{ext_id}[/blue]"
             )
             return
-    console.print(
-        f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}"
-    )
+    print_success(f"Your extrinsic has been included as {ext_id}")
     return
 
 
