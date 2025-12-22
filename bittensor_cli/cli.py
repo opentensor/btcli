@@ -6362,12 +6362,6 @@ class CLIManager:
             "--allnetuids",
             help="When this flag is used it sets child hotkeys on all the subnets.",
         ),
-        parent_hotkey: Optional[str] = typer.Option(
-            None,
-            "--parent-hotkey",
-            help="Parent hotkey SS58 to manage (defaults to the selected wallet hotkey).",
-            prompt=False,
-        ),
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
@@ -6395,9 +6389,6 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
-        if parent_hotkey is not None and not is_valid_ss58_address(parent_hotkey):
-            print_error(f"Invalid SS58 address for --parent-hotkey: {parent_hotkey}")
-            raise typer.Exit()
         if all_netuids and netuid:
             print_error("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
@@ -6420,7 +6411,6 @@ class CLIManager:
                 wallet=wallet,
                 subtensor=self.initialize_chain(network),
                 netuid=netuid,
-                hotkey=parent_hotkey,
                 proxy=proxy,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
