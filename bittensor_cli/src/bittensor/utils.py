@@ -158,7 +158,7 @@ def print_error(message: str, status=None):
 
 def print_success(message: str, status=None):
     """Print success messages while temporarily pausing the status spinner."""
-    success_message = f":white_heavy_check_mark: {message}"
+    success_message = f":white_check_mark: {message}"
     if status:
         status.stop()
         print_console(success_message, "green", console)
