@@ -13,8 +13,10 @@ from bittensor_cli.src.bittensor.json_utils import (
     json_response,
     json_success,
     json_error,
-    json_transaction,
     serialize_balance,
+    transaction_response,
+    TransactionResult,
+    MultiTransactionResult,
 )
 
 
@@ -127,47 +129,100 @@ class TestJsonError:
         assert parsed["data"]["field"] == "amount"
 
 
-class TestJsonTransaction:
-    """Tests for the json_transaction helper."""
+class TestTransactionResponse:
+    """Tests for the transaction_response helper."""
 
     def test_successful_transaction(self):
         """Test successful transaction response."""
-        result = json_transaction(
+        result = transaction_response(
             success=True,
-            extrinsic_hash="0x123abc",
-            block_hash="0x456def"
+            message="Transfer successful",
+            extrinsic_identifier="12345678-2"
         )
-        parsed = json.loads(result)
 
-        assert parsed["success"] is True
-        assert parsed["data"]["extrinsic_hash"] == "0x123abc"
-        assert parsed["data"]["block_hash"] == "0x456def"
+        assert result["success"] is True
+        assert result["message"] == "Transfer successful"
+        assert result["extrinsic_identifier"] == "12345678-2"
 
     def test_failed_transaction(self):
         """Test failed transaction response."""
-        result = json_transaction(
+        result = transaction_response(
             success=False,
-            error="Insufficient balance"
+            message="Insufficient balance"
         )
-        parsed = json.loads(result)
 
-        assert parsed["success"] is False
-        assert parsed["error"] == "Insufficient balance"
+        assert result["success"] is False
+        assert result["message"] == "Insufficient balance"
+        assert result["extrinsic_identifier"] is None
 
-    def test_transaction_with_extra_data(self):
-        """Test transaction with extra data fields."""
-        result = json_transaction(
+    def test_transaction_without_message(self):
+        """Test transaction without message."""
+        result = transaction_response(
             success=True,
-            extrinsic_hash="0x123",
-            amount=100.5,
-            recipient="5xyz..."
+            extrinsic_identifier="12345678-3"
         )
-        parsed = json.loads(result)
 
-        assert parsed["success"] is True
-        assert parsed["data"]["extrinsic_hash"] == "0x123"
-        assert parsed["data"]["amount"] == 100.5
-        assert parsed["data"]["recipient"] == "5xyz..."
+        assert result["success"] is True
+        assert result["message"] is None
+        assert result["extrinsic_identifier"] == "12345678-3"
+
+
+class TestTransactionResult:
+    """Tests for the TransactionResult class."""
+
+    def test_as_dict(self):
+        """Test conversion to dictionary."""
+        result = TransactionResult(
+            success=True,
+            message="Success",
+            extrinsic_identifier="12345-1"
+        )
+        d = result.as_dict()
+
+        assert d["success"] is True
+        assert d["message"] == "Success"
+        assert d["extrinsic_identifier"] == "12345-1"
+
+    def test_failed_result(self):
+        """Test failed transaction result."""
+        result = TransactionResult(
+            success=False,
+            message="Error occurred"
+        )
+        d = result.as_dict()
+
+        assert d["success"] is False
+        assert d["message"] == "Error occurred"
+        assert d["extrinsic_identifier"] is None
+
+
+class TestMultiTransactionResult:
+    """Tests for the MultiTransactionResult class."""
+
+    def test_add_results(self):
+        """Test adding multiple results."""
+        multi = MultiTransactionResult()
+        multi.add("pos1", True, "Success 1", "12345-1")
+        multi.add("pos2", False, "Failed 2", None)
+
+        d = multi.as_dict()
+
+        assert "pos1" in d
+        assert "pos2" in d
+        assert d["pos1"]["success"] is True
+        assert d["pos1"]["extrinsic_identifier"] == "12345-1"
+        assert d["pos2"]["success"] is False
+        assert d["pos2"]["extrinsic_identifier"] is None
+
+    def test_add_result_object(self):
+        """Test adding TransactionResult objects."""
+        multi = MultiTransactionResult()
+        result = TransactionResult(True, "Test", "123-1")
+        multi.add_result("key1", result)
+
+        d = multi.as_dict()
+        assert d["key1"]["success"] is True
+        assert d["key1"]["message"] == "Test"
 
 
 class TestSerializeBalance:
@@ -236,13 +291,16 @@ class TestJsonOutputConsistency:
             assert "error" in parsed
             assert parsed["success"] is False
 
-    def test_no_null_data_in_success(self):
-        """Verify success responses don't include null data."""
-        result = json_success({"key": "value"})
-        parsed = json.loads(result)
+    def test_transaction_response_schema(self):
+        """Verify transaction responses have consistent schema."""
+        success_result = transaction_response(True, "OK", "123-1")
+        fail_result = transaction_response(False, "Failed", None)
 
-        # Data should be present, not null
-        assert parsed.get("data") is not None
+        # Both should have all three keys
+        for result in [success_result, fail_result]:
+            assert "success" in result
+            assert "message" in result
+            assert "extrinsic_identifier" in result
 
     def test_json_is_valid(self):
         """Verify all outputs are valid JSON."""
@@ -250,7 +308,6 @@ class TestJsonOutputConsistency:
             json_response(True, {"test": "data"}),
             json_success({"nested": {"deep": True}}),
             json_error("test error"),
-            json_transaction(True, "0x123", "0x456"),
         ]
 
         for output in test_cases:

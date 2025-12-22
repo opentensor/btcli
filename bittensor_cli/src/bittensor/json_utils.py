@@ -4,17 +4,18 @@ Standardized JSON output utilities for btcli.
 This module provides consistent JSON response formatting across all btcli commands.
 All JSON outputs should use these utilities to ensure schema compliance.
 
-Standard Response Format:
+Standard Transaction Response Format:
+{
+    "success": bool,                    # Required: Whether the operation succeeded
+    "message": str | None,              # Optional: Human-readable message
+    "extrinsic_identifier": str | None  # Optional: Block-extrinsic ID (e.g., "12345-2")
+}
+
+Standard Data Response Format:
 {
     "success": bool,       # Required: Whether the operation succeeded
     "data": {...},         # Optional: Command-specific response data
     "error": str           # Optional: Error message if success=False
-}
-
-For transaction responses, data should include:
-{
-    "extrinsic_hash": str,  # The transaction hash
-    "block_hash": str       # The block containing the transaction
 }
 """
 
@@ -22,8 +23,110 @@ import json
 from typing import Any, Optional, Union
 from rich.console import Console
 
-# JSON console for outputting JSON responses
 json_console = Console()
+
+
+def transaction_response(
+    success: bool,
+    message: Optional[str] = None,
+    extrinsic_identifier: Optional[str] = None,
+) -> dict[str, Any]:
+    """
+    Create a standardized transaction response dictionary.
+
+    Args:
+        success: Whether the transaction succeeded
+        message: Human-readable status message
+        extrinsic_identifier: The extrinsic ID (e.g., "12345678-2")
+
+    Returns:
+        Dictionary with standardized transaction format
+    """
+    return {
+        "success": success,
+        "message": message,
+        "extrinsic_identifier": extrinsic_identifier,
+    }
+
+
+def print_transaction_response(
+    success: bool,
+    message: Optional[str] = None,
+    extrinsic_identifier: Optional[str] = None,
+) -> None:
+    """
+    Print a standardized transaction response as JSON.
+
+    Args:
+        success: Whether the transaction succeeded
+        message: Human-readable status message
+        extrinsic_identifier: The extrinsic ID (e.g., "12345678-2")
+    """
+    json_console.print_json(data=transaction_response(success, message, extrinsic_identifier))
+
+
+class TransactionResult:
+    """
+    Helper class for building transaction responses.
+
+    Provides a clean interface for transaction commands that need to
+    build up response data before printing.
+    """
+
+    def __init__(
+        self,
+        success: bool,
+        message: Optional[str] = None,
+        extrinsic_identifier: Optional[str] = None,
+    ):
+        self.success = success
+        self.message = message
+        self.extrinsic_identifier = extrinsic_identifier
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the response as a dictionary."""
+        return transaction_response(
+            self.success,
+            self.message,
+            self.extrinsic_identifier,
+        )
+
+    def print(self) -> None:
+        """Print the response as JSON."""
+        json_console.print_json(data=self.as_dict())
+
+
+class MultiTransactionResult:
+    """
+    Helper class for commands that process multiple transactions.
+
+    Builds a keyed dictionary of transaction results.
+    """
+
+    def __init__(self):
+        self._results: dict[str, TransactionResult] = {}
+
+    def add(
+        self,
+        key: str,
+        success: bool,
+        message: Optional[str] = None,
+        extrinsic_identifier: Optional[str] = None,
+    ) -> None:
+        """Add a transaction result with the given key."""
+        self._results[key] = TransactionResult(success, message, extrinsic_identifier)
+
+    def add_result(self, key: str, result: TransactionResult) -> None:
+        """Add an existing TransactionResult with the given key."""
+        self._results[key] = result
+
+    def as_dict(self) -> dict[str, dict[str, Any]]:
+        """Return all results as a dictionary."""
+        return {k: v.as_dict() for k, v in self._results.items()}
+
+    def print(self) -> None:
+        """Print all results as JSON."""
+        json_console.print_json(data=self.as_dict())
 
 
 def json_response(
@@ -32,7 +135,7 @@ def json_response(
     error: Optional[str] = None,
 ) -> str:
     """
-    Create a standardized JSON response string.
+    Create a standardized JSON response string for data queries.
 
     Args:
         success: Whether the operation succeeded
@@ -62,7 +165,7 @@ def json_response(
 
 def json_success(data: Any) -> str:
     """
-    Create a successful JSON response.
+    Create a successful JSON response string.
 
     Args:
         data: Response data to include
@@ -75,7 +178,7 @@ def json_success(data: Any) -> str:
 
 def json_error(error: str, data: Optional[Any] = None) -> str:
     """
-    Create an error JSON response.
+    Create an error JSON response string.
 
     Args:
         error: Error message describing what went wrong
@@ -87,43 +190,9 @@ def json_error(error: str, data: Optional[Any] = None) -> str:
     return json_response(success=False, data=data, error=error)
 
 
-def json_transaction(
-    success: bool,
-    extrinsic_hash: Optional[str] = None,
-    block_hash: Optional[str] = None,
-    error: Optional[str] = None,
-    **extra_data: Any,
-) -> str:
-    """
-    Create a standardized transaction response.
-
-    Args:
-        success: Whether the transaction succeeded
-        extrinsic_hash: The transaction/extrinsic hash
-        block_hash: The block hash containing the transaction
-        error: Error message if transaction failed
-        **extra_data: Additional transaction-specific data
-
-    Returns:
-        JSON string with transaction details
-    """
-    data: dict[str, Any] = {}
-
-    if extrinsic_hash is not None:
-        data["extrinsic_hash"] = extrinsic_hash
-
-    if block_hash is not None:
-        data["block_hash"] = block_hash
-
-    # Add any extra data
-    data.update(extra_data)
-
-    return json_response(success=success, data=data if data else None, error=error)
-
-
 def print_json(response: str) -> None:
     """
-    Print a JSON response to the console.
+    Print a JSON string response to the console.
 
     Args:
         response: JSON string to print
@@ -150,6 +219,16 @@ def print_json_error(error: str, data: Optional[Any] = None) -> None:
         data: Optional additional context
     """
     print_json(json_error(error, data))
+
+
+def print_json_data(data: Any) -> None:
+    """
+    Print data directly as JSON (for simple data responses).
+
+    Args:
+        data: Data to print as JSON
+    """
+    json_console.print_json(data=data)
 
 
 def serialize_balance(balance: Any) -> dict[str, Union[int, float]]:

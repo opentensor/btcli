@@ -58,6 +58,8 @@ from bittensor_cli.src.bittensor.json_utils import (
     json_success,
     json_error,
     print_json,
+    print_json_data,
+    print_transaction_response,
 )
 
 
@@ -1525,9 +1527,8 @@ async def transfer(
     )
     ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        msg = "Transfer successful" if result else "Transfer failed"
+        print_transaction_response(result, msg, ext_id)
     else:
         await print_extrinsic_id(ext_receipt)
     return result
@@ -1733,9 +1734,8 @@ async def swap_hotkey(
     else:
         ext_id = None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        msg = "Hotkey swap successful" if result else "Hotkey swap failed"
+        print_transaction_response(result, msg, ext_id)
     else:
         await print_extrinsic_id(ext_receipt)
     return result
@@ -1811,23 +1811,20 @@ async def set_id(
             print_error(f"Failed! {err_msg}")
             output_dict["error"] = err_msg
             if json_output:
-                json_console.print(json.dumps(output_dict))
+                print_transaction_response(False, err_msg, None)
             return False
         else:
             console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
             ext_id = await ext_receipt.get_extrinsic_identifier()
             await print_extrinsic_id(ext_receipt)
-            output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
     table = create_identity_table(title="New on-chain Identity")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
-    output_dict["identity"] = identity
-    output_dict["extrinsic_identifier"] = ext_id
     if json_output:
-        json_console.print(json.dumps(output_dict))
+        print_transaction_response(True, "Identity set successfully", ext_id)
     else:
         console.print(table)
     return True
