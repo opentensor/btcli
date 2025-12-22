@@ -9255,7 +9255,9 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         idx: int = typer.Option(
             0,
             "--index",
@@ -9338,7 +9340,9 @@ class CLIManager:
         ] = "",
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
