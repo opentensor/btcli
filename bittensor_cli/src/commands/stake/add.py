@@ -577,9 +577,7 @@ async def stake_add(
                     )
                     if not mev_success:
                         status.stop()
-                        print_error(
-                            f"\n:cross_mark: [red]Failed[/red]: {mev_error}"
-                        )
+                        print_error(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
                         batch_success = False
                         batch_err_msg = mev_error
 
