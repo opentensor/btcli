@@ -991,6 +991,7 @@ class CLIManager:
         self.config_app.command("proxies")(self.config_get_proxies)
         self.config_app.command("remove-proxy")(self.config_remove_proxy)
         self.config_app.command("update-proxy")(self.config_update_proxy)
+        self.config_app.command("clear-proxies")(self.config_clear_proxy_book)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -2087,7 +2088,7 @@ class CLIManager:
         name: Annotated[
             str,
             typer.Option(
-                help="Name of the proxy", prompt="Enter a name for this proxy"
+                help="Name of the proxy", prompt="Enter the name for this proxy"
             ),
         ],
         address: Annotated[
@@ -2114,25 +2115,90 @@ class CLIManager:
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
         if name not in self.proxies:
-            err_console.print(f"Proxy {name} not found in address book.")
-            return
+            err_console.print(
+                f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
+            )
+            self.config_get_proxies()
+            returnb
         else:
             if isinstance(proxy_type, ProxyType):
                 proxy_type_val = proxy_type.value
             else:
                 proxy_type_val = proxy_type
+
+            var_map = {
+                "Address": address,
+                "Spawner": spawner,
+                "ProxyType": proxy_type_val,
+                "Delay": delay,
+                "Note": note,
+            }
             with ProxyAddressBook.get_db() as (conn, cursor):
+                if not any(var_map.values()):
+                    entries = ProxyAddressBook.read_rows(
+                        conn, cursor, include_header=False
+                    )
+                    table = Table(
+                        Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
+                        Column("Address/Delegator", style="gold1"),
+                        Column("Spawner/Delegatee", style="medium_purple"),
+                        Column("Proxy Type", style="medium_purple"),
+                        Column("Delay", style="dim"),
+                        Column("Note", style="dim"),
+                        box=box.SIMPLE_HEAD,
+                        title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
+                    )
+                    for (
+                        name_,
+                        ss58_address_,
+                        delay_,
+                        spawner_,
+                        proxy_type_,
+                        note_,
+                    ) in entries:
+                        if name == name_:
+                            table.add_row(
+                                name_,
+                                ss58_address_,
+                                spawner_,
+                                proxy_type_,
+                                str(delay_),
+                                note_,
+                            )
+                            break
+                    console.print(table)
+                    col_select = Prompt.ask(
+                        "Which column would you like to update?",
+                        choices=list(var_map.keys()),
+                    )
+                    value = Prompt.ask(f"Enter a value for {col_select}")
+                    var_map[col_select] = value
+                print(var_map)
                 ProxyAddressBook.update_entry(
                     conn,
                     cursor,
                     name=name,
-                    ss58_address=address,
-                    proxy_type=proxy_type_val,
-                    spawner=spawner,
-                    note=note,
-                    delay=delay,
+                    ss58_address=var_map["Address"],
+                    proxy_type=var_map["ProxyType"],
+                    spawner=var_map["Spawner"],
+                    note=var_map["Note"],
+                    delay=int(dela) if (dela := var_map["Delay"]) is not None else None,
                 )
             console.print("Proxy updated")
+            self.config_get_proxies()
+
+    def config_clear_proxy_book(self):
+        """
+        Clears the proxy address book. Use with caution.
+        Really only useful if you have corrupted your proxy address book.
+        """
+        if not confirm_action(
+            "This will entirely clear your proxy address book. Are you sure you want to proceed?"
+        ):
+            return
+        else:
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.clear_table(conn, cursor)
             self.config_get_proxies()
 
     def is_valid_proxy_name_or_ss58(

@@ -919,6 +919,16 @@ class TableDefinition:
             return [header] + rows
 
     @classmethod
+    def clear_table(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+    ):
+        """Truncates the table. Use with caution."""
+        cursor.execute(f"DELETE FROM {cls.name}")
+        conn.commit()
+
+    @classmethod
     def update_entry(cls, *args, **kwargs):
         """
         Updates an existing entry in the table.
@@ -1022,7 +1032,7 @@ class ProxyAddressBook(TableDefinition):
             f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         spawner_ = spawner or row[1]
         proxy_type_ = proxy_type or row[2]
@@ -1030,7 +1040,7 @@ class ProxyAddressBook(TableDefinition):
         note_ = note or row[4]
         conn.execute(
             f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
-            (ss58_address_, spawner_, proxy_type_, note_, delay, name),
+            (ss58_address_, spawner_, proxy_type_, delay, note_, name),
         )
         conn.commit()
 
