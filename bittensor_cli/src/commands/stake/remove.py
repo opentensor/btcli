@@ -412,7 +412,7 @@ async def unstake(
                     )
                     if not mev_success:
                         status.stop()
-                        err_console.print(
+                        print_error.print(
                             f"\n:cross_mark: [red]Failed[/red]: {mev_error}"
                         )
                         batch_success = False
@@ -817,7 +817,7 @@ async def unstake_all(
                     )
                     if not mev_success:
                         status.stop()
-                        err_console.print(
+                        print_error.print(
                             f"\n:cross_mark: [red]Failed[/red]: {mev_error}"
                         )
                         batch_success = False
