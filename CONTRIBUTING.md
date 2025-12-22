@@ -114,10 +114,10 @@ Patchsets and enhancements should always be focused. A pull request could add a 
 but it should not contain a mixture of these. Please also avoid 'super' pull requests which attempt to do too much, 
 are overly large, or overly complex as this makes review difficult. 
 
-Specifically, pull requests must adhere to the following criteria:
-- **Must** branch off from `staging`. Make sure that all your PRs are using `staging` branch as a base or will be closed.
-- Contain fewer than 50 files. PRs with more than 50 files may be closed.
-- If a PR introduces a new feature, it *must* include corresponding tests.
+Specifically, pull requests **must** adhere to the following criteria:
+- **Must** branch off from `staging`. Make sure that all your PRs are using `staging` branch as a base or they **will** be closed.
+- Contain a reasonable number of changes for the stated purpose of the PR. PRs that contain an excessive number of lines of code or files without a valid rationale may be closed.
+- If a PR introduces a new feature, it **must** include corresponding tests.
 - Other PRs (bug fixes, refactoring, etc.) should ideally also have tests, as they provide proof of concept and prevent regression.
 - Categorize your PR properly by using GitHub labels. This aids in the review process by informing reviewers about the type of change at a glance.
 - Make sure your code includes adequate, but not unnecessary comments. These should explain why certain decisions were made and how your changes work.
