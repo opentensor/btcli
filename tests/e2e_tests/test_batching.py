@@ -222,7 +222,7 @@ def test_batching(local_chain, wallet_setup):
     assert "Your extrinsic has been included" in stake_result.stdout, (
         stake_result.stdout
     )
-    
+
     # Verify extrinsic_id is unique (all operations should share the same extrinsic_id when batched)
     # Pattern matches: "Your extrinsic has been included as {block_number}-{extrinsic_index}"
     extrinsic_id_pattern = r"Your extrinsic has been included as (\d+-\d+)"
@@ -232,7 +232,7 @@ def test_batching(local_chain, wallet_setup):
         f"Expected single unique extrinsic_id for batched operations, "
         f"found {len(set(extrinsic_ids))} unique IDs: {set(extrinsic_ids)}"
     )
-    
+
     # Remove stake from multiple netuids (should batch)
     remove_stake_batch = exec_command_bob(
         command="stake",
@@ -254,14 +254,15 @@ def test_batching(local_chain, wallet_setup):
             "144",
         ],
     )
-    
+
     # Verify extrinsic_id is unique (all operations should share the same extrinsic_id when batched)
     # Pattern matches: "Your extrinsic has been included as {block_number}-{extrinsic_index}"
-    batch_remove_extrinsic_ids = re.findall(extrinsic_id_pattern, remove_stake_batch.stdout)
-    
+    batch_remove_extrinsic_ids = re.findall(
+        extrinsic_id_pattern, remove_stake_batch.stdout
+    )
+
     assert len(batch_remove_extrinsic_ids) > 0, "No extrinsic IDs found in output"
     assert len(set(batch_remove_extrinsic_ids)) == 1, (
         f"Expected single unique extrinsic_id for batched operations, "
         f"found {len(set(batch_remove_extrinsic_ids))} unique IDs: {set(batch_remove_extrinsic_ids)}"
     )
-    

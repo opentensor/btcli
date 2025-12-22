@@ -453,7 +453,9 @@ async def unstake(
                             "success": True,
                             "extrinsic_identifier": batch_ext_id,
                         }
-                        console.print(f"[yellow][DEBUG][/yellow] Operation {idx} (netuid={op['netuid']}): assigning ext_id={batch_ext_id}")
+                        console.print(
+                            f"[yellow][DEBUG][/yellow] Operation {idx} (netuid={op['netuid']}): assigning ext_id={batch_ext_id}"
+                        )
                         successes.append(result_entry)
 
                         if not json_output:
