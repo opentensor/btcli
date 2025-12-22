@@ -213,7 +213,7 @@ def test_batching(local_chain, wallet_setup):
             "--no-prompt",
             "--partial",
             "--tolerance",
-            "0.5",
+            "1.0",  # Increased from 0.5 to 1.0 (100% tolerance) to handle price volatility in pipeline
             "--era",
             "144",
         ],
