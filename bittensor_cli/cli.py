@@ -546,7 +546,7 @@ def get_optional_netuid(netuid: Optional[int], all_netuids: bool) -> Optional[in
             try:
                 return int(answer)
             except ValueError:
-                err_console.print(f"Invalid netuid: {answer}")
+                print_error(f"Invalid netuid: {answer}")
                 return get_optional_netuid(None, False)
     else:
         return netuid
@@ -575,12 +575,12 @@ def parse_mnemonic(mnemonic: str) -> str:
             key=lambda x: int(x[0]),
         )
         if int(items[0][0]) != 1:
-            err_console.print("Numbered mnemonics must begin with 1")
+            print_error("Numbered mnemonics must begin with 1")
             raise typer.Exit()
         if [int(x[0]) for x in items] != list(
             range(int(items[0][0]), int(items[-1][0]) + 1)
         ):
-            err_console.print(
+            print_error(
                 "Missing or duplicate numbers in a numbered mnemonic. "
                 "Double-check your numbered mnemonics and try again."
             )
@@ -731,12 +731,12 @@ def debug_callback(value: bool):
             or os.path.expanduser(defaults.config.debug_file_path)
         )
         if not debug_file_loc.exists():
-            err_console.print(
-                f"[red]Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
+            print_error(
+                f"Error: The debug file '{arg__(str(debug_file_loc))}' does not exist. This indicates that you have"
                 f" not run a command which has logged debug output, or you deleted this file. Debug logging only occurs"
                 f" if {arg__('use_cache')} is set to True in your config ({arg__('btcli config set')}). If the debug "
                 f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
-                f" the same location, and re-run this {arg__('btcli --debug')} command.[/red]"
+                f" the same location, and re-run this {arg__('btcli --debug')} command."
             )
             raise typer.Exit()
         save_file_loc_ = Prompt.ask(
@@ -991,6 +991,7 @@ class CLIManager:
         self.config_app.command("proxies")(self.config_get_proxies)
         self.config_app.command("remove-proxy")(self.config_remove_proxy)
         self.config_app.command("update-proxy")(self.config_update_proxy)
+        self.config_app.command("clear-proxies")(self.config_clear_proxy_book)
         # self.config_app.command("metagraph", hidden=True)(self.metagraph_config)
 
         # wallet commands
@@ -1474,7 +1475,7 @@ class CLIManager:
                 result = await cmd
                 return result
             except (ConnectionRefusedError, ssl.SSLError, InvalidHandshake):
-                err_console.print(f"Unable to connect to the chain: {self.subtensor}")
+                print_error(f"Unable to connect to the chain: {self.subtensor}")
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             except (
@@ -1484,13 +1485,13 @@ class CLIManager:
                 RuntimeError,
             ) as e:
                 if isinstance(e, SubstrateRequestException):
-                    err_console.print(str(e))
+                    print_error(str(e))
                 elif isinstance(e, RuntimeError):
                     pass  # Temporarily to handle loop bound issues
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             except Exception as e:
-                err_console.print(f"An unknown error has occurred: {e}")
+                print_error(f"An unknown error has occurred: {e}")
                 verbose_console.print(traceback.format_exc())
                 exception_occurred = True
             finally:
@@ -1504,7 +1505,7 @@ class CLIManager:
                             await self.subtensor.substrate.close()
                         except Exception as e:  # ensures we always exit cleanly
                             if not isinstance(e, (typer.Exit, RuntimeError)):
-                                err_console.print(f"An unknown error has occurred: {e}")
+                                print_error(f"An unknown error has occurred: {e}")
                     if exception_occurred:
                         raise typer.Exit()
 
@@ -1623,7 +1624,7 @@ class CLIManager:
                 "The '--no' flag requires prompts to be enabled."
             )
         if quiet and verbose:
-            err_console.print("Cannot specify both `--quiet` and `--verbose`")
+            print_error("Cannot specify both `--quiet` and `--verbose`")
             raise typer.Exit()
         if json_output and verbose:
             verbosity_console_handler(3)
@@ -2008,7 +2009,7 @@ class CLIManager:
         Adds a new pure proxy to the address book.
         """
         if self.proxies.get(name) is not None:
-            err_console.print(
+            print_error(
                 f"Proxy {name} already exists. Use `btcli config update-proxy` to update it."
             )
             raise typer.Exit()
@@ -2059,7 +2060,7 @@ class CLIManager:
                 ProxyAddressBook.delete_entry(conn, cursor, name=name)
             console.print(f"Removed {name} from the address book.")
         else:
-            err_console.print(f"Proxy {name} not found in address book.")
+            print_error(f"Proxy {name} not found in address book.")
         self.config_get_proxies()
 
     def config_get_proxies(self):
@@ -2087,7 +2088,7 @@ class CLIManager:
         name: Annotated[
             str,
             typer.Option(
-                help="Name of the proxy", prompt="Enter a name for this proxy"
+                help="Name of the proxy", prompt="Enter the name for this proxy"
             ),
         ],
         address: Annotated[
@@ -2114,25 +2115,104 @@ class CLIManager:
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
         if name not in self.proxies:
-            err_console.print(f"Proxy {name} not found in address book.")
+            print_error(
+                f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
+            )
+            self.config_get_proxies()
             return
         else:
             if isinstance(proxy_type, ProxyType):
                 proxy_type_val = proxy_type.value
             else:
                 proxy_type_val = proxy_type
+
+            var_map = {
+                "Address": address,
+                "Spawner": spawner,
+                "ProxyType": proxy_type_val,
+                "Delay": delay,
+                "Note": note,
+            }
+            num_map = {
+                1: "Address",
+                2: "Spawner",
+                3: "ProxyType",
+                4: "Delay",
+                5: "Note",
+            }
             with ProxyAddressBook.get_db() as (conn, cursor):
+                if not any(var_map.values()):
+                    entries = ProxyAddressBook.read_rows(
+                        conn, cursor, include_header=False
+                    )
+                    table = Table(
+                        Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
+                        Column("Address/Delegator", style="gold1"),
+                        Column("Spawner/Delegatee", style="medium_purple"),
+                        Column("Proxy Type", style="medium_purple"),
+                        Column("Delay", style="dim"),
+                        Column("Note", style="dim"),
+                        box=box.SIMPLE_HEAD,
+                        title=f"[{COLORS.G.HEADER}]BTCLI Proxies Address Book[/{COLORS.G.HEADER}]: {arg__(self.proxies_path)}",
+                    )
+                    for (
+                        name_,
+                        ss58_address_,
+                        delay_,
+                        spawner_,
+                        proxy_type_,
+                        note_,
+                    ) in entries:
+                        if name == name_:
+                            table.add_row(
+                                name_,
+                                ss58_address_,
+                                spawner_,
+                                proxy_type_,
+                                str(delay_),
+                                note_,
+                            )
+                            break
+                    console.print(table)
+                    console.print(
+                        "\n\n[1] Address/Delegator"
+                        "\n[2] Spawner/Delegator"
+                        "\n[3] Proxy Type"
+                        "\n[4] Delay"
+                        "\n[5] Note"
+                    )
+                    col_num_select = IntPrompt.ask(
+                        "Which column would you like to update?",
+                        choices=[str(i) for i in range(1, 6)],
+                    )
+                    col_select = num_map[col_num_select]
+                    value = Prompt.ask(f"Enter a value for {col_select}")
+                    var_map[col_select] = value
                 ProxyAddressBook.update_entry(
                     conn,
                     cursor,
                     name=name,
-                    ss58_address=address,
-                    proxy_type=proxy_type_val,
-                    spawner=spawner,
-                    note=note,
-                    delay=delay,
+                    ss58_address=var_map["Address"],
+                    proxy_type=var_map["ProxyType"],
+                    spawner=var_map["Spawner"],
+                    note=var_map["Note"],
+                    delay=int(dela) if (dela := var_map["Delay"]) is not None else None,
                 )
             console.print("Proxy updated")
+            self.config_get_proxies()
+
+    def config_clear_proxy_book(self):
+        """
+        Clears the proxy address book. Use with caution.
+        Really only useful if you have corrupted your proxy address book.
+        """
+        if not confirm_action(
+            "This will entirely clear your proxy address book. Are you sure you want to proceed?"
+        ):
+            return
+        else:
+            with ProxyAddressBook.get_db() as (conn, cursor):
+                ProxyAddressBook.clear_table(conn, cursor)
             self.config_get_proxies()
 
     def is_valid_proxy_name_or_ss58(
@@ -2298,12 +2378,12 @@ class CLIManager:
         """Resolve the mechanism ID to use."""
 
         if mechanism_count is None or mechanism_count <= 0:
-            err_console.print(f"Subnet {netuid} does not exist.")
+            print_error(f"Subnet {netuid} does not exist.")
             raise typer.Exit()
 
         if mechanism_id is not None:
             if mechanism_id < 0 or mechanism_id >= mechanism_count:
-                err_console.print(
+                print_error(
                     f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
                     f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
                 )
@@ -2321,7 +2401,7 @@ class CLIManager:
             )
             if 0 <= selected_mechanism_id < mechanism_count:
                 return selected_mechanism_id
-            err_console.print(
+            print_error(
                 f"Mechanism ID {selected_mechanism_id} is out of range for subnet {netuid}. "
                 f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
             )
@@ -2402,16 +2482,16 @@ class CLIManager:
         if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
             valid = utils.is_valid_wallet(wallet)
             if not valid[0]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet does not exist. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
+                print_error(
+                    f"Error: Wallet does not exist. \n"
+                    f"Please verify your wallet information: {wallet}"
                 )
                 raise typer.Exit()
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
-                utils.err_console.print(
-                    f"[red]Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
-                    f"Please verify your wallet information: {wallet}[/red]"
+                print_error(
+                    f"Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
+                    f"Please verify your wallet information: {wallet}"
                 )
                 raise typer.Exit()
         if return_wallet_and_hotkey:
@@ -2428,9 +2508,7 @@ class CLIManager:
                         )
                     ).strip()
                     if not is_valid_ss58_address(hotkey):
-                        err_console.print(
-                            f"[red]Error: {hotkey} is not valid SS58 address."
-                        )
+                        print_error(f"Error: {hotkey} is not valid SS58 address.")
                         raise typer.Exit(1)
                     else:
                         return wallet, hotkey
@@ -2530,8 +2608,8 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, False)
         if include_hotkeys and exclude_hotkeys:
-            utils.err_console.print(
-                "[red]You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
+            print_error(
+                "You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
             raise typer.Exit()
 
@@ -2808,7 +2886,6 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2816,7 +2893,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet (coldkey) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 
@@ -2861,7 +2938,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
@@ -5650,6 +5727,9 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -5676,6 +5756,12 @@ class CLIManager:
 
         2. Swap stake without MEV protection:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+
+        3. Swap stake with custom tolerance and partial stake:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --rate-tolerance 0.01 --allow-partial-stake
+
+        4. Swap stake without safe staking:
+            [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5706,6 +5792,11 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
@@ -5717,6 +5808,9 @@ class CLIManager:
             f"proxy: {proxy}\n"
             f"interactive_selection: {interactive_selection}\n"
             f"prompt: {prompt}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
@@ -5728,6 +5822,9 @@ class CLIManager:
                 origin_netuid=origin_netuid,
                 destination_netuid=dest_netuid,
                 amount=amount,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 swap_all=swap_all,
                 era=period,
                 interactive_selection=interactive_selection,
@@ -5754,6 +5851,9 @@ class CLIManager:
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
         period: int = Options.period,
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         prompt: bool = Options.prompt,
         decline: bool = Options.decline,
         quiet: bool = Options.quiet,
@@ -5857,6 +5957,10 @@ class CLIManager:
             )
         elif operation == "swap":
             # Execute swap operation
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             result, ext_id = self._run_command(
                 move_stake.swap_stake(
                     wallet=wallet,
@@ -5865,6 +5969,9 @@ class CLIManager:
                     destination_netuid=wizard_result["destination_netuid"],
                     amount=wizard_result.get("amount"),
                     swap_all=False,
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
@@ -6056,7 +6163,7 @@ class CLIManager:
         )
 
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or `--all`, not both.")
+            print_error("Specify either a netuid or `--all`, not both.")
             raise typer.Exit()
 
         if all_netuids:
@@ -6132,11 +6239,11 @@ class CLIManager:
         )
 
         if len(proportions) != len(children):
-            err_console.print("You must have as many proportions as you have children.")
+            print_error("You must have as many proportions as you have children.")
             raise typer.Exit()
 
         if sum(proportions) > 1.0:
-            err_console.print("Your proportion total must not exceed 1.0.")
+            print_error("Your proportion total must not exceed 1.0.")
             raise typer.Exit()
 
         wallet = self.wallet_ask(
@@ -6217,7 +6324,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or '--all', not both.")
+            print_error("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -6312,7 +6419,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
-            err_console.print("Specify either a netuid or '--all', not both.")
+            print_error("Specify either a netuid or '--all', not both.")
             raise typer.Exit()
         if all_netuids:
             netuid = None
@@ -6408,7 +6515,7 @@ class CLIManager:
 
         if mechanism_count is None:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Mechanism count not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
@@ -6651,7 +6758,7 @@ class CLIManager:
 
         if not param_name:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Param name not supplied with `--no-prompt` flag. Cannot continue"
                 )
                 return False
@@ -6741,7 +6848,7 @@ class CLIManager:
                     sys.stdout.write(json_str + "\n")
                     sys.stdout.flush()
                 else:
-                    err_console.print(
+                    print_error(
                         f"[{COLORS.SU.HYPERPARAM}]alpha_high[/{COLORS.SU.HYPERPARAM}] and "
                         f"[{COLORS.SU.HYPERPARAM}]alpha_low[/{COLORS.SU.HYPERPARAM}] "
                         f"values cannot be set with `--no-prompt`"
@@ -6769,7 +6876,7 @@ class CLIManager:
                     sys.stdout.write(json_str + "\n")
                     sys.stdout.flush()
                 else:
-                    err_console.print(
+                    print_error(
                         f"[{COLORS.SU.HYPERPARAM}]yuma_version[/{COLORS.SU.HYPERPARAM}]"
                         f" is set using a different hyperparameter, and thus cannot be set with `--no-prompt`"
                     )
@@ -6805,7 +6912,7 @@ class CLIManager:
                 sys.stdout.write(json_str + "\n")
                 sys.stdout.flush()
             else:
-                err_console.print(
+                print_error(
                     f"[{COLORS.SU.HYPERPARAM}]subnet_is_active[/{COLORS.SU.HYPERPARAM}] "
                     f"is set by using {arg__('btcli subnets start')} command."
                 )
@@ -6813,7 +6920,7 @@ class CLIManager:
 
         if not param_value:
             if not prompt:
-                err_console.print(
+                print_error(
                     "Param value not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
@@ -7292,8 +7399,8 @@ class CLIManager:
         if not current_only and subtensor.network in non_archives + [
             Constants.network_map[x] for x in non_archives
         ]:
-            err_console.print(
-                f"[red]Error[/red] Running this command without {arg__('--current')} requires use of an archive node. "
+            print_error(
+                f"Error: Running this command without {arg__('--current')} requires use of an archive node. "
                 f"Try running again with the {arg__('--network archive')} flag."
             )
             return False
@@ -7928,7 +8035,7 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
-            err_console.print(
+            print_error(
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
                 "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
             )
@@ -7995,7 +8102,7 @@ class CLIManager:
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if len(symbol) > 1:
-            err_console.print("Your symbol must be a single character.")
+            print_error("Your symbol must be a single character.")
             return False
         wallet = self.wallet_ask(
             wallet_name,
@@ -8091,7 +8198,7 @@ class CLIManager:
             )
 
         if len(uids) != len(weights):
-            err_console.print(
+            print_error(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             return
@@ -8193,7 +8300,7 @@ class CLIManager:
                 "Corresponding weights for the specified UIDs (eg: 0.2,0.3,0.4)",
             )
         if len(uids) != len(weights):
-            err_console.print(
+            print_error(
                 "The number of UIDs you specify must match up with the specified number of weights"
             )
             return
@@ -8367,7 +8474,7 @@ class CLIManager:
             )
 
         if price_low >= price_high:
-            err_console.print("The low price must be lower than the high price.")
+            print_error("The low price must be lower than the high price.")
             return False
         logger.debug(
             f"args:\n"
@@ -9195,7 +9302,9 @@ class CLIManager:
         self,
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         idx: int = typer.Option(
             0,
             "--index",
@@ -9278,7 +9387,9 @@ class CLIManager:
         ] = "",
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
-        delay: int = typer.Option(0, help="Delay, in number of blocks"),
+        delay: int = typer.Option(
+            0, help="Delay, in number of blocks (default 0)", prompt=True
+        ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
         wallet_hotkey: str = Options.wallet_hotkey,
@@ -9512,7 +9623,12 @@ class CLIManager:
 
     def proxy_execute_announced(
         self,
-        proxy: str = Options.proxy,
+        proxy: str = typer.Option(
+            "--proxy",
+            help="Optional proxy to use for the transaction: either the SS58 or the name of the proxy if you "
+            f"have added it with {arg__('btcli config add-proxy')}.",
+            prompt=True,
+        ),
         real: Optional[str] = Options.real_proxy,
         delegate: Optional[str] = typer.Option(
             None,
@@ -9580,8 +9696,8 @@ class CLIManager:
                 got_delay_from_config = True
             elif len(potential_matches) > 1:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: The proxy ss58 you provided: {proxy} matched the address book"
+                    print_error(
+                        f"Error: The proxy ss58 you provided: {proxy} matched the address book"
                         f" ambiguously (more than one match). To use this (rather than the address book name), you will "
                         f"have to use without {arg__('--no-prompt')}"
                     )
@@ -9596,7 +9712,7 @@ class CLIManager:
                         console.print(
                             f"Name: {p_name}\n"
                             f"Delay: {delay_}\n"
-                            f"Spawner/Delegator: {spawner}\n"
+                            f"Spawner/Delegatee: {spawner}\n"
                             f"Proxy Type: {proxy_type}\n"
                             f"Note: {note}\n"
                         )
@@ -9630,7 +9746,11 @@ class CLIManager:
                     executed_int,
                 ) = row
                 executed = bool(executed_int)
-                if call_hash_ == call_hash and address == proxy and executed is False:
+                if (
+                    (call_hash_ == call_hash or f"0x{call_hash_}" == call_hash)
+                    and address == proxy
+                    and executed is False
+                ):
                     potential_call_matches.append(row)
             if len(potential_call_matches) == 1:
                 block = potential_call_matches[0][3]
@@ -9638,8 +9758,8 @@ class CLIManager:
                 got_call_from_db = potential_call_matches[0][0]
             elif len(potential_call_matches) > 1:
                 if not prompt:
-                    err_console.print(
-                        f":cross_mark:[red]Error: The call hash you have provided matches {len(potential_call_matches)}"
+                    print_error(
+                        f"Error: The call hash you have provided matches {len(potential_call_matches)}"
                         f" possible entries. In order to choose which one, you will need to run "
                         f"without {arg__('--no-prompt')}"
                     )
@@ -9672,7 +9792,7 @@ class CLIManager:
                         ):
                             call_hex = call_hex_
                             block = block_
-                            got_call_from_db = row
+                            got_call_from_db = id_
                             break
             if got_call_from_db is None:
                 console.print("Unable to retrieve call from DB. Proceeding without.")
@@ -9713,7 +9833,7 @@ class CLIManager:
         Allows for converting between tao and rao using the specified flags
         """
         if from_tao is None and from_rao is None:
-            err_console.print("Specify `--rao` and/or `--tao`.")
+            print_error("Specify `--rao` and/or `--tao`.")
             raise typer.Exit()
         if from_rao is not None:
             rao = int(float(from_rao))
@@ -9750,7 +9870,7 @@ class CLIManager:
         """
         additional_networks = additional_networks or []
         if any(not x.startswith("ws") for x in additional_networks):
-            err_console.print(
+            print_error(
                 "Invalid network endpoint. Ensure you are specifying a valid websocket endpoint"
                 f" (starting with [{COLORS.G.LINKS}]ws://[/{COLORS.G.LINKS}] or "
                 f"[{COLORS.G.LINKS}]wss://[/{COLORS.G.LINKS}]).",

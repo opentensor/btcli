@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Optional
+from typing import Optional, Union
 
 from bittensor_wallet import Wallet
 from rich.prompt import IntPrompt, FloatPrompt
@@ -219,7 +219,7 @@ async def update_crowdloan(
                 cap = candidate_cap
                 break
 
-    value: Optional[Balance | int] = None
+    value: Optional[Union[Balance, int]] = None
     call_function: Optional[str] = None
     param_name: Optional[str] = None
     update_type: Optional[str] = None
