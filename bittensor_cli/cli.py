@@ -2188,7 +2188,6 @@ class CLIManager:
                     col_select = num_map[col_num_select]
                     value = Prompt.ask(f"Enter a value for {col_select}")
                     var_map[col_select] = value
-                print(var_map)
                 ProxyAddressBook.update_entry(
                     conn,
                     cursor,
