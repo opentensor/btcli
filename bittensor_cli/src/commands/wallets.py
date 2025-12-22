@@ -54,6 +54,11 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import (
+    json_success,
+    json_error,
+    print_json,
+)
 
 
 class SortByBalance(Enum):
@@ -184,33 +189,21 @@ async def regen_coldkey(
                 f"coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_wallet.name,
-                                "path": new_wallet.path,
-                                "hotkey": new_wallet.hotkey_str,
-                                "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
-                                "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_wallet.name,
+                    "path": new_wallet.path,
+                    "hotkey": new_wallet.hotkey_str,
+                    "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
+                    "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
+                }))
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
-            )
+            print_json(json_error("Mnemonic phrase is invalid"))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_coldkey_pub(
@@ -234,27 +227,17 @@ async def regen_coldkey_pub(
                 f"coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_coldkeypub.name,
-                                "path": new_coldkeypub.path,
-                                "hotkey": new_coldkeypub.hotkey_str,
-                                "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
-                                "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_coldkeypub.name,
+                    "path": new_coldkeypub.path,
+                    "hotkey": new_coldkeypub.hotkey_str,
+                    "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
+                    "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
+                }))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_hotkey(
@@ -291,33 +274,21 @@ async def regen_hotkey(
                 f"hotkey ss58: ({new_hotkey_.hotkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_hotkey_.name,
-                                "path": new_hotkey_.path,
-                                "hotkey": new_hotkey_.hotkey_str,
-                                "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
-                                "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_hotkey_.name,
+                    "path": new_hotkey_.path,
+                    "hotkey": new_hotkey_.hotkey_str,
+                    "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
+                    "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
+                }))
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
-            )
+            print_json(json_error("Mnemonic phrase is invalid"))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_hotkey_pub(
