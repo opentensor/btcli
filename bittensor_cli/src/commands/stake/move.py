@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_error,
     group_subnets,
     get_subnet_name,
@@ -167,7 +168,7 @@ async def display_stake_movement_cross_subnets(
         )
 
     # Create and display table
-    table = Table(
+    table = create_table(
         title=(
             f"\n[{COLOR_PALETTE.G.HEADER}]"
             f"Moving stake from: "
@@ -178,14 +179,6 @@ async def display_stake_movement_cross_subnets(
             f"[/{COLOR_PALETTE.G.SUBHEAD}]\nNetwork: {subtensor.network}\n"
             f"[/{COLOR_PALETTE.G.HEADER}]"
         ),
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column(
@@ -352,16 +345,8 @@ async def stake_move_transfer_selection(
         raise ValueError
 
     # Display hotkeys with stakes
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Index", justify="right")
     table.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
