@@ -1959,24 +1959,26 @@ class SubtensorInterface:
             return Balance.from_rao(contribution)
         return None
 
-    async def get_coldkey_swap_schedule_duration(
+    async def get_coldkey_swap_reannouncement_delay(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> int:
-        """
-        Retrieves the duration (in blocks) required for a coldkey swap to be executed.
+        """Retrieves the delay (in blocks) before the user can reannounce a coldkey swap.
+
+        If the user has already announced a swap, they must wait this many blocks
+        after the original execution block before they can announce a new swap.
 
         Args:
             block_hash: The hash of the blockchain block number for the query.
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            int: The number of blocks required for the coldkey swap schedule duration.
+            The number of blocks to wait before reannouncing.
         """
         result = await self.query(
             module="SubtensorModule",
-            storage_function="ColdkeySwapScheduleDuration",
+            storage_function="ColdkeySwapReannouncementDelay",
             params=[],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
