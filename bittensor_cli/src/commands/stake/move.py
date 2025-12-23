@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
-from rich.table import Table
 from rich.prompt import Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
@@ -390,13 +389,12 @@ async def stake_move_transfer_selection(
     origin_hotkey_ss58 = origin_hotkey_info["hotkey_ss58"]
 
     # Display available netuids for selected hotkey
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Available Stakes for Hotkey\n[/{COLOR_PALETTE.G.HEADER}]"
         f"[{COLOR_PALETTE.G.HK}]{origin_hotkey_ss58}[/{COLOR_PALETTE.G.HK}]\n",
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
+        show_footer=False,
+        show_lines=True,
+        pad_edge=False,
         width=len(origin_hotkey_ss58) + 20,
     )
     table.add_column("Netuid", style="cyan")
@@ -468,13 +466,12 @@ async def stake_swap_selection(
         raise ValueError
 
     # Display available stakes
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Available Stakes for Hotkey\n[/{COLOR_PALETTE.G.HEADER}]"
         f"[{COLOR_PALETTE.G.HK}]{wallet.hotkey_str}: {hotkey_ss58}[/{COLOR_PALETTE.G.HK}]\n",
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
+        show_footer=False,
+        show_lines=True,
+        pad_edge=False,
         width=len(hotkey_ss58) + 20,
     )
 
