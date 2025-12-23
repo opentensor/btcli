@@ -4105,6 +4105,10 @@ class CLIManager:
 
     def wallet_swap_coldkey(
         self,
+        action: str = typer.Argument(
+            None,
+            help="Action to perform: 'announce' to announce intent, 'execute' to complete swap after delay.",
+        ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -4114,38 +4118,58 @@ class CLIManager:
             "--new-coldkey-ss58",
             "--new-wallet",
             "--new",
-            help="SS58 address of the new coldkey that will replace the current one.",
+            help="SS58 address or wallet name of the new coldkey.",
         ),
         network: Optional[list[str]] = Options.network,
-        proxy: Optional[str] = Options.proxy,
-        announce_only: bool = Options.announce_only,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        force_swap: bool = typer.Option(
-            False,
-            "--force",
-            "-f",
-            "--force-swap",
-            help="Force the swap even if the new coldkey is already scheduled for a swap.",
-        ),
+        decline: bool = Options.decline,
     ):
         """
-        Schedule a coldkey swap for a wallet.
+        Swap your coldkey to a new address using a two-step announcement process.
 
-        This command allows you to schedule a coldkey swap for a wallet. You can either provide a new wallet name, or SS58 address.
+        Coldkey swaps require two steps for security:
+
+        1. [bold]Announce[/bold]: Declare your intent to swap. This pays the swap fee and starts a delay period.
+
+        2. [bold]Execute[/bold]: After the delay (typically 5 days), complete the swap.
 
         EXAMPLES
 
-        [green]$[/green] btcli wallet schedule-coldkey-swap --new-wallet my_new_wallet
+        Step 1 - Announce your intent to swap:
 
-        [green]$[/green] btcli wallet schedule-coldkey-swap --new-coldkey-ss58 5Dk...X3q
+        [green]$[/green] btcli wallet swap-coldkey announce --new-coldkey 5Dk...X3q
+
+        Step 2 - After the delay period, execute the swap:
+
+        [green]$[/green] btcli wallet swap-coldkey execute --new-coldkey 5Dk...X3q
+
+        Check status of pending swaps:
+
+        [green]$[/green] btcli wallet swap-check
         """
         self.verbosity_handler(quiet, verbose, prompt=False, json_output=False)
-        proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+
+        if not action:
+            console.print(
+                "\n[bold][blue]Coldkey Swap Actions:[/blue][/bold]\n"
+                "  [dark_sea_green3]announce[/dark_sea_green3] - Start the swap process (pays fee, starts delay timer)\n"
+                "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n\n"
+                "  [dim]You can check the current status of your swap with 'btcli wallet swap-check'.[/dim]\n"
+            )
+            action = Prompt.ask(
+                "Select action",
+                choices=["announce", "execute"],
+                default="announce",
+            )
+
+        if action.lower() not in ("announce", "execute"):
+            print_error(f"Invalid action: {action}. Must be 'announce' or 'execute'.")
+            raise typer.Exit(1)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue] which you want to swap the coldkey for",
+                "Enter the [blue]wallet name[/blue] of the coldkey to swap",
                 default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         wallet = self.wallet_ask(
@@ -4156,8 +4180,7 @@ class CLIManager:
             validate=WV.WALLET,
         )
         console.print(
-            f"\nWallet selected to swap the [blue]coldkey[/blue] from: \n"
-            f"[dark_sea_green3]{wallet}[/dark_sea_green3]\n"
+            f"\nWallet selected: [dark_sea_green3]{wallet}[/dark_sea_green3]\n"
         )
 
         if not new_wallet_or_ss58:
@@ -4177,25 +4200,37 @@ class CLIManager:
                 validate=WV.WALLET,
             )
             console.print(
-                f"\nNew wallet to swap the [blue]coldkey[/blue] to: \n"
-                f"[dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
+                f"\nNew coldkey wallet: [dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
             )
             new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+
         logger.debug(
-            "args:\n"
-            f"network {network}\n"
-            f"new_coldkey_ss58 {new_wallet_coldkey_ss58}\n"
-            f"force_swap {force_swap}"
+            f"args:\n"
+            f"action: {action}\n"
+            f"network: {network}\n"
+            f"new_coldkey_ss58: {new_wallet_coldkey_ss58}"
         )
-        return self._run_command(
-            wallets.schedule_coldkey_swap(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                new_coldkey_ss58=new_wallet_coldkey_ss58,
-                force_swap=force_swap,
-                proxy=proxy,
+
+        if action == "announce":
+            return self._run_command(
+                wallets.announce_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    new_coldkey_ss58=new_wallet_coldkey_ss58,
+                    decline=decline,
+                    quiet=quiet,
+                )
             )
-        )
+        else:
+            return self._run_command(
+                wallets.execute_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    new_coldkey_ss58=new_wallet_coldkey_ss58,
+                    decline=decline,
+                    quiet=quiet,
+                )
+            )
 
     def axon_reset(
         self,
