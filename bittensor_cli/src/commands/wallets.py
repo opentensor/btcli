@@ -2225,85 +2225,80 @@ async def find_coldkey_swap_extrinsic(
 async def check_swap_status(
     subtensor: SubtensorInterface,
     origin_ss58: Optional[str] = None,
-    expected_block_number: Optional[int] = None,
 ) -> None:
-    """
-    Check the status of a coldkey swap.
+    """Retrieves and displays the status of coldkey swap announcements.
 
     Args:
-        subtensor: Connection to the network
-        origin_ss58: The SS58 address of the original coldkey
-        expected_block_number: Optional block number where the swap was scheduled
-
+        subtensor: Connection to the network.
+        origin_ss58: The SS58 address of the coldkey to check. If None, shows all pending announcements.
     """
+    block_hash = await subtensor.substrate.get_chain_head()
+    if origin_ss58:
+        announcement, current_block = await asyncio.gather(
+            subtensor.get_coldkey_swap_announcement(origin_ss58, block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
+        if not announcement:
+            console.print(
+                f"[yellow]No pending swap announcement found for coldkey:[/yellow] "
+                f"[{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+            )
+            return
+        announcements = [announcement]
 
-    if not origin_ss58:
-        scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
-        if not scheduled_swaps:
-            console.print("[yellow]No pending coldkey swaps found.[/yellow]")
+    else:
+        announcements, current_block = await asyncio.gather(
+            subtensor.get_coldkey_swap_announcements(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
+        if not announcements:
+            console.print(
+                "[yellow]No pending coldkey swap announcements found.[/yellow]"
+            )
             return
 
-        table = Table(
-            Column(
-                "Original Coldkey",
-                justify="Left",
-                style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
-                no_wrap=True,
-            ),
-            Column("Status", style="dark_sea_green3"),
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
-            show_header=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
-        )
-
-        for coldkey in scheduled_swaps:
-            table.add_row(coldkey, "Pending")
-
-        console.print(table)
-        console.print(
-            "\n[dim]Tip: Check specific swap details by providing the original coldkey "
-            "SS58 address and the block number.[/dim]"
-        )
-        return
-    chain_reported_completion_block, destination_address = await subtensor.query(
-        "SubtensorModule", "ColdkeySwapScheduled", [origin_ss58]
-    )
-    destination_address = decode_account_id(destination_address[0])
-    if chain_reported_completion_block != 0 and destination_address != GENESIS_ADDRESS:
-        is_pending = True
-    else:
-        is_pending = False
-
-    if not is_pending:
-        console.print(
-            f"[red]No pending swap found for coldkey:[/red] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        )
-        return
-
-    console.print(
-        f"[green]Found pending swap for coldkey:[/green] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+    table = Table(
+        Column(
+            "Coldkey",
+            justify="left",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("New Coldkey Hash", justify="left", style="dim", no_wrap=True),
+        Column("Execution Block", justify="right", style="dark_sea_green3"),
+        Column("Time Remaining", justify="right", style="yellow"),
+        Column("Status", justify="center", style="green"),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swap Announcements\nCurrent Block: {current_block}\n",
+        show_header=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
     )
 
-    if expected_block_number is None:
-        expected_block_number = chain_reported_completion_block
+    for announcement in announcements:
+        remaining_blocks = announcement.execution_block - current_block
+        if remaining_blocks <= 0:
+            status = "Ready"
+            time_str = "[green]Ready[/green]"
+        else:
+            status = "Pending"
+            time_str = blocks_to_duration(remaining_blocks)
+        hash_display = f"{announcement.new_coldkey_hash[:12]}...{announcement.new_coldkey_hash[-6:]}"
 
-    current_block = await subtensor.substrate.get_block_number()
-    remaining_blocks = expected_block_number - current_block
+        table.add_row(
+            announcement.coldkey,
+            hash_display,
+            str(announcement.execution_block),
+            time_str,
+            status,
+        )
 
-    if remaining_blocks <= 0:
-        console.print("[green]Swap period has completed![/green]")
-        return
-
+    console.print(table)
     console.print(
-        "\n[green]Coldkey swap details:[/green]"
-        f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        f"\nDestination address: [{COLORS.G.CK}]{destination_address}[/{COLORS.G.CK}]"
-        f"\nCompletion block: {chain_reported_completion_block}"
-        f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
+        "\n[dim]To execute a ready swap:[/dim] "
+        "[green]btcli wallet swap-coldkey execute[/green]"
     )
