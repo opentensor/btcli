@@ -410,7 +410,7 @@ async def set_storage_extrinsic(
     if not response:
         print(response)
     else:
-         print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
+        print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
 
     return response
 
