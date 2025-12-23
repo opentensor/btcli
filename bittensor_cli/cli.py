@@ -9449,13 +9449,18 @@ class CLIManager:
     def proxy_remove(
         self,
         delegate: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                prompt="Enter the SS58 address of the delegate to remove, e.g. 5dxds...",
-                help="The SS58 address of the delegate to remove",
+                prompt=False,
+                help="The SS58 address of the delegate to remove (required if --all is not used)",
             ),
-        ] = "",
+        ] = None,
+        all: bool = typer.Option(
+            False,
+            "--all",
+            help="Remove all proxies associated with this account",
+        ),
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
@@ -9487,10 +9492,10 @@ class CLIManager:
         [green]$[/green] btcli proxy remove --all
 
         """
-        # TODO should add a --all flag to call Proxy.remove_proxies ?
         logger.debug(
             "args:\n"
             f"delegate: {delegate}\n"
+            f"all: {all}\n"
             f"network: {network}\n"
             f"proxy_type: {proxy_type}\n"
             f"delay: {delay}\n"
@@ -9498,30 +9503,89 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"era: {period}\n"
         )
-        self.verbosity_handler(quiet, verbose, json_output, prompt)
-        wallet = self.wallet_ask(
-            wallet_name=wallet_name,
-            wallet_path=wallet_path,
-            wallet_hotkey=wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH],
-            validate=WV.WALLET,
-        )
-        return self._run_command(
-            proxy_commands.remove_proxy(
-                subtensor=self.initialize_chain(network),
-                wallet=wallet,
-                delegate=delegate,
-                proxy_type=proxy_type,
-                delay=delay,
-                prompt=prompt,
-                decline=decline,
-                quiet=quiet,
-                wait_for_inclusion=wait_for_inclusion,
-                wait_for_finalization=wait_for_finalization,
-                period=period,
-                json_output=json_output,
+        # Validate that either delegate is provided or --all is used
+        if not all and not delegate:
+            if not json_output:
+                print_error(
+                    "Either --delegate must be provided or --all flag must be used."
+                )
+            else:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": "Either --delegate must be provided or --all flag must be used.",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return
+
+        # If --all is used, delegate and proxy_type/delay should not be required
+        if all:
+            if delegate:
+                if not json_output:
+                    console.print(
+                        "[yellow]Warning: --delegate is ignored when --all flag is used.[/yellow]"
+                    )
+            self.verbosity_handler(quiet, verbose, json_output, prompt)
+            wallet = self.wallet_ask(
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
             )
-        )
+            return self._run_command(
+                proxy_commands.remove_proxies(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
+            )
+        else:
+            # Single proxy removal - delegate is required
+            if not delegate:
+                if not json_output:
+                    print_error("--delegate is required when --all flag is not used.")
+                else:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": "--delegate is required when --all flag is not used.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                return
+
+            self.verbosity_handler(quiet, verbose, json_output, prompt)
+            wallet = self.wallet_ask(
+                wallet_name=wallet_name,
+                wallet_path=wallet_path,
+                wallet_hotkey=wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+            return self._run_command(
+                proxy_commands.remove_proxy(
+                    subtensor=self.initialize_chain(network),
+                    wallet=wallet,
+                    delegate=delegate,
+                    proxy_type=proxy_type,
+                    delay=delay,
+                    prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
+                    wait_for_inclusion=wait_for_inclusion,
+                    wait_for_finalization=wait_for_finalization,
+                    period=period,
+                    json_output=json_output,
+                )
+            )
 
     def proxy_kill(
         self,
