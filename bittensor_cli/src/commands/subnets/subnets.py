@@ -934,7 +934,7 @@ async def subnets_list(
         current_block = None
         previous_data = None
 
-        with Live(console=console, screen=True, auto_refresh=True) as live:
+        with Live(console=console, auto_refresh=True) as live:
             try:
                 while True:
                     (
