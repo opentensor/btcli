@@ -377,7 +377,7 @@ async def new_hotkey(
         if uri:
             try:
                 keypair = Keypair.create_from_uri(uri)
-            except (ValueError, TypeError) as e:
+            except TypeError as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
                 return
             wallet.set_hotkey(keypair=keypair, encrypt=use_password)
@@ -428,7 +428,7 @@ async def new_coldkey(
         if uri:
             try:
                 keypair = Keypair.create_from_uri(uri)
-            except (ValueError, TypeError) as e:
+            except TypeError as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
             wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
