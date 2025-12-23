@@ -242,9 +242,15 @@ class TestCreateTable:
             ),
         )
 
-        table.add_column("Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center")
-        table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], no_wrap=True)
-        table.add_column("Cost (τ)", style=COLOR_PALETTE["POOLS"]["TAO"], justify="center")
+        table.add_column(
+            "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
+        )
+        table.add_column(
+            "Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"], no_wrap=True
+        )
+        table.add_column(
+            "Cost (τ)", style=COLOR_PALETTE["POOLS"]["TAO"], justify="center"
+        )
 
         assert len(table.columns) == 3
 
@@ -296,9 +302,7 @@ class TestCreateTable:
 
     def test_rich_markup_in_title(self):
         """Test that rich markup in title is preserved."""
-        table = create_table(
-            title="[bold cyan]Test[/bold cyan] [dim]subtitle[/dim]"
-        )
+        table = create_table(title="[bold cyan]Test[/bold cyan] [dim]subtitle[/dim]")
 
         assert "[bold cyan]Test[/bold cyan]" in table.title
         assert "[dim]subtitle[/dim]" in table.title
