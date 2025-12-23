@@ -2072,7 +2072,6 @@ async def announce_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
-    proxy: Optional[str] = None,
 ) -> bool:
     """Announces intent to swap a coldkey to a new address.
 
@@ -2086,7 +2085,6 @@ async def announce_coldkey_swap(
         new_coldkey_ss58: SS58 address of the new coldkey.
         decline: If True, skip confirmation prompt and decline.
         quiet: If True, skip confirmation prompt and proceed.
-        proxy: Optional proxy SS58 address for the transaction.
 
     Returns:
         True if the announcement was successful, False otherwise.
@@ -2204,7 +2202,6 @@ async def announce_coldkey_swap(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
-            proxy=proxy,
         )
 
         if not success:
@@ -2262,7 +2259,6 @@ async def execute_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
-    proxy: Optional[str] = None,
 ) -> bool:
     """Executes a previously announced coldkey swap.
 
@@ -2275,7 +2271,6 @@ async def execute_coldkey_swap(
         new_coldkey_ss58: SS58 address of the new coldkey (must match announcement).
         decline: If True, skip confirmation prompt and decline.
         quiet: If True, skip confirmation prompt and proceed.
-        proxy: Optional proxy SS58 address for the transaction.
 
     Returns:
         True if the swap was executed successfully, False otherwise.
@@ -2357,7 +2352,6 @@ async def execute_coldkey_swap(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
-            proxy=proxy,
         )
 
         if not success:
