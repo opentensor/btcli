@@ -9,7 +9,6 @@ import sys
 import time
 from typing import TYPE_CHECKING, Optional, Protocol
 
-from bittensor_cli.src.bittensor.utils import print_success
 from bittensor_wallet import Keypair, Wallet
 from click.testing import Result
 from packaging.version import parse as parse_version, Version
@@ -411,7 +410,7 @@ async def set_storage_extrinsic(
     if not response:
         print(response)
     else:
-        print_success("[dark_sea_green_3]Success[/dark_sea_green_3]")
+         print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
 
     return response
 
