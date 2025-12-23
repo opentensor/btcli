@@ -1829,6 +1829,7 @@ async def register(
     json_output: bool,
     prompt: bool,
     proxy: Optional[str] = None,
+    decline: bool = False,
 ):
     """Register neuron by recycling some TAO."""
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
@@ -1869,7 +1870,7 @@ async def register(
             )
         return
 
-    if prompt and not json_output:
+    if (prompt or decline) and not json_output:
         # TODO make this a reusable function, also used in subnets list
         # Show creation table.
         table = Table(
@@ -1922,6 +1923,15 @@ async def register(
             f"{coldkey_ss58}",
         )
         console.print(table)
+        if decline:
+            console.print(
+                f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
+                f"The cost to register by recycle is "
+                f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}]\n"
+                f"Dry run enabled, transaction will not be broadcast."
+            )
+            return
+
         if not (
             Confirm.ask(
                 f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
@@ -1932,6 +1942,19 @@ async def register(
             )
         ):
             return
+
+    if decline:
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "msg": "Dry run enabled, transaction not broadcast.",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            )
+        return
 
     if netuid == 0:
         success, msg, ext_id = await root_register_extrinsic(

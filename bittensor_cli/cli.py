@@ -431,6 +431,12 @@ class Options:
         help=f"If set along with [{COLORS.G.ARG}]--proxy[/{COLORS.G.ARG}], will not actually make the extrinsic call, "
         f"but rather just announce it to be made later.",
     )
+    decline: bool = typer.Option(
+        False,
+        "--decline",
+        "--dry-run",
+        help="Print the extrinsic to be made without actually making it.",
+    )
 
 
 def list_prompt(init_var: list, list_type: type, help_text: str) -> list:
@@ -924,6 +930,7 @@ class CLIManager:
             name="weights",
             short_help="Weights commands, aliases: `wt`, `weight`",
             no_args_is_help=True,
+            hidden=True,
         )
         self.app.add_typer(
             self.weights_app, name="wt", hidden=True, no_args_is_help=True
@@ -1148,7 +1155,9 @@ class CLIManager:
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
         self.subnets_app.command(
-            "metagraph", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
+            "metagraph",
+            rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"],
+            hidden=True,
         )(self.subnets_show)  # Aliased to `s show` for now
         self.subnets_app.command(
             "show", rich_help_panel=HELP_PANELS["SUBNETS"]["INFO"]
@@ -1265,9 +1274,11 @@ class CLIManager:
         # Stake
         self.stake_app.command(
             "claim",
+            hidden=True,
         )(self.stake_set_claim_type)
         self.stake_app.command(
             "unclaim",
+            hidden=True,
         )(self.stake_set_claim_type)
 
         # Crowdloan
@@ -7418,6 +7429,7 @@ class CLIManager:
         prompt: bool = Options.prompt,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        decline: bool = Options.decline,
     ):
         """
         Register a neuron (a subnet validator or a subnet miner) in the specified subnet by recycling some TAO.
@@ -7451,6 +7463,7 @@ class CLIManager:
                 json_output=json_output,
                 prompt=prompt,
                 proxy=proxy,
+                decline=decline,
             )
         )
 
