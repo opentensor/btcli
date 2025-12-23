@@ -23,6 +23,10 @@ from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
 )
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    extract_mev_shield_id,
+    wait_for_extrinsic_by_hash,
+)
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
     swap_hotkey_extrinsic,
@@ -2150,7 +2154,7 @@ async def announce_coldkey_swap(
     if not unlock_key(wallet).success:
         return False
 
-    with console.status(":satellite: Announcing coldkey swap on-chain..."):
+    with console.status(":satellite: Announcing coldkey swap on-chain...") as status:
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="announce_coldkey_swap",
@@ -2169,6 +2173,22 @@ async def announce_coldkey_swap(
         if not success:
             print_error(f"Failed to announce coldkey swap: {err_msg}")
             return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                print_error(
+                    f"Failed to announce coldkey swap: {mev_error}", status=status
+                )
+                return False
 
         print_success("[dark_sea_green3]Successfully announced coldkey swap")
         await print_extrinsic_id(ext_receipt)
@@ -2307,7 +2327,7 @@ async def execute_coldkey_swap(
     if not unlock_key(wallet).success:
         return False
 
-    with console.status(":satellite: Executing coldkey swap on-chain..."):
+    with console.status(":satellite: Executing coldkey swap on-chain...") as status:
         call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="swap_coldkey_announced",
@@ -2326,6 +2346,22 @@ async def execute_coldkey_swap(
         if not success:
             print_error(f"Failed to execute coldkey swap: {err_msg}")
             return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                print_error(
+                    f"Failed to execute coldkey swap: {mev_error}", status=status
+                )
+                return False
 
         print_success("[dark_sea_green3]Successfully executed coldkey swap!")
         await print_extrinsic_id(ext_receipt)
