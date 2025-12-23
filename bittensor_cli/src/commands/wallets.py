@@ -2046,6 +2046,26 @@ async def verify(
     return is_valid
 
 
+def compute_coldkey_hash(ss58_address: str) -> str:
+    """
+    Compute Blake2b-256 hash of a coldkey AccountId.
+
+    Args:
+        ss58_address: SS58 address of the coldkey.
+
+    Returns:
+        str: 0x-prefixed hex hash.
+
+    Notes:
+        Hashes AccountId bytes (not the SS58). Used by coldkey-swap announcements.
+    """
+    keypair = Keypair(ss58_address=ss58_address)
+    public_key_bytes = keypair.public_key
+
+    hash_result = hashlib.blake2b(public_key_bytes, digest_size=32)
+    return "0x" + hash_result.hexdigest()
+
+
 async def schedule_coldkey_swap(
     wallet: Wallet,
     subtensor: SubtensorInterface,
