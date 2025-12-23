@@ -1984,6 +1984,30 @@ class SubtensorInterface:
 
         return result
 
+    async def get_coldkey_swap_cost(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the fee required to announce a coldkey swap.
+
+        Args:
+            block_hash: Block hash at which to query the constant.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            The swap cost as a Balance object. Returns 0 TAO if constant not found.
+        """
+        swap_cost = await self.substrate.get_constant(
+            module_name="SubtensorModule",
+            constant_name="KeySwapCost",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        if swap_cost is None:
+            return None
+        return Balance.from_rao(swap_cost.value)
+
     async def get_coldkey_claim_type(
         self,
         coldkey_ss58: str,
