@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import itertools
 import json
 import os
@@ -1767,11 +1768,16 @@ async def swap_hotkey(
     return result
 
 
-def create_identity_table(title: str = None):
-    if not title:
-        title = "On-Chain Identity"
+def create_key_value_table(title: str = "Details") -> Table:
+    """Creates a key-value table for displaying information for various cmds.
 
-    table = Table(
+    Args:
+        title: The title shown above the table.
+
+    Returns:
+        A Rich Table for key-value display.
+    """
+    return Table(
         Column(
             "Item",
             justify="right",
@@ -1789,7 +1795,6 @@ def create_identity_table(title: str = None):
         show_lines=False,
         pad_edge=True,
     )
-    return table
 
 
 async def set_id(
@@ -1846,7 +1851,7 @@ async def set_id(
             output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
-    table = create_identity_table(title="New on-chain Identity")
+    table = create_key_value_table(title="New on-chain Identity\n")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
@@ -1880,7 +1885,7 @@ async def get_id(
             json_console.print("{}")
         return {}
 
-    table = create_identity_table(title)
+    table = create_key_value_table(title)
     table.add_row("Address", ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
