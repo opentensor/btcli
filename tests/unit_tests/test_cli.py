@@ -872,7 +872,10 @@ def test_proxy_remove_requires_delegate_or_all_json(mock_json_console):
     mock_json_console.print_json.assert_called_once()
     call_args = mock_json_console.print_json.call_args[1]["data"]
     assert call_args["success"] is False
-    assert "Either --delegate must be provided or --all flag must be used." in call_args["message"]
+    assert (
+        "Either --delegate must be provided or --all flag must be used."
+        in call_args["message"]
+    )
     assert call_args["extrinsic_identifier"] is None
 
 
