@@ -25,6 +25,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
@@ -87,6 +88,63 @@ def confirm_action(
             console.print(f"{message} [Auto-declined via --no flag]")
         return False
     return Confirm.ask(message, default=default)
+
+
+def create_table(*columns, title: str = "", **overrides) -> Table:
+    """
+    Creates a Rich Table with consistent CLI styling.
+
+    Default styling: no edge borders, bold white headers, bright black borders,
+    footer enabled, center-aligned title, and no lines between rows.
+
+    Args:
+        *columns: Optional Column objects to add to the table upfront.
+        title: Table title with rich markup support.
+        **overrides: Any Table() parameter to override defaults (e.g., show_footer,
+                     border_style, box, expand).
+
+    Returns:
+        Configured Rich Table ready for adding columns/rows.
+
+    Examples:
+        Basic usage (add columns later):
+            >>> table = create_table(title="My Subnets")
+            >>> table.add_column("Netuid", justify="center")
+            >>> table.add_row("1")
+
+        With Column objects upfront:
+            >>> from rich.table import Column
+            >>> table = create_table(
+            ...     Column("Name", justify="left"),
+            ...     Column("Value", justify="right"),
+            ...     title="Settings"
+            ... )
+            >>> table.add_row("Timeout", "30s")
+
+        Custom styling:
+            >>> from rich import box
+            >>> table = create_table(
+            ...     title="Custom",
+            ...     border_style="blue",
+            ...     box=box.ROUNDED
+            ... )
+    """
+    defaults = {
+        "title": title,
+        "show_footer": True,
+        "show_edge": False,
+        "header_style": "bold white",
+        "border_style": "bright_black",
+        "style": "bold",
+        "title_justify": "center",
+        "show_lines": False,
+        "pad_edge": True,
+    }
+
+    # Merge overrides into defaults
+    config = {**defaults, **overrides}
+
+    return Table(*columns, **config)
 
 
 jinja_env = Environment(
