@@ -3519,62 +3519,58 @@ class CLIManager:
         wallet_ss58_address: Optional[str] = Options.wallet_ss58_address,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        scheduled_block: Optional[int] = typer.Option(
-            None,
-            "--block",
-            help="Block number where the swap was scheduled",
-        ),
         show_all: bool = typer.Option(
             False,
             "--all",
             "-a",
-            help="Show all pending coldkey swaps",
+            help="Show all pending coldkey swap announcements",
         ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
         """
-        Check the status of scheduled coldkey swaps.
+        Check the status of pending coldkey swap announcements.
+
+        Coldkey swaps use a two-step announcement system. Use this command
+        to check if you have any pending announcements and when they become executable.
 
         USAGE
 
-        This command can be used in three ways:
-        1. Show all pending swaps (--all)
-        2. Check status of a specific wallet's swap or SS58 address
-        3. Check detailed swap status with block number (--block)
+        This command can be used in two ways:
+
+        1. Show all pending announcements (--all)
+
+        2. Check status of a specific wallet or SS58 address
 
         EXAMPLES
 
-        Show all pending swaps:
+        1. Show all pending swap announcements:
+
         [green]$[/green] btcli wallet swap-check --all
 
-        Check specific wallet's swap:
+        2. Check specific wallet's announcement:
+
         [green]$[/green] btcli wallet swap-check --wallet-name my_wallet
 
-        Check swap using SS58 address:
-        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
+        3. Check announcement using SS58 address:
 
-        Check swap details with block number:
-        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet --block 12345
+        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
         """
-        # TODO add json_output if this ever gets used again (doubtful)
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
         self.initialize_chain(network)
 
         if show_all:
-            return self._run_command(
-                wallets.check_swap_status(self.subtensor, None, None)
-            )
+            return self._run_command(wallets.check_swap_status(self.subtensor, None))
 
         if not wallet_ss58_address:
             wallet_ss58_address = Prompt.ask(
                 "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim]"
-                "(leave blank to show all pending swaps)[/dim]"
+                "(leave blank to show all pending announcements)[/dim]"
             )
             if not wallet_ss58_address:
                 return self._run_command(
-                    wallets.check_swap_status(self.subtensor, None, None)
+                    wallets.check_swap_status(self.subtensor, None)
                 )
 
         if is_valid_ss58_address(wallet_ss58_address):
@@ -3589,26 +3585,9 @@ class CLIManager:
             )
             ss58_address = wallet.coldkeypub.ss58_address
 
-        if not scheduled_block:
-            block_input = Prompt.ask(
-                "[blue]Enter the block number[/blue] where the swap was scheduled "
-                "[dim](optional, press enter to skip)[/dim]",
-                default="",
-            )
-            if block_input:
-                try:
-                    scheduled_block = int(block_input)
-                except ValueError:
-                    print_error("Invalid block number")
-                    raise typer.Exit()
-        logger.debug(
-            "args:\n"
-            f"scheduled_block {scheduled_block}\n"
-            f"ss58_address {ss58_address}\n"
-            f"network {network}\n"
-        )
+        logger.debug(f"args:\nss58_address {ss58_address}\nnetwork {network}\n")
         return self._run_command(
-            wallets.check_swap_status(self.subtensor, ss58_address, scheduled_block)
+            wallets.check_swap_status(self.subtensor, ss58_address)
         )
 
     def wallet_create_wallet(
