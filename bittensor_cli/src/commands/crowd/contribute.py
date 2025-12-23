@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     print_error,
     print_extrinsic_id,
+    print_success,
     unlock_key,
 )
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
@@ -89,7 +90,7 @@ async def contribute_to_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, error_msg
 
     is_valid, error_message = validate_for_contribution(
@@ -99,7 +100,7 @@ async def contribute_to_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_message}))
         else:
-            print_error(f"[red]{error_message}[/red]")
+            print_error(error_message)
         return False, error_message
 
     contributor_address = proxy or wallet.coldkeypub.ss58_address
@@ -136,7 +137,7 @@ async def contribute_to_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Contribution below minimum requirement."
 
     if contribution_amount > user_balance:
@@ -144,7 +145,7 @@ async def contribute_to_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Insufficient balance."
 
     # Auto-adjustment
@@ -245,7 +246,7 @@ async def contribute_to_crowdloan(
                 json.dumps({"success": False, "error": unlock_status.message})
             )
         else:
-            print_error(f"[red]{unlock_status.message}[/red]")
+            print_error(unlock_status.message)
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Contributing to crowdloan #{crowdloan_id}..."):
@@ -272,7 +273,7 @@ async def contribute_to_crowdloan(
                 )
             )
         else:
-            print_error(f"[red]Failed to contribute: {error_message}[/red]")
+            print_error(f"Failed to contribute: {error_message}")
         return False, error_message or "Failed to contribute."
 
     new_balance, new_contribution, updated_crowdloan = await asyncio.gather(
@@ -398,7 +399,7 @@ async def withdraw_from_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, error_msg
 
     if crowdloan.finalized:
@@ -406,7 +407,7 @@ async def withdraw_from_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Cannot withdraw from finalized crowdloan."
 
     contributor_address = proxy or wallet.coldkeypub.ss58_address
@@ -424,7 +425,7 @@ async def withdraw_from_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "No contribution to withdraw."
 
     is_creator = wallet.coldkeypub.ss58_address == crowdloan.creator
@@ -435,7 +436,7 @@ async def withdraw_from_crowdloan(
             if json_output:
                 json_console.print(json.dumps({"success": False, "error": error_msg}))
             else:
-                print_error(f"[red]{error_msg}[/red]")
+                print_error(error_msg)
             return False, "Creator cannot withdraw deposit amount."
         remaining_contribution = crowdloan.deposit
     else:
@@ -534,7 +535,7 @@ async def withdraw_from_crowdloan(
                 json.dumps({"success": False, "error": unlock_status.message})
             )
         else:
-            print_error(f"[red]{unlock_status.message}[/red]")
+            print_error(unlock_status.message)
         return False, unlock_status.message
 
     with console.status(f"\n:satellite: Withdrawing from crowdloan #{crowdloan_id}..."):
@@ -561,9 +562,7 @@ async def withdraw_from_crowdloan(
                 )
             )
         else:
-            print_error(
-                f"[red]Failed to withdraw: {error_message or 'Unknown error'}[/red]"
-            )
+            print_error(f"Failed to withdraw: {error_message or 'Unknown error'}")
         return False, error_message or "Failed to withdraw from crowdloan."
 
     new_balance, updated_contribution, updated_crowdloan = await asyncio.gather(
@@ -602,9 +601,7 @@ async def withdraw_from_crowdloan(
         }
         json_console.print(json.dumps(output_dict))
     else:
-        console.print(
-            f"\n✅ [green]Successfully withdrew from crowdloan #{crowdloan_id}![/green]\n"
-        )
+        print_success(f"Successfully withdrew from crowdloan #{crowdloan_id}!\n")
 
         console.print(
             f"Amount Withdrawn: [{COLORS.S.AMOUNT}]{withdrawable}[/{COLORS.S.AMOUNT}]\n"

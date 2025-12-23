@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     U16_MAX,
     print_extrinsic_id,
+    print_success,
 )
 
 if TYPE_CHECKING:
@@ -294,7 +295,7 @@ async def set_emission_split(
         return False
 
     if normalized_weights == existing_split:
-        message = ":white_heavy_check_mark: [dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
+        message = "[dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
         if json_output:
             json_console.print_json(
                 data={
@@ -306,7 +307,7 @@ async def set_emission_split(
                 }
             )
         else:
-            console.print(message)
+            print_success(message)
         return True
 
     if not json_output:
@@ -462,8 +463,7 @@ async def set_mechanism_count(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: "
+        print_success(
             f"[dark_sea_green3]Mechanism count set to {mechanism_count} for subnet {netuid}[/dark_sea_green3]"
         )
     else:
@@ -506,8 +506,7 @@ async def set_mechanism_emission(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: "
+        print_success(
             f"[dark_sea_green3]Emission split updated for subnet {netuid}[/dark_sea_green3]"
         )
     else:

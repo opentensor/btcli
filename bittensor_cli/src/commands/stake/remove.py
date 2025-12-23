@@ -18,6 +18,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    print_success,
     print_verbose,
     print_error,
     get_hotkey_wallets_for_wallet,
@@ -671,7 +672,7 @@ async def _unstake_extrinsic(
             ),
         )
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        print_success("Finalized")
         console.print(
             f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
@@ -785,7 +786,7 @@ async def _safe_unstake_extrinsic(
             ),
         )
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        print_success("Finalized")
         console.print(
             f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )

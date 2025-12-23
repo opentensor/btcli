@@ -156,6 +156,17 @@ def print_error(message: str, status=None):
         print_console(error_message, "red", err_console)
 
 
+def print_success(message: str, status=None):
+    """Print success messages while temporarily pausing the status spinner."""
+    success_message = f":white_heavy_check_mark: {message}"
+    if status:
+        status.stop()
+        print_console(success_message, "green", console)
+        status.start()
+    else:
+        print_console(success_message, "green", console)
+
+
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615
