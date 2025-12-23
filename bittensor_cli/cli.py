@@ -4120,6 +4120,7 @@ class CLIManager:
             "--new",
             help="SS58 address or wallet name of the new coldkey.",
         ),
+        mev_protection: bool = Options.mev_protection,
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
@@ -4219,6 +4220,7 @@ class CLIManager:
                     new_coldkey_ss58=new_wallet_coldkey_ss58,
                     decline=decline,
                     quiet=quiet,
+                    mev_protection=mev_protection,
                 )
             )
         else:
@@ -4229,6 +4231,7 @@ class CLIManager:
                     new_coldkey_ss58=new_wallet_coldkey_ss58,
                     decline=decline,
                     quiet=quiet,
+                    mev_protection=mev_protection,
                 )
             )
 

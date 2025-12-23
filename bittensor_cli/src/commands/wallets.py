@@ -2072,6 +2072,7 @@ async def announce_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
+    mev_protection: bool = False,
 ) -> bool:
     """Announces intent to swap a coldkey to a new address.
 
@@ -2085,6 +2086,7 @@ async def announce_coldkey_swap(
         new_coldkey_ss58: SS58 address of the new coldkey.
         decline: If True, skip confirmation prompt and decline.
         quiet: If True, skip confirmation prompt and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
 
     Returns:
         True if the announcement was successful, False otherwise.
@@ -2202,6 +2204,7 @@ async def announce_coldkey_swap(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            mev_protection=mev_protection,
         )
 
         if not success:
@@ -2259,6 +2262,7 @@ async def execute_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
+    mev_protection: bool = True,
 ) -> bool:
     """Executes a previously announced coldkey swap.
 
@@ -2271,6 +2275,7 @@ async def execute_coldkey_swap(
         new_coldkey_ss58: SS58 address of the new coldkey (must match announcement).
         decline: If True, skip confirmation prompt and decline.
         quiet: If True, skip confirmation prompt and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
 
     Returns:
         True if the swap was executed successfully, False otherwise.
@@ -2278,6 +2283,12 @@ async def execute_coldkey_swap(
     if not is_valid_ss58_address(new_coldkey_ss58):
         print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
         return False
+
+    if not mev_protection:
+        console.print(
+            "[yellow]WARNING: MEV protection is disabled.\n"
+            "This transaction is not protected & will expose the new coldkey.[/yellow]"
+        )
 
     block_hash = await subtensor.substrate.get_chain_head()
     announcement = await subtensor.get_coldkey_swap_announcement(
@@ -2352,6 +2363,7 @@ async def execute_coldkey_swap(
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            mev_protection=mev_protection,
         )
 
         if not success:
