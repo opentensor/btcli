@@ -16,7 +16,7 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
+from bittensor_cli.src import COLOR_PALETTE, COLORS
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
@@ -29,18 +29,15 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.subtensor_interface import (
-    SubtensorInterface,
-    GENESIS_ADDRESS,
-)
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     confirm_action,
     console,
-    convert_blocks_to_time,
     json_console,
     print_error,
     print_verbose,
+    print_success,
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
@@ -50,7 +47,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     WalletLike,
     blocks_to_duration,
-    decode_account_id,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
@@ -1896,43 +1892,6 @@ async def get_id(
     return identity
 
 
-async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
-    arbitration_check = len(  # TODO verify this works
-        (
-            await subtensor.query(
-                module="SubtensorModule",
-                storage_function="ColdkeySwapDestinations",
-                params=[wallet.coldkeypub.ss58_address],
-            )
-        )
-    )
-    if arbitration_check == 0:
-        console.print(
-            "[green]There has been no previous key swap initiated for your coldkey.[/green]"
-        )
-    elif arbitration_check == 1:
-        arbitration_block = await subtensor.query(
-            module="SubtensorModule",
-            storage_function="ColdkeyArbitrationBlock",
-            params=[wallet.coldkeypub.ss58_address],
-        )
-        arbitration_remaining = (
-            arbitration_block.value - await subtensor.substrate.get_block_number(None)
-        )
-
-        hours, minutes, seconds = convert_blocks_to_time(arbitration_remaining)
-        console.print(
-            "[yellow]There has been 1 swap request made for this coldkey already."
-            " By adding another swap request, the key will enter arbitration."
-            f" Your key swap is scheduled for {hours} hours, {minutes} minutes, {seconds} seconds"
-            " from now.[/yellow]"
-        )
-    elif arbitration_check > 1:
-        console.print(
-            f"[red]This coldkey is currently in arbitration with a total swaps of {arbitration_check}.[/red]"
-        )
-
-
 async def sign(
     wallet: Wallet, message: str, use_hotkey: bool, json_output: bool = False
 ):
@@ -2211,9 +2170,7 @@ async def announce_coldkey_swap(
             print_error(f"Failed to announce coldkey swap: {err_msg}")
             return False
 
-        console.print(
-            ":white_heavy_check_mark: [green]Successfully announced coldkey swap[/green]"
-        )
+        print_success("[dark_sea_green3]Successfully announced coldkey swap")
         await print_extrinsic_id(ext_receipt)
 
     # Post-success information
@@ -2370,9 +2327,7 @@ async def execute_coldkey_swap(
             print_error(f"Failed to execute coldkey swap: {err_msg}")
             return False
 
-        console.print(
-            ":white_heavy_check_mark: [green]Successfully executed coldkey swap![/green]"
-        )
+        print_success("[dark_sea_green3]Successfully executed coldkey swap!")
         await print_extrinsic_id(ext_receipt)
 
     # Success details table
