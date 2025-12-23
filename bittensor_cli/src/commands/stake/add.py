@@ -493,8 +493,18 @@ async def stake_add(
         price_idx = 0
         for hotkey in hotkeys_to_stake_to:
             for netuid in netuids:
+                # Safety check: if we've processed all items from the first loop, stop
                 if list_idx >= len(amounts_to_stake):
                     break
+
+                # Verify subnet exists (same check as first loop)
+                # If subnet doesn't exist, it was skipped in first loop, so list_idx won't advance
+                # We need to skip it here too to stay in sync
+                subnet_info = all_subnets.get(netuid)
+                if not subnet_info:
+                    # This netuid was skipped in first loop (doesn't exist)
+                    # Don't advance list_idx, just continue to next netuid
+                    continue
 
                 am = amounts_to_stake[list_idx]
                 curr = current_stake_balances[list_idx]

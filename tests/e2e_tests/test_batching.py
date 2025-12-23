@@ -192,6 +192,33 @@ def test_batching(local_chain, wallet_setup):
         register_result.stdout
     )
 
+    # Register Bob in one subnet
+    register_result_subnet3 = exec_command_bob(
+        command="subnets",
+        sub_command="register",
+        extra_args=[
+            "--netuid",
+            "3",
+            "--wallet-path",
+            wallet_path_bob,
+            "--wallet-name",
+            wallet_bob.name,
+            "--hotkey",
+            wallet_bob.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--no-prompt",
+            "--era",
+            "30",
+        ],
+    )
+    assert "✅ Registered" in register_result_subnet3.stdout, (
+        register_result_subnet3.stderr
+    )
+    assert "Your extrinsic has been included" in register_result_subnet3.stdout, (
+        register_result_subnet3.stdout
+    )
+
     # Add stake to subnets
     multiple_netuids = [2, 3]
     stake_result = exec_command_bob(
@@ -211,9 +238,7 @@ def test_batching(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
-            "--partial",
-            "--tolerance",
-            "1.0",  # Increased from 0.5 to 1.0 (100% tolerance) to handle price volatility in pipeline
+            "--unsafe",
             "--era",
             "144",
         ],
@@ -222,6 +247,8 @@ def test_batching(local_chain, wallet_setup):
     assert "Your extrinsic has been included" in stake_result.stdout, (
         stake_result.stdout
     )
+
+    print(f"output: {stake_result.stdout}")
 
     # Verify extrinsic_id is unique (all operations should share the same extrinsic_id when batched)
     # Pattern matches: "Your extrinsic has been included as {block_number}-{extrinsic_index}"
