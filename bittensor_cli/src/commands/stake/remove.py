@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import print_json_data
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -371,7 +372,7 @@ async def unstake(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
     )
     if json_output:
-        json_console.print_json(data=successes)
+        print_json_data(successes)
     return True
 
 
@@ -581,7 +582,7 @@ async def unstake_all(
                 "extrinsic_identifier": ext_id,
             }
     if json_output:
-        json_console.print(json.dumps({"success": successes}))
+        print_json_data({"success": successes})
 
 
 # Extrinsics

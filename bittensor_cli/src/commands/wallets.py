@@ -53,6 +53,13 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import (
+    json_success,
+    json_error,
+    print_json,
+    print_json_data,
+    print_transaction_response,
+)
 
 
 class SortByBalance(Enum):
@@ -181,33 +188,21 @@ async def regen_coldkey(
                 f"coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_wallet.name,
-                                "path": new_wallet.path,
-                                "hotkey": new_wallet.hotkey_str,
-                                "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
-                                "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_wallet.name,
+                    "path": new_wallet.path,
+                    "hotkey": new_wallet.hotkey_str,
+                    "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
+                    "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
+                }))
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
-            )
+            print_json(json_error("Mnemonic phrase is invalid"))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_coldkey_pub(
@@ -231,27 +226,17 @@ async def regen_coldkey_pub(
                 f"coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_coldkeypub.name,
-                                "path": new_coldkeypub.path,
-                                "hotkey": new_coldkeypub.hotkey_str,
-                                "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
-                                "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_coldkeypub.name,
+                    "path": new_coldkeypub.path,
+                    "hotkey": new_coldkeypub.hotkey_str,
+                    "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
+                    "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
+                }))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_hotkey(
@@ -288,33 +273,21 @@ async def regen_hotkey(
                 f"hotkey ss58: ({new_hotkey_.hotkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_hotkey_.name,
-                                "path": new_hotkey_.path,
-                                "hotkey": new_hotkey_.hotkey_str,
-                                "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
-                                "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
-                )
+                print_json(json_success({
+                    "name": new_hotkey_.name,
+                    "path": new_hotkey_.path,
+                    "hotkey": new_hotkey_.hotkey_str,
+                    "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
+                    "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
+                }))
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Mnemonic phrase is invalid", "data": null}'
-            )
+            print_json(json_error("Mnemonic phrase is invalid"))
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
-                '{"success": false, "error": "Keyfile is not writable", "data": null}'
-            )
+            print_json(json_error("Keyfile is not writable"))
 
 
 async def regen_hotkey_pub(
@@ -1551,9 +1524,8 @@ async def transfer(
     )
     ext_id = (await ext_receipt.get_extrinsic_identifier()) if result else None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        msg = "Transfer successful" if result else "Transfer failed"
+        print_transaction_response(result, msg, ext_id)
     else:
         await print_extrinsic_id(ext_receipt)
     return result
@@ -1759,9 +1731,8 @@ async def swap_hotkey(
     else:
         ext_id = None
     if json_output:
-        json_console.print(
-            json.dumps({"success": result, "extrinsic_identifier": ext_id})
-        )
+        msg = "Hotkey swap successful" if result else "Hotkey swap failed"
+        print_transaction_response(result, msg, ext_id)
     else:
         await print_extrinsic_id(ext_receipt)
     return result
@@ -1837,23 +1808,20 @@ async def set_id(
             print_error(f"Failed! {err_msg}")
             output_dict["error"] = err_msg
             if json_output:
-                json_console.print(json.dumps(output_dict))
+                print_transaction_response(False, err_msg, None)
             return False
         else:
             console.print(":white_heavy_check_mark: [dark_sea_green3]Success!")
             ext_id = await ext_receipt.get_extrinsic_identifier()
             await print_extrinsic_id(ext_receipt)
-            output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
     table = create_identity_table(title="New on-chain Identity")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
-    output_dict["identity"] = identity
-    output_dict["extrinsic_identifier"] = ext_id
     if json_output:
-        json_console.print(json.dumps(output_dict))
+        print_transaction_response(True, "Identity set successfully", ext_id)
     else:
         console.print(table)
     return True
