@@ -25,6 +25,47 @@ def _shorten(account: Optional[str]) -> str:
     return f"{account[:6]}…{account[-6:]}"
 
 
+def _get_identity_name(identity: dict) -> str:
+    """Extract identity name from identity dict.
+
+    Handles both flat structure (from decode_hex_identity) and nested structure.
+    """
+    if not identity:
+        return ""
+
+    # Try direct display/name fields first (flat structure from decode_hex_identity)
+    if identity.get("display"):
+        display = identity.get("display")
+        if isinstance(display, str):
+            return display
+        if isinstance(display, dict):
+            return display.get("Raw", "") or display.get("value", "") or ""
+
+    if identity.get("name"):
+        name = identity.get("name")
+        if isinstance(name, str):
+            return name
+        if isinstance(name, dict):
+            return name.get("Raw", "") or name.get("value", "") or ""
+
+    # Try nested structure (info.display.Raw)
+    info = identity.get("info", {})
+    if info:
+        display = info.get("display", {})
+        if isinstance(display, dict):
+            return display.get("Raw", "") or display.get("value", "") or ""
+        if isinstance(display, str):
+            return display
+
+        name = info.get("name", {})
+        if isinstance(name, dict):
+            return name.get("Raw", "") or name.get("value", "") or ""
+        if isinstance(name, str):
+            return name
+
+    return ""
+
+
 def _status(loan: CrowdloanData, current_block: int) -> str:
     if loan.finalized:
         return "Finalized"
@@ -44,12 +85,45 @@ def _time_remaining(loan: CrowdloanData, current_block: int) -> str:
     return f"Closed {blocks_to_duration(abs(diff))} ago"
 
 
+def _get_loan_type(loan: CrowdloanData) -> str:
+    """Determine if a loan is subnet leasing or fundraising."""
+    if loan.call_details:
+        pallet = loan.call_details.get("pallet", "")
+        method = loan.call_details.get("method", "")
+        if pallet == "SubtensorModule" and method == "register_leased_network":
+            return "subnet"
+    # If has_call is True, it likely indicates a subnet loan
+    # (subnet loans have calls attached, fundraising loans typically don't)
+    if loan.has_call:
+        return "subnet"
+    # Default to fundraising if no call attached
+    return "fundraising"
+
+
 async def list_crowdloans(
     subtensor: SubtensorInterface,
     verbose: bool = False,
     json_output: bool = False,
+    show_identities: bool = True,
+    status_filter: Optional[str] = None,
+    type_filter: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    search_creator: Optional[str] = None,
 ) -> bool:
-    """List all crowdloans in a tabular format or JSON output."""
+    """List all crowdloans in a tabular format or JSON output.
+
+    Args:
+        subtensor: SubtensorInterface object for chain interaction
+        verbose: Show full addresses and precise amounts
+        json_output: Output as JSON
+        show_identities: Show identity names for creators and targets
+        status_filter: Filter by status (active, funded, closed, finalized)
+        type_filter: Filter by type (subnet, fundraising)
+        sort_by: Sort by field (raised, end, contributors, id)
+        sort_order: Sort order (asc, desc)
+        search_creator: Search by creator address or identity name
+    """
 
     current_block, loans = await asyncio.gather(
         subtensor.substrate.get_block_number(None),
@@ -76,10 +150,80 @@ async def list_crowdloans(
             console.print("[yellow]No crowdloans found.[/yellow]")
         return True
 
-    total_raised = sum(loan.raised.tao for loan in loans.values())
-    total_cap = sum(loan.cap.tao for loan in loans.values())
-    total_loans = len(loans)
-    total_contributors = sum(loan.contributors_count for loan in loans.values())
+    # Batch fetch identities early if needed for filtering/searching
+    identity_map = {}
+    if show_identities or search_creator:
+        addresses_to_fetch = set()
+        for loan in loans.values():
+            addresses_to_fetch.add(loan.creator)
+            if loan.target_address:
+                addresses_to_fetch.add(loan.target_address)
+
+        identity_tasks = [
+            subtensor.query_identity(address) for address in addresses_to_fetch
+        ]
+        identities = await asyncio.gather(*identity_tasks)
+
+        for address, identity in zip(addresses_to_fetch, identities):
+            identity_name = _get_identity_name(identity)
+            if identity_name:
+                identity_map[address] = identity_name
+
+    # Apply filters
+    filtered_loans = {}
+    for loan_id, loan in loans.items():
+        # Filter by status
+        if status_filter:
+            loan_status = _status(loan, current_block)
+            if loan_status.lower() != status_filter.lower():
+                continue
+
+        # Filter by type
+        if type_filter:
+            loan_type = _get_loan_type(loan)
+            if loan_type.lower() != type_filter.lower():
+                continue
+
+        # Filter by creator search
+        if search_creator:
+            search_term = search_creator.lower()
+            creator_match = loan.creator.lower().find(search_term) != -1
+            identity_match = False
+            if loan.creator in identity_map:
+                identity_name = identity_map[loan.creator].lower()
+                identity_match = identity_name.find(search_term) != -1
+            if not creator_match and not identity_match:
+                continue
+
+        filtered_loans[loan_id] = loan
+
+    if not filtered_loans:
+        if json_output:
+            json_console.print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "error": None,
+                        "data": {
+                            "crowdloans": [],
+                            "total_count": 0,
+                            "total_raised": 0,
+                            "total_cap": 0,
+                            "total_contributors": 0,
+                        },
+                    }
+                )
+            )
+        else:
+            console.print("[yellow]No crowdloans found matching the filters.[/yellow]")
+        return True
+
+    total_raised = sum(loan.raised.tao for loan in filtered_loans.values())
+    total_cap = sum(loan.cap.tao for loan in filtered_loans.values())
+    total_loans = len(filtered_loans)
+    total_contributors = sum(
+        loan.contributors_count for loan in filtered_loans.values()
+    )
 
     funding_percentage = (total_raised / total_cap * 100) if total_cap > 0 else 0
     percentage_color = "dark_sea_green" if funding_percentage < 100 else "red"
@@ -89,7 +233,7 @@ async def list_crowdloans(
 
     if json_output:
         crowdloans_list = []
-        for loan_id, loan in loans.items():
+        for loan_id, loan in filtered_loans.items():
             status = _status(loan, current_block)
             time_remaining = _time_remaining(loan, current_block)
 
@@ -119,19 +263,47 @@ async def list_crowdloans(
                 "time_remaining": time_remaining,
                 "contributors_count": loan.contributors_count,
                 "creator": loan.creator,
+                "creator_identity": identity_map.get(loan.creator)
+                if show_identities
+                else None,
                 "target_address": loan.target_address,
+                "target_identity": identity_map.get(loan.target_address)
+                if show_identities and loan.target_address
+                else None,
                 "funds_account": loan.funds_account,
                 "call": call_info,
                 "finalized": loan.finalized,
             }
             crowdloans_list.append(crowdloan_data)
 
-        crowdloans_list.sort(
-            key=lambda x: (
-                x["status"] != "Active",
-                -x["raised"],
+        # Apply sorting
+        if sort_by:
+            reverse_order = True
+            if sort_order:
+                reverse_order = sort_order.lower() == "desc"
+            elif sort_by.lower() == "id":
+                reverse_order = False
+
+            if sort_by.lower() == "raised":
+                crowdloans_list.sort(key=lambda x: x["raised"], reverse=reverse_order)
+            elif sort_by.lower() == "end":
+                crowdloans_list.sort(
+                    key=lambda x: x["end_block"], reverse=reverse_order
+                )
+            elif sort_by.lower() == "contributors":
+                crowdloans_list.sort(
+                    key=lambda x: x["contributors_count"], reverse=reverse_order
+                )
+            elif sort_by.lower() == "id":
+                crowdloans_list.sort(key=lambda x: x["id"], reverse=reverse_order)
+        else:
+            # Default sorting: Active first, then by raised amount descending
+            crowdloans_list.sort(
+                key=lambda x: (
+                    x["status"] != "Active",
+                    -x["raised"],
+                )
             )
-        )
 
         output_dict = {
             "success": True,
@@ -221,13 +393,56 @@ async def list_crowdloans(
     )
     table.add_column("[bold white]Call", style="grey89", justify="center")
 
-    sorted_loans = sorted(
-        loans.items(),
-        key=lambda x: (
-            _status(x[1], current_block) != "Active",  # Active loans first
-            -x[1].raised.tao,  # Then by raised amount (descending)
-        ),
-    )
+    # Apply sorting for table display
+    if sort_by:
+        reverse_order = True
+        if sort_order:
+            reverse_order = sort_order.lower() == "desc"
+        elif sort_by.lower() == "id":
+            reverse_order = False
+
+        if sort_by.lower() == "raised":
+            sorted_loans = sorted(
+                filtered_loans.items(),
+                key=lambda x: x[1].raised.tao,
+                reverse=reverse_order,
+            )
+        elif sort_by.lower() == "end":
+            sorted_loans = sorted(
+                filtered_loans.items(),
+                key=lambda x: x[1].end,
+                reverse=reverse_order,
+            )
+        elif sort_by.lower() == "contributors":
+            sorted_loans = sorted(
+                filtered_loans.items(),
+                key=lambda x: x[1].contributors_count,
+                reverse=reverse_order,
+            )
+        elif sort_by.lower() == "id":
+            sorted_loans = sorted(
+                filtered_loans.items(),
+                key=lambda x: x[0],
+                reverse=reverse_order,
+            )
+        else:
+            # Default sorting
+            sorted_loans = sorted(
+                filtered_loans.items(),
+                key=lambda x: (
+                    _status(x[1], current_block) != "Active",
+                    -x[1].raised.tao,
+                ),
+            )
+    else:
+        # Default sorting: Active loans first, then by raised amount (descending)
+        sorted_loans = sorted(
+            filtered_loans.items(),
+            key=lambda x: (
+                _status(x[1], current_block) != "Active",  # Active loans first
+                -x[1].raised.tao,  # Then by raised amount (descending)
+            ),
+        )
 
     for loan_id, loan in sorted_loans:
         status = _status(loan, current_block)
@@ -267,14 +482,32 @@ async def list_crowdloans(
         else:
             time_cell = time_label
 
-        creator_cell = loan.creator if verbose else _shorten(loan.creator)
-        target_cell = (
-            loan.target_address
-            if loan.target_address
-            else f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
-        )
-        if not verbose and loan.target_address:
-            target_cell = _shorten(loan.target_address)
+        # Format creator cell with identity if available
+        if show_identities and loan.creator in identity_map:
+            creator_identity = identity_map[loan.creator]
+            if verbose:
+                creator_cell = f"{creator_identity} ({loan.creator})"
+            else:
+                creator_cell = f"{creator_identity} ({_shorten(loan.creator)})"
+        else:
+            creator_cell = loan.creator if verbose else _shorten(loan.creator)
+
+        # Format target cell with identity if available
+        if loan.target_address:
+            if show_identities and loan.target_address in identity_map:
+                target_identity = identity_map[loan.target_address]
+                if verbose:
+                    target_cell = f"{target_identity} ({loan.target_address})"
+                else:
+                    target_cell = f"{target_identity} ({_shorten(loan.target_address)})"
+            else:
+                target_cell = (
+                    loan.target_address if verbose else _shorten(loan.target_address)
+                )
+        else:
+            target_cell = (
+                f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
+            )
 
         funds_account_cell = (
             loan.funds_account if verbose else _shorten(loan.funds_account)
@@ -327,6 +560,8 @@ async def show_crowdloan_details(
     wallet: Optional[Wallet] = None,
     verbose: bool = False,
     json_output: bool = False,
+    show_identities: bool = True,
+    show_contributors: bool = False,
 ) -> tuple[bool, str]:
     """Display detailed information about a specific crowdloan."""
 
@@ -348,6 +583,23 @@ async def show_crowdloan_details(
         user_contribution = await subtensor.get_crowdloan_contribution(
             crowdloan_id, wallet.coldkeypub.ss58_address
         )
+
+    # Fetch identities if show_identities is enabled
+    identity_map = {}
+    if show_identities:
+        addresses_to_fetch = [crowdloan.creator]
+        if crowdloan.target_address:
+            addresses_to_fetch.append(crowdloan.target_address)
+
+        identity_tasks = [
+            subtensor.query_identity(address) for address in addresses_to_fetch
+        ]
+        identities = await asyncio.gather(*identity_tasks)
+
+        for address, identity in zip(addresses_to_fetch, identities):
+            identity_name = _get_identity_name(identity)
+            if identity_name:
+                identity_map[address] = identity_name
 
     status = _status(crowdloan, current_block)
     status_color_map = {
@@ -417,6 +669,9 @@ async def show_crowdloan_details(
                 "status": status,
                 "finalized": crowdloan.finalized,
                 "creator": crowdloan.creator,
+                "creator_identity": identity_map.get(crowdloan.creator)
+                if show_identities
+                else None,
                 "funds_account": crowdloan.funds_account,
                 "raised": crowdloan.raised.tao,
                 "cap": crowdloan.cap.tao,
@@ -431,12 +686,104 @@ async def show_crowdloan_details(
                 "contributors_count": crowdloan.contributors_count,
                 "average_contribution": avg_contribution,
                 "target_address": crowdloan.target_address,
+                "target_identity": identity_map.get(crowdloan.target_address)
+                if show_identities and crowdloan.target_address
+                else None,
                 "has_call": crowdloan.has_call,
                 "call_details": call_info,
                 "user_contribution": user_contribution_info,
                 "network": subtensor.network,
             },
         }
+
+        # Add contributors list if requested
+        if show_contributors:
+            from bittensor_cli.src.commands.crowd.contributors import list_contributors
+
+            # We'll fetch contributors separately and add to output
+            contributors_data = await subtensor.substrate.query_map(
+                module="Crowdloan",
+                storage_function="Contributions",
+                params=[crowdloan_id],
+                fully_exhaust=True,
+            )
+
+            from bittensor_cli.src.bittensor.utils import decode_account_id
+
+            contributor_contributions = {}
+            async for contributor_key, contribution_amount in contributors_data:
+                try:
+                    contributor_address = decode_account_id(contributor_key)
+                    contribution_value = (
+                        contribution_amount.value
+                        if hasattr(contribution_amount, "value")
+                        else contribution_amount
+                    )
+                    contribution_balance = (
+                        Balance.from_rao(int(contribution_value))
+                        if contribution_value
+                        else Balance.from_tao(0)
+                    )
+                    contributor_contributions[contributor_address] = (
+                        contribution_balance
+                    )
+                except Exception:
+                    continue
+
+            # Fetch identities for contributors
+            contributors_list = list(contributor_contributions.keys())
+            if contributors_list:
+                contributor_identity_tasks = [
+                    subtensor.query_identity(contributor)
+                    for contributor in contributors_list
+                ]
+                contributor_identities = await asyncio.gather(
+                    *contributor_identity_tasks
+                )
+
+                contributors_json = []
+                total_contributed = Balance.from_tao(0)
+                for (
+                    contributor_address,
+                    contribution_amount,
+                ) in contributor_contributions.items():
+                    total_contributed += contribution_amount
+
+                contributor_data = []
+                for contributor_address, identity in zip(
+                    contributors_list, contributor_identities
+                ):
+                    contribution_amount = contributor_contributions[contributor_address]
+                    identity_name = _get_identity_name(identity)
+                    contributor_data.append(
+                        {
+                            "address": contributor_address,
+                            "identity": identity_name if identity_name else None,
+                            "contribution": contribution_amount,
+                        }
+                    )
+
+                contributor_data.sort(key=lambda x: x["contribution"].rao, reverse=True)
+
+                for rank, data in enumerate(contributor_data, start=1):
+                    percentage = (
+                        (data["contribution"].rao / total_contributed.rao * 100)
+                        if total_contributed.rao > 0
+                        else 0
+                    )
+                    contributors_json.append(
+                        {
+                            "rank": rank,
+                            "address": data["address"],
+                            "identity": data["identity"],
+                            "contribution_tao": data["contribution"].tao,
+                            "contribution_rao": data["contribution"].rao,
+                            "percentage": percentage,
+                        }
+                    )
+
+                output_dict["data"]["contributors"] = contributors_json
+
         json_console.print(json.dumps(output_dict))
         return True, f"Displayed info for crowdloan #{crowdloan_id}"
 
@@ -474,9 +821,20 @@ async def show_crowdloan_details(
         status_detail = " [green](successfully completed)[/green]"
 
     table.add_row("Status", f"[{status_color}]{status}[/{status_color}]{status_detail}")
+
+    # Display creator with identity if available
+    creator_display = crowdloan.creator
+    if show_identities and crowdloan.creator in identity_map:
+        creator_identity = identity_map[crowdloan.creator]
+        if verbose:
+            creator_display = f"{creator_identity} ({crowdloan.creator})"
+        else:
+            creator_display = f"{creator_identity} ({_shorten(crowdloan.creator)})"
+    elif not verbose:
+        creator_display = _shorten(crowdloan.creator)
     table.add_row(
         "Creator",
-        f"[{COLORS.G.TEMPO}]{crowdloan.creator}[/{COLORS.G.TEMPO}]",
+        f"[{COLORS.G.TEMPO}]{creator_display}[/{COLORS.G.TEMPO}]",
     )
     table.add_row(
         "Funds Account",
@@ -582,7 +940,20 @@ async def show_crowdloan_details(
     table.add_section()
 
     if crowdloan.target_address:
-        target_display = crowdloan.target_address
+        if show_identities and crowdloan.target_address in identity_map:
+            target_identity = identity_map[crowdloan.target_address]
+            if verbose:
+                target_display = f"{target_identity} ({crowdloan.target_address})"
+            else:
+                target_display = (
+                    f"{target_identity} ({_shorten(crowdloan.target_address)})"
+                )
+        else:
+            target_display = (
+                crowdloan.target_address
+                if verbose
+                else _shorten(crowdloan.target_address)
+            )
     else:
         target_display = (
             f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
@@ -636,6 +1007,112 @@ async def show_crowdloan_details(
                         )
                     else:
                         table.add_row(arg_name, str(display_value))
+
+    # CONTRIBUTORS Section (if requested)
+    if show_contributors:
+        table.add_section()
+        table.add_row("[cyan underline]CONTRIBUTORS[/cyan underline]", "")
+        table.add_section()
+
+        # Fetch contributors
+        contributors_data = await subtensor.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id],
+            fully_exhaust=True,
+        )
+
+        from bittensor_cli.src.bittensor.utils import decode_account_id
+
+        contributor_contributions = {}
+        async for contributor_key, contribution_amount in contributors_data:
+            try:
+                contributor_address = decode_account_id(contributor_key)
+                contribution_value = (
+                    contribution_amount.value
+                    if hasattr(contribution_amount, "value")
+                    else contribution_amount
+                )
+                contribution_balance = (
+                    Balance.from_rao(int(contribution_value))
+                    if contribution_value
+                    else Balance.from_tao(0)
+                )
+                contributor_contributions[contributor_address] = contribution_balance
+            except Exception:
+                continue
+
+        if contributor_contributions:
+            # Fetch identities for contributors
+            contributors_list = list(contributor_contributions.keys())
+            contributor_identity_tasks = [
+                subtensor.query_identity(contributor)
+                for contributor in contributors_list
+            ]
+            contributor_identities = await asyncio.gather(*contributor_identity_tasks)
+
+            # Build contributor data list
+            contributor_data = []
+            total_contributed = Balance.from_tao(0)
+
+            for contributor_address, identity in zip(
+                contributors_list, contributor_identities
+            ):
+                contribution_amount = contributor_contributions[contributor_address]
+                total_contributed += contribution_amount
+                identity_name = _get_identity_name(identity)
+
+                contributor_data.append(
+                    {
+                        "address": contributor_address,
+                        "identity": identity_name,
+                        "contribution": contribution_amount,
+                    }
+                )
+
+            # Sort by contribution amount (descending)
+            contributor_data.sort(key=lambda x: x["contribution"].rao, reverse=True)
+
+            # Display contributors in table
+            for rank, data in enumerate(contributor_data[:10], start=1):  # Show top 10
+                address_display = (
+                    data["address"] if verbose else _shorten(data["address"])
+                )
+                identity_display = (
+                    data["identity"] if data["identity"] else "[dim]-[/dim]"
+                )
+
+                if data["identity"]:
+                    if verbose:
+                        contributor_display = f"{identity_display} ({address_display})"
+                    else:
+                        contributor_display = f"{identity_display} ({address_display})"
+                else:
+                    contributor_display = address_display
+
+                if verbose:
+                    contribution_display = f"τ {data['contribution'].tao:,.4f}"
+                else:
+                    contribution_display = f"τ {millify_tao(data['contribution'].tao)}"
+
+                percentage = (
+                    (data["contribution"].rao / total_contributed.rao * 100)
+                    if total_contributed.rao > 0
+                    else 0
+                )
+
+                table.add_row(
+                    f"#{rank}",
+                    f"{contributor_display} - {contribution_display} ({percentage:.2f}%)",
+                )
+
+            if len(contributor_data) > 10:
+                table.add_row(
+                    "",
+                    f"[dim]... and {len(contributor_data) - 10} more contributors[/dim]",
+                )
+        else:
+            table.add_row("", "[dim]No contributors yet[/dim]")
 
     console.print(table)
     return True, f"Displayed info for crowdloan #{crowdloan_id}"
