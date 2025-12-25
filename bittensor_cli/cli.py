@@ -8255,6 +8255,64 @@ class CLIManager:
             "is ignored when used with `--reuse-last`.",
         ),
         network: Optional[list[str]] = Options.network,
+        output: Optional[str] = typer.Option(
+            None,
+            "--output",
+            "-o",
+            help="Output format: table, json, yaml.",
+        ),
+        columns: Optional[str] = typer.Option(
+            None,
+            "--columns",
+            help=(
+                "Comma-separated column ids to display. "
+                "Available: uid,global_stake,local_stake,stake_weight,rank,trust,consensus,incentive,dividends,emission,vtrust,val,updated,active,axon,hotkey,coldkey"
+            ),
+        ),
+        no_header: bool = typer.Option(
+            False,
+            "--no-header",
+            help="Hide table header/title/footers (table output only).",
+        ),
+        wide: bool = typer.Option(
+            False,
+            "--wide",
+            "-w",
+            help="Wider table output (less truncation).",
+        ),
+        uids: str = typer.Option(
+            "",
+            "--uids",
+            "-u",
+            help="Filter to specific neuron uid(s). Comma-separated, e.g. `--uids 0,1,2`.",
+        ),
+        hotkey_contains: Optional[str] = typer.Option(
+            None,
+            "--hotkey-contains",
+            "--hotkey",
+            help="Filter rows whose hotkey contains this string (case-insensitive).",
+        ),
+        sort_by: Optional[str] = typer.Option(
+            None,
+            "--sort-by",
+            "--sort_by",
+            help=(
+                "Sort by one of: uid, global_stake, local_stake, stake_weight, rank, trust, consensus, "
+                "incentive, dividends, emission, vtrust, val, updated, active, axon, hotkey, coldkey."
+            ),
+        ),
+        sort_order: Optional[str] = typer.Option(
+            None,
+            "--sort-order",
+            "--sort_order",
+            help="Sort order: asc/ascending or desc/descending (default depends on column).",
+        ),
+        limit: Optional[int] = typer.Option(
+            None,
+            "--limit",
+            "--top",
+            help="Limit rows displayed (applies after filtering + sorting).",
+        ),
         reuse_last: bool = Options.reuse_last,
         html_output: bool = Options.html_output,
         quiet: bool = Options.quiet,
@@ -8314,6 +8372,101 @@ class CLIManager:
         [blue bold]Note[/blue bold]: This command is not intended to be used as a standalone function within user code.
         """
         self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
+
+        output_format = None
+        if output is not None:
+            output_norm = output.strip().lower()
+            if output_norm not in {"table", "json", "yaml"}:
+                raise typer.BadParameter("--output must be one of: table, json, yaml")
+            output_format = output_norm
+
+        if output_format in {"json", "yaml"} and html_output:
+            print_error("Cannot use `--output json/yaml` and `--html` at the same time.")
+            raise typer.Exit()
+
+        selected_columns = None
+        if columns is not None:
+            cols = [c.strip().lower() for c in columns.split(",") if c.strip()]
+            if not cols:
+                raise typer.BadParameter("--columns cannot be empty")
+            allowed_cols = {
+                "uid",
+                "global_stake",
+                "local_stake",
+                "stake_weight",
+                "rank",
+                "trust",
+                "consensus",
+                "incentive",
+                "dividends",
+                "emission",
+                "vtrust",
+                "val",
+                "updated",
+                "active",
+                "axon",
+                "hotkey",
+                "coldkey",
+            }
+            unknown = [c for c in cols if c not in allowed_cols]
+            if unknown:
+                raise typer.BadParameter(
+                    "Unknown column(s): "
+                    + ", ".join(unknown)
+                    + ". Allowed: "
+                    + ", ".join(sorted(allowed_cols))
+                )
+            selected_columns = cols
+
+        if uids:
+            uids = parse_to_list(
+                uids,
+                int,
+                "UIDs must be a comma-separated list of ints, e.g., `--uids 0,1,2`.",
+            )
+        else:
+            uids = None
+
+        if limit is not None and limit <= 0:
+            raise typer.BadParameter("--limit must be a positive integer")
+
+        if sort_order is not None:
+            sort_order_norm = sort_order.strip().lower()
+            if sort_order_norm in {"asc", "ascending"}:
+                sort_order = "asc"
+            elif sort_order_norm in {"desc", "descending", "reverse"}:
+                sort_order = "desc"
+            else:
+                raise typer.BadParameter(
+                    "--sort-order must be one of: asc/ascending or desc/descending/reverse"
+                )
+
+        if sort_by is not None:
+            sort_by = sort_by.strip().lower()
+            allowed = {
+                "uid",
+                "global_stake",
+                "local_stake",
+                "stake_weight",
+                "rank",
+                "trust",
+                "consensus",
+                "incentive",
+                "dividends",
+                "emission",
+                "vtrust",
+                "val",
+                "updated",
+                "active",
+                "axon",
+                "hotkey",
+                "coldkey",
+            }
+            if sort_by not in allowed:
+                raise typer.BadParameter(
+                    "--sort-by must be one of: " + ", ".join(sorted(allowed))
+                )
+
         if (reuse_last or html_output) and self.config.get("use_cache") is False:
             print_error(
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
@@ -8345,6 +8498,15 @@ class CLIManager:
                 html_output,
                 not self.config.get("use_cache", True),
                 self.config.get("metagraph_cols", {}),
+                output=output_format or "table",
+                columns=selected_columns,
+                no_header=no_header,
+                wide=wide,
+                uids=uids,
+                hotkey_contains=hotkey_contains,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                limit=limit,
             )
         )
 
