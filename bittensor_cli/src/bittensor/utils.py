@@ -1958,3 +1958,67 @@ async def check_img_mimetype(img_url: str) -> tuple[bool, str, str]:
                     return True, response.content_type, ""
         except aiohttp.ClientError:
             return False, "", "Could not fetch image"
+
+
+# Note, only BASH version 4.4 and later have the nosort option.
+COMPLETION_SCRIPT_BASH = """
+%(complete_func)s() {
+    local IFS=$'\n'
+    COMPREPLY=( $( env COMP_WORDS="${COMP_WORDS[*]}" \\
+                   COMP_CWORD=$COMP_CWORD \\
+                   %(autocomplete_var)s=complete $1 ) )
+    return 0
+}
+%(complete_func)setup() {
+    local COMPLETION_OPTIONS=""
+    local BASH_VERSION_ARR=(${BASH_VERSION//./ })
+    # Only BASH version 4.4 and later have the nosort option.
+    if [ ${BASH_VERSION_ARR[0]} -gt 4 ] || ([ ${BASH_VERSION_ARR[0]} -eq 4 ] && [ ${BASH_VERSION_ARR[1]} -ge 4 ]); then
+        COMPLETION_OPTIONS="-o nosort"
+    fi
+    complete $COMPLETION_OPTIONS -F %(complete_func)s %(script_names)s
+}
+%(complete_func)setup
+"""
+
+COMPLETION_SCRIPT_ZSH = """
+%(complete_func)s() {
+    local -a completions
+    local -a completions_with_descriptions
+    local -a response
+    response=("${(@f)$( env COMP_WORDS=\"${words[*]}\" \\
+                        COMP_CWORD=$((CURRENT-1)) \\
+                        %(autocomplete_var)s=\"complete_zsh\" \\
+                        %(script_names)s )}")
+    for key descr in ${(kv)response}; do
+      if [[ "$descr" == "_" ]]; then
+          completions+=("$key")
+      else
+          completions_with_descriptions+=("$key":"$descr")
+      fi
+    done
+    if [ -n "$completions_with_descriptions" ]; then
+        _describe -V unsorted completions_with_descriptions -U -Q
+    fi
+    if [ -n "$completions" ]; then
+        compadd -U -V unsorted -Q -a completions
+    fi
+    compstate[insert]="automenu"
+}
+compdef %(complete_func)s %(script_names)s
+"""
+
+_invalid_ident_char_re = re.compile(r"[^a-zA-Z0-9_]")
+
+
+def get_completion_script(prog_name, complete_var, shell):
+    cf_name = _invalid_ident_char_re.sub("", prog_name.replace("-", "_"))
+    script = COMPLETION_SCRIPT_ZSH if shell == "zsh" else COMPLETION_SCRIPT_BASH
+    return (
+        script
+        % {
+            "complete_func": "_%s_completion" % cf_name,
+            "script_names": prog_name,
+            "autocomplete_var": complete_var,
+        }
+    ).strip() + ";"

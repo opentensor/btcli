@@ -1454,11 +1454,12 @@ class CLIManager:
         complete_var = _btcli_completion_var(prog_name)
 
         try:
-            from click.shell_completion import get_completion_script
+            from bittensor_cli.src.bittensor.utils import get_completion_script
         except Exception as e:
             raise typer.BadParameter(f"Unable to generate completion script: {e}")
 
         if not install:
+            print(prog_name, complete_var, shell_norm)
             script = get_completion_script(prog_name, complete_var, shell_norm)
             typer.echo(script, nl=False)
             return
