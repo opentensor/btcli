@@ -131,6 +131,7 @@ def filter_sort_limit_subnets(
         return ordered[:limit]
     return ordered
 
+
 # helpers and extrinsics
 
 
@@ -569,7 +570,15 @@ async def subnets_list(
         return defined_table
 
     # Non-live mode
-    def _create_table(subnets_, block_number_, mechanisms, ema_tao_inflow, selected_columns, hide_header, is_wide):
+    def _create_table(
+        subnets_,
+        block_number_,
+        mechanisms,
+        ema_tao_inflow,
+        selected_columns,
+        hide_header,
+        is_wide,
+    ):
         rows = []
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
 
@@ -2268,7 +2277,14 @@ def filter_sort_limit_metagraph_rows(
         if sort_order is not None:
             reverse = sort_order == "desc"
         else:
-            reverse = sort_by not in {"uid", "axon", "hotkey", "coldkey", "updated", "active"}
+            reverse = sort_by not in {
+                "uid",
+                "axon",
+                "hotkey",
+                "coldkey",
+                "updated",
+                "active",
+            }
 
         filtered = sorted(filtered, key=key_fn, reverse=reverse)
 
@@ -2370,7 +2386,9 @@ async def metagraph_cmd(
             meta = dict(meta)
             meta["total_neurons"] = "0"
             meta["total_global_stake"] = "τ 0.00000"
-            meta["total_local_stake"] = f"{Balance.get_unit(_parse_netuid_from_meta(meta) or 0)} 0.00000"
+            meta["total_local_stake"] = (
+                f"{Balance.get_unit(_parse_netuid_from_meta(meta) or 0)} 0.00000"
+            )
             meta["rank"] = "0.00000"
             meta["validator_trust"] = "0.00000"
             meta["trust"] = "0.00000"
@@ -2432,7 +2450,9 @@ async def metagraph_cmd(
         meta = dict(meta)
         meta["total_neurons"] = str(len(rows))
         meta["total_global_stake"] = "τ {:.5f}".format(total_global)
-        meta["total_local_stake"] = f"{Balance.get_unit(netuid_for_units)} " + "{:.5f}".format(total_local)
+        meta["total_local_stake"] = (
+            f"{Balance.get_unit(netuid_for_units)} " + "{:.5f}".format(total_local)
+        )
         meta["rank"] = "{:.5f}".format(total_rank)
         meta["validator_trust"] = "{:.5f}".format(total_vtrust)
         meta["trust"] = "{:.5f}".format(total_trust)
@@ -2966,7 +2986,9 @@ async def metagraph_cmd(
             ),
         }
         # Ensure display_cols has all keys.
-        display_cols_effective = {k: bool(display_cols.get(k, True)) for k in cols.keys()}
+        display_cols_effective = {
+            k: bool(display_cols.get(k, True)) for k in cols.keys()
+        }
         if columns is not None:
             # Override config for this run.
             display_cols_effective = {k: False for k in cols.keys()}
