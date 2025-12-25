@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -11,6 +12,7 @@ from rich.console import Group
 from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
+from yaml import safe_dump
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
@@ -50,6 +52,84 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 TAO_WEIGHT = 0.18
+
+
+def filter_sort_limit_subnets(
+    *,
+    subnets: list,
+    mechanisms: dict[int, int],
+    ema_tao_inflow: dict,
+    netuids: Optional[list[int]] = None,
+    name_contains: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> list:
+    """Pure helper used by `subnets_list` for filtering/sorting.
+
+    Intentionally keeps netuid 0 (root) as the first row when present.
+    """
+
+    filtered = subnets
+    if netuids is not None:
+        netuid_set = set(netuids)
+        filtered = [s for s in filtered if s.netuid in netuid_set]
+
+    if name_contains:
+        needle = name_contains.strip().lower()
+        if needle:
+            filtered = [
+                s for s in filtered if needle in (get_subnet_name(s) or "").lower()
+            ]
+
+    if sort_by is None:
+        root = [s for s in filtered if s.netuid == 0]
+        rest = [s for s in filtered if s.netuid != 0]
+        rest = sorted(
+            rest,
+            key=lambda x: (x.alpha_in.tao + x.alpha_out.tao) * x.price.tao,
+            reverse=True,
+        )
+        ordered = (root[:1] + rest) if root else rest
+    else:
+        reverse = True
+        if sort_order is not None:
+            reverse = sort_order == "desc"
+        else:
+            reverse = sort_by not in {"netuid", "name", "tempo"}
+
+        def key_fn(s):
+            if sort_by == "netuid":
+                return s.netuid
+            if sort_by == "name":
+                return (get_subnet_name(s) or "").lower()
+            if sort_by == "price":
+                return float(s.price.tao)
+            if sort_by == "market_cap":
+                return float((s.alpha_in.tao + s.alpha_out.tao) * s.price.tao)
+            if sort_by == "emission":
+                return 0.0 if s.netuid == 0 else float(s.tao_in_emission.tao)
+            if sort_by == "tao_flow_ema":
+                inflow = ema_tao_inflow.get(s.netuid)
+                return 0.0 if inflow is None else float(inflow.tao)
+            if sort_by == "stake":
+                return float(s.alpha_out.tao)
+            if sort_by == "supply":
+                return float(s.alpha_in.tao + s.alpha_out.tao)
+            if sort_by == "tempo":
+                return -1 if s.netuid == 0 else int(s.tempo)
+            if sort_by == "mechanisms":
+                return int(mechanisms.get(s.netuid, 1))
+            return s.netuid
+
+        root = [s for s in filtered if s.netuid == 0]
+        rest = [s for s in filtered if s.netuid != 0]
+        rest = sorted(rest, key=key_fn, reverse=reverse)
+        ordered = (root[:1] + rest) if root else rest
+
+    if limit is not None:
+        return ordered[:limit]
+    return ordered
 
 # helpers and extrinsics
 
@@ -314,8 +394,47 @@ async def subnets_list(
     verbose: bool,
     live: bool,
     json_output: bool,
+    netuids: Optional[list[int]] = None,
+    name_contains: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_order: Optional[str] = None,
+    limit: Optional[int] = None,
+    output: str = "table",
+    columns: Optional[list[str]] = None,
+    no_header: bool = False,
+    wide: bool = False,
 ):
     """List all subnet netuids in the network."""
+
+    output_norm = (output or "table").strip().lower()
+    if output_norm not in {"table", "json", "yaml"}:
+        raise ValueError("output must be one of: table, json, yaml")
+    if live and output_norm in {"json", "yaml"}:
+        raise ValueError("Cannot use output=json/yaml with live=True")
+
+    default_columns = [
+        "netuid",
+        "name",
+        "price",
+        "market_cap",
+        "emission",
+        "tao_flow_ema",
+        "liquidity",
+        "stake",
+        "supply",
+        "tempo",
+        "mechanisms",
+    ]
+    allowed_columns = set(default_columns)
+    selected_columns = columns or default_columns
+    unknown = [c for c in selected_columns if c not in allowed_columns]
+    if unknown:
+        raise ValueError(
+            "Unknown column(s): "
+            + ", ".join(unknown)
+            + ". Allowed: "
+            + ", ".join(default_columns)
+        )
 
     async def fetch_subnet_data():
         block_hash = await subtensor.substrate.get_chain_head()
@@ -326,15 +445,17 @@ async def subnets_list(
             subtensor.get_all_subnet_ema_tao_inflow(block_hash=block_hash),
         )
 
-        # Sort subnets by market cap, keeping the root subnet in the first position
-        root_subnet = next(s for s in subnets_ if s.netuid == 0)
-        other_subnets = sorted(
-            [s for s in subnets_ if s.netuid != 0],
-            key=lambda x: (x.alpha_in.tao + x.alpha_out.tao) * x.price.tao,
-            reverse=True,
+        ordered_subnets = filter_sort_limit_subnets(
+            subnets=subnets_,
+            mechanisms=mechanisms,
+            ema_tao_inflow=ema_tao_inflow,
+            netuids=netuids,
+            name_contains=name_contains,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
         )
-        sorted_subnets = [root_subnet] + other_subnets
-        return sorted_subnets, block_number_, mechanisms, ema_tao_inflow
+        return ordered_subnets, block_number_, mechanisms, ema_tao_inflow
 
     def calculate_emission_stats(
         subnets_: list, block_number_: int
@@ -362,11 +483,16 @@ async def subnets_list(
         total_netuids: int,
         tao_emission_percentage: str,
         total_tao_flow_ema: float,
+        selected_columns: list[str],
+        hide_header: bool,
     ):
         defined_table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
+            title=None
+            if hide_header
+            else f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
-            show_footer=True,
+            show_header=not hide_header,
+            show_footer=False if hide_header else True,
             show_edge=False,
             header_style="bold white",
             border_style="bright_black",
@@ -376,70 +502,78 @@ async def subnets_list(
             pad_edge=True,
         )
 
-        defined_table.add_column(
-            "[bold white]Netuid",
-            style="grey89",
-            justify="center",
-            footer=str(total_netuids),
-        )
-        defined_table.add_column("[bold white]Name", style="cyan", justify="left")
-        defined_table.add_column(
-            f"[bold white]Price \n({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
-            style="dark_sea_green2",
-            justify="left",
-            footer=f"τ {total_rate}",
-        )
-        defined_table.add_column(
-            f"[bold white]Market Cap \n({Balance.get_unit(1)} * Price)",
-            style="steel_blue3",
-            justify="left",
-        )
-        defined_table.add_column(
-            f"[bold white]Emission ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["POOLS"]["EMISSION"],
-            justify="left",
-            footer=f"τ {total_emissions}",
-        )
-        defined_table.add_column(
-            f"[bold white]Net Inflow EMA ({Balance.get_unit(0)})",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_OUT"],
-            justify="left",
-            footer=f"τ {total_tao_flow_ema}",
-        )
-        defined_table.add_column(
-            f"[bold white]P ({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
-            style=COLOR_PALETTE["STAKE"]["TAO"],
-            justify="left",
-            footer=f"{tao_emission_percentage}",
-        )
-        defined_table.add_column(
-            f"[bold white]Stake ({Balance.get_unit(1)}_out)",
-            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
-            justify="left",
-        )
-        defined_table.add_column(
-            f"[bold white]Supply ({Balance.get_unit(1)})",
-            style=COLOR_PALETTE["POOLS"]["ALPHA_IN"],
-            justify="left",
-        )
+        column_defs: dict[str, dict] = {
+            "netuid": {
+                "header": "[bold white]Netuid",
+                "style": "grey89",
+                "justify": "center",
+                "footer": str(total_netuids),
+            },
+            "name": {"header": "[bold white]Name", "style": "cyan", "justify": "left"},
+            "price": {
+                "header": f"[bold white]Price \n({Balance.get_unit(0)}_in/{Balance.get_unit(1)}_in)",
+                "style": "dark_sea_green2",
+                "justify": "left",
+                "footer": f"τ {total_rate}",
+            },
+            "market_cap": {
+                "header": f"[bold white]Market Cap \n({Balance.get_unit(1)} * Price)",
+                "style": "steel_blue3",
+                "justify": "left",
+            },
+            "emission": {
+                "header": f"[bold white]Emission ({Balance.get_unit(0)})",
+                "style": COLOR_PALETTE["POOLS"]["EMISSION"],
+                "justify": "left",
+                "footer": f"τ {total_emissions}",
+            },
+            "tao_flow_ema": {
+                "header": f"[bold white]Net Inflow EMA ({Balance.get_unit(0)})",
+                "style": COLOR_PALETTE["POOLS"]["ALPHA_OUT"],
+                "justify": "left",
+                "footer": f"τ {total_tao_flow_ema}",
+            },
+            "liquidity": {
+                "header": f"[bold white]P ({Balance.get_unit(0)}_in, {Balance.get_unit(1)}_in)",
+                "style": COLOR_PALETTE["STAKE"]["TAO"],
+                "justify": "left",
+                "footer": f"{tao_emission_percentage}",
+            },
+            "stake": {
+                "header": f"[bold white]Stake ({Balance.get_unit(1)}_out)",
+                "style": COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+                "justify": "left",
+            },
+            "supply": {
+                "header": f"[bold white]Supply ({Balance.get_unit(1)})",
+                "style": COLOR_PALETTE["POOLS"]["ALPHA_IN"],
+                "justify": "left",
+            },
+            "tempo": {
+                "header": "[bold white]Tempo (k/n)",
+                "style": COLOR_PALETTE["GENERAL"]["TEMPO"],
+                "justify": "left",
+                "overflow": "fold",
+            },
+            "mechanisms": {
+                "header": "[bold white]Mechanisms",
+                "style": COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_1"],
+                "justify": "center",
+            },
+        }
 
-        defined_table.add_column(
-            "[bold white]Tempo (k/n)",
-            style=COLOR_PALETTE["GENERAL"]["TEMPO"],
-            justify="left",
-            overflow="fold",
-        )
-        defined_table.add_column(
-            "[bold white]Mechanisms",
-            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_EXTRA_1"],
-            justify="center",
-        )
+        for col_id in selected_columns:
+            kwargs = column_defs[col_id].copy()
+            header = kwargs.pop("header")
+            defined_table.add_column(header, **kwargs)
         return defined_table
 
     # Non-live mode
-    def _create_table(subnets_, block_number_, mechanisms, ema_tao_inflow):
+    def _create_table(subnets_, block_number_, mechanisms, ema_tao_inflow, selected_columns, hide_header, is_wide):
         rows = []
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
+
+        name_max_len = 40 if is_wide else 20
 
         for subnet in subnets_:
             netuid = subnet.netuid
@@ -500,7 +634,7 @@ async def subnets_list(
             netuid_cell = str(netuid)
             subnet_name_cell = (
                 f"[{COLOR_PALETTE.G.SYM}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE.G.SYM}]"
-                f" {get_subnet_name(subnet)}"
+                f" {get_subnet_name(subnet, max_length=name_max_len)}"
             )
             emission_cell = f"τ {emission_tao:,.4f}"
 
@@ -527,19 +661,19 @@ async def subnets_list(
             mechanisms_cell = str(mechanisms.get(netuid, 1))
 
             rows.append(
-                (
-                    netuid_cell,  # Netuid
-                    subnet_name_cell,  # Name
-                    price_cell,  # Rate τ_in/α_in
-                    market_cap_cell,  # Market Cap
-                    emission_cell,  # Emission (τ)
-                    ema_flow_cell,  # EMA TAO Inflow (τ)
-                    liquidity_cell,  # Liquidity (t_in, a_in)
-                    alpha_out_cell,  # Stake α_out
-                    supply_cell,  # Supply
-                    tempo_cell,  # Tempo k/n
-                    mechanisms_cell,  # Mechanism count
-                )
+                {
+                    "netuid": netuid_cell,
+                    "name": subnet_name_cell,
+                    "price": price_cell,
+                    "market_cap": market_cap_cell,
+                    "emission": emission_cell,
+                    "tao_flow_ema": ema_flow_cell,
+                    "liquidity": liquidity_cell,
+                    "stake": alpha_out_cell,
+                    "supply": supply_cell,
+                    "tempo": tempo_cell,
+                    "mechanisms": mechanisms_cell,
+                }
             )
 
         total_emissions = round(
@@ -561,10 +695,12 @@ async def subnets_list(
             total_netuids,
             percentage_string,
             total_tao_flow_ema,
+            selected_columns,
+            hide_header,
         )
 
         for row in rows:
-            defined_table.add_row(*row)
+            defined_table.add_row(*[row[c] for c in selected_columns])
         return defined_table
 
     def dict_table(subnets_, block_number_, mechanisms, ema_tao_inflow) -> dict:
@@ -628,7 +764,14 @@ async def subnets_list(
 
     # Live mode
     def create_table_live(
-        subnets_, previous_data_, block_number_, mechanisms, ema_tao_inflow
+        subnets_,
+        previous_data_,
+        block_number_,
+        mechanisms,
+        ema_tao_inflow,
+        selected_columns: list[str],
+        hide_header: bool,
+        is_wide: bool,
     ):
         def format_cell(
             value, previous_value, unit="", unit_first=False, precision=4, millify=False
@@ -732,6 +875,7 @@ async def subnets_list(
             return f"{tao_str}, {alpha_str}"
 
         rows = []
+        name_max_len = 40 if is_wide else 20
         current_data = {}  # To store current values for comparison in the next update
         _, percentage_string = calculate_emission_stats(subnets_, block_number_)
 
@@ -774,7 +918,7 @@ async def subnets_list(
             netuid_cell = str(netuid)
             subnet_name_cell = (
                 f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{subnet.symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}]"
-                f" {get_subnet_name(subnet)}"
+                f" {get_subnet_name(subnet, max_length=name_max_len)}"
             )
             emission_cell = format_cell(
                 emission_tao,
@@ -869,19 +1013,19 @@ async def subnets_list(
             )
 
             rows.append(
-                (
-                    netuid_cell,  # Netuid
-                    subnet_name_cell,  # Name
-                    price_cell,  # Rate τ_in/α_in
-                    market_cap_cell,  # Market Cap
-                    emission_cell,  # Emission (τ)
-                    tao_flow_ema_cell,  # EMA TAO Inflow (τ)
-                    liquidity_cell,  # Liquidity (t_in, a_in)
-                    alpha_out_cell,  # Stake α_out
-                    supply_cell,  # Supply
-                    tempo_cell,  # Tempo k/n
-                    str(mechanisms.get(netuid, 1)),  # Mechanisms
-                )
+                {
+                    "netuid": netuid_cell,
+                    "name": subnet_name_cell,
+                    "price": price_cell,
+                    "market_cap": market_cap_cell,
+                    "emission": emission_cell,
+                    "tao_flow_ema": tao_flow_ema_cell,
+                    "liquidity": liquidity_cell,
+                    "stake": alpha_out_cell,
+                    "supply": supply_cell,
+                    "tempo": tempo_cell,
+                    "mechanisms": str(mechanisms.get(netuid, 1)),
+                }
             )
 
         # Calculate totals
@@ -910,10 +1054,12 @@ async def subnets_list(
             total_netuids,
             percentage_string,
             total_tao_flow_ema,
+            selected_columns,
+            hide_header,
         )
 
         for row in rows:
-            table.add_row(*row)
+            table.add_row(*[row[c] for c in selected_columns])
         return table, current_data
 
     # Live mode
@@ -953,7 +1099,14 @@ async def subnets_list(
                     )
 
                     table, current_data = create_table_live(
-                        subnets, previous_data, block_number, mechanisms, ema_tao_inflow
+                        subnets,
+                        previous_data,
+                        block_number,
+                        mechanisms,
+                        ema_tao_inflow,
+                        selected_columns,
+                        no_header,
+                        wide,
                     )
                     previous_data = current_data
                     progress.reset(progress_task)
@@ -980,15 +1133,27 @@ async def subnets_list(
     else:
         # Non-live mode
         subnets, block_number, mechanisms, ema_tao_inflow = await fetch_subnet_data()
-        if json_output:
-            json_console.print(
-                json.dumps(
-                    dict_table(subnets, block_number, mechanisms, ema_tao_inflow)
-                )
-            )
+        if output_norm in {"json", "yaml"} or json_output:
+            payload = dict_table(subnets, block_number, mechanisms, ema_tao_inflow)
+            if output_norm == "yaml":
+                console.print(safe_dump(payload, sort_keys=False))
+            else:
+                json_console.print(json.dumps(payload))
         else:
-            table = _create_table(subnets, block_number, mechanisms, ema_tao_inflow)
-            console.print(table)
+            table = _create_table(
+                subnets,
+                block_number,
+                mechanisms,
+                ema_tao_inflow,
+                selected_columns,
+                no_header,
+                wide,
+            )
+            if os.getenv("BTCLI_PAGER"):
+                with console.pager(styles=True):
+                    console.print(table)
+            else:
+                console.print(table)
 
         return
         # TODO: Temporarily returning till we update docs
