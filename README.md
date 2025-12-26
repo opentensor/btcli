@@ -18,6 +18,7 @@
   - [Install from source](#install-from-source)
 - [Install on Windows](#install-on-windows)
 - [Verify the installation](#verify-the-installation)
+- [Shell completion](#shell-completion)
 - [Configuration](#configuration)
   - [Example config file](#example-config-file)
 - [License](#license)
@@ -126,6 +127,31 @@ The above command will show you the version of the `btcli` you just installed.
 
 ---
 
+## Shell completion
+
+Generate completion scripts:
+
+```bash
+btcli completion bash
+btcli completion zsh
+btcli completion fish
+btcli completion powershell
+```
+
+Install completion automatically:
+
+```bash
+btcli completion bash --install
+btcli completion zsh --install
+btcli completion fish --install
+```
+
+If you need to override the profile file used for installation (bash/zsh/PowerShell), pass `--rc-path`.
+
+---
+
+---
+
 ## Configuration
 
 You can set the commonly used values, such as your hotkey and coldkey names, the default chain URL or the network name you use, and more, in `config.yml`. You can override these values by explicitly passing them in the command line for any `btcli` command.
@@ -170,15 +196,27 @@ btcli config --help
 
 ### ENV VARS
 BTCLI accepts a few environment variables that can alter how it works:
+
  - USE_TORCH (default 0): If set to 1, will use torch instead of numpy
  - DISK_CACHE (default 0, also settable in config): If set to 1 (or set in config), will use disk caching for various safe-cachable substrate
 calls (such as block number to block hash mapping), which can speed up subsequent calls.
  - BTCLI_CONFIG_PATH (default `~/.bittensor/config.yml`): This will set the config file location, creating if it does not exist.
  - BTCLI_DEBUG_FILE (default `~/.bittensor/debug.txt`): The file stores the most recent's command's debug log. 
+- BTCLI_PAGER (default unset): If set (e.g. `1`), table output may be shown in a pager for some commands.
+
+### Output tips
+
+Some list commands support multiple output formats and column selection. For example:
+
+```bash
+btcli subnets list --output json
+btcli subnets list --columns netuid,name,market_cap --wide
+```
 
 ---
 
 ## Debugging
+
 BTCLI will store a debug log for every command run. This file is overwritten for each new command run. The default location
 of this file is `~/.bittensor/debug.txt` and can be set with the `BTCLI_DEBUG_FILE` env var (see above section).
 
