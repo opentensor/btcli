@@ -38,7 +38,6 @@ from bittensor_cli.src.bittensor.utils import (
     console,
     convert_blocks_to_time,
     err_console,
-    json_console,
     print_error,
     print_verbose,
     get_all_wallets_for_path,
@@ -314,7 +313,7 @@ async def regen_hotkey_pub(
                 f"coldkey ss58: ({new_hotkeypub.coldkeypub.ss58_address})",
             )
             if json_output:
-                json_console.print(
+                print_json_data(
                     json.dumps(
                         {
                             "success": True,
@@ -332,7 +331,7 @@ async def regen_hotkey_pub(
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
+            print_json_data(
                 '{"success": false, "error": "Keyfile is not writable", "data": null}'
             )
 
@@ -365,7 +364,7 @@ async def new_hotkey(
             )
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "success": True,
@@ -383,7 +382,7 @@ async def new_hotkey(
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
+            print_json_data(
                 '{"success": false, "error": "Keyfile is not writable", "data": null}'
             )
 
@@ -416,7 +415,7 @@ async def new_coldkey(
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "success": True,
@@ -432,7 +431,7 @@ async def new_coldkey(
     except KeyFileError as e:
         print_error("KeyFileError: File is not writable")
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "success": False,
@@ -519,7 +518,7 @@ async def wallet_create(
             print_error(err)
             output_dict["error"] = err
     if json_output:
-        json_console.print(json.dumps(output_dict))
+        print_json_data(output_dict)
 
 
 def get_coldkey_wallets_for_path(path: str) -> list[Wallet]:
@@ -697,7 +696,7 @@ async def wallet_balance(
                 "total": (total_free_balance + total_staked_balance).tao,
             },
         }
-        json_console.print(json.dumps(output_dict))
+        print_json_data(output_dict)
     return total_free_balance
 
 
@@ -906,7 +905,7 @@ async def wallet_list(
         )
         root.add(message)
     if json_output:
-        json_console.print(json.dumps(main_data_dict))
+        print_json_data(main_data_dict)
     else:
         console.print(root)
 
@@ -1339,7 +1338,7 @@ async def overview(
     if not json_output:
         console.print(grid, width=None)
     else:
-        json_console.print(json.dumps(data_dict))
+        print_json_data(data_dict)
 
 
 def _get_hotkeys(
@@ -1848,7 +1847,7 @@ async def get_id(
             f" on {subtensor}"
         )
         if json_output:
-            json_console.print("{}")
+            print_json_data("{}")
         return {}
 
     table = create_identity_table(title)
@@ -1858,7 +1857,7 @@ async def get_id(
 
     console.print(table)
     if json_output:
-        json_console.print(json.dumps(identity))
+        print_json_data(identity)
     return identity
 
 
@@ -1924,7 +1923,7 @@ async def sign(
     console.print("[dark_sea_green3]Message signed successfully!\n")
 
     if json_output:
-        json_console.print(
+        print_json_data(
             json.dumps(
                 {"signed_message": signed_message, "signer_address": signer_address}
             )
@@ -1964,7 +1963,7 @@ async def verify(
 
         except (ValueError, TypeError) as e:
             if json_output:
-                json_console.print(
+                print_json_data(
                     json.dumps(
                         {
                             "verified": False,
@@ -1982,7 +1981,7 @@ async def verify(
         signature_bytes = bytes.fromhex(signature.strip().lower().replace("0x", ""))
     except ValueError as e:
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "verified": False,
@@ -1997,7 +1996,7 @@ async def verify(
     is_valid = keypair.verify(message.encode("utf-8"), signature_bytes)
 
     if json_output:
-        json_console.print(
+        print_json_data(
             json.dumps(
                 {"verified": is_valid, "signer": signer_address, "message": message}
             )

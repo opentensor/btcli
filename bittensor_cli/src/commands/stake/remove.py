@@ -1,5 +1,4 @@
 import asyncio
-import json
 from functools import partial
 
 from typing import TYPE_CHECKING, Optional
@@ -25,7 +24,6 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     group_subnets,
     unlock_key,
-    json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )

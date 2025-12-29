@@ -21,10 +21,10 @@ from bittensor_cli.src.bittensor.utils import (
     is_valid_ss58_address,
     format_error_message,
     unlock_key,
-    json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import print_json_data
 
 
 async def get_childkey_completion_block(
@@ -610,7 +610,7 @@ async def set_children(
             ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
         )
     if json_output:
-        json_console.print(json.dumps(successes))
+        print_json_data(successes)
 
 
 async def revoke_children(
@@ -701,7 +701,7 @@ async def revoke_children(
                     f"Childkey revocation failed for netuid {netuid_}: {message}."
                 )
     if json_output:
-        json_console.print(json.dumps(dict_output))
+        print_json_data(dict_output)
 
 
 async def childkey_take(

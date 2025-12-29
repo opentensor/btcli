@@ -231,6 +231,30 @@ def print_json_data(data: Any) -> None:
     json_console.print_json(data=data)
 
 
+def print_transaction_with_data(
+    success: bool,
+    message: Optional[str] = None,
+    extrinsic_identifier: Optional[str] = None,
+    **extra_data: Any,
+) -> None:
+    """
+    Print a transaction response with additional data fields.
+
+    Args:
+        success: Whether the transaction succeeded
+        message: Human-readable status message
+        extrinsic_identifier: The extrinsic ID (e.g., "12345678-2")
+        **extra_data: Additional fields to include in the response
+    """
+    response = {
+        "success": success,
+        "message": message,
+        "extrinsic_identifier": extrinsic_identifier,
+        **extra_data,
+    }
+    json_console.print_json(data=response)
+
+
 def serialize_balance(balance: Any) -> dict[str, Union[int, float]]:
     """
     Serialize a Balance object to a consistent dictionary format.

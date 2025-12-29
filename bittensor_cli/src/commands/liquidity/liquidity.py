@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -11,7 +10,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     console,
     print_error,
-    json_console,
     print_extrinsic_id,
 )
 from bittensor_cli.src.bittensor.json_utils import (
@@ -501,9 +499,7 @@ async def show_liquidity_list(
         (success, err_msg, positions) = liquidity_list_
     if not success:
         if json_output:
-            json_console.print(
-                json.dumps({"success": success, "err_msg": err_msg, "positions": []})
-            )
+            print_json_data({"success": success, "err_msg": err_msg, "positions": []})
             return
         else:
             print_error(f"Error: {err_msg}")

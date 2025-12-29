@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
@@ -16,12 +15,12 @@ from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     confirm_action,
     console,
-    json_console,
     print_error,
     is_valid_ss58_address,
     unlock_key,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import print_json_data
 
 
 async def create_crowdloan(
@@ -51,9 +50,7 @@ async def create_crowdloan(
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
         if json_output:
-            json_console.print(
-                json.dumps({"success": False, "error": unlock_status.message})
-            )
+            print_json_data({"success": False, "error": unlock_status.message})
         else:
             print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
@@ -88,7 +85,7 @@ async def create_crowdloan(
     else:
         error_msg = "Crowdloan type not specified and no prompt provided."
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": error_msg}))
+            print_json_data({"success": False, "error": error_msg})
         else:
             print_error(error_msg)
         return False, error_msg
@@ -126,7 +123,7 @@ async def create_crowdloan(
                 + ", ".join(missing_fields)
             )
             if json_output:
-                json_console.print(json.dumps({"success": False, "error": error_msg}))
+                print_json_data({"success": False, "error": error_msg})
             else:
                 print_error(f"[red]{error_msg}[/red]")
             return False, "Missing required options when prompts are disabled."
@@ -148,7 +145,7 @@ async def create_crowdloan(
                 continue
             error_msg = f"Deposit is below the minimum required deposit ({minimum_deposit.tao} TAO)."
             if json_output:
-                json_console.print(json.dumps({"success": False, "error": error_msg}))
+                print_json_data({"success": False, "error": error_msg})
             else:
                 print_error(f"[red]{error_msg}[/red]")
             return False, "Deposit is below the minimum required deposit."
@@ -355,7 +352,7 @@ async def create_crowdloan(
             "Proceed with creating the crowdloan?", decline=decline, quiet=quiet
         ):
             if json_output:
-                json_console.print(
+                print_json_data(
                     json.dumps(
                         {"success": False, "error": "Cancelled crowdloan creation."}
                     )
@@ -374,7 +371,7 @@ async def create_crowdloan(
 
     if not success:
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "success": False,
@@ -409,7 +406,7 @@ async def create_crowdloan(
         else:
             output_dict["data"]["target_address"] = target_address
 
-        json_console.print(json.dumps(output_dict))
+        print_json_data(output_dict)
         message = f"{crowdloan_type.capitalize()} crowdloan created successfully."
     else:
         if crowdloan_type == "subnet":
@@ -487,7 +484,7 @@ async def finalize_crowdloan(
     if not crowdloan:
         error_msg = f"Crowdloan #{crowdloan_id} does not exist."
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": error_msg}))
+            print_json_data({"success": False, "error": error_msg})
         else:
             print_error(f"[red]{error_msg}[/red]")
         return False, error_msg
@@ -497,7 +494,7 @@ async def finalize_crowdloan(
             f"Only the creator can finalize a crowdloan. Creator: {crowdloan.creator}"
         )
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": error_msg}))
+            print_json_data({"success": False, "error": error_msg})
         else:
             print_error(f"[red]{error_msg}[/red]")
         return False, "Only the creator can finalize a crowdloan."
@@ -505,7 +502,7 @@ async def finalize_crowdloan(
     if crowdloan.finalized:
         error_msg = f"Crowdloan #{crowdloan_id} is already finalized."
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": error_msg}))
+            print_json_data({"success": False, "error": error_msg})
         else:
             print_error(f"[red]{error_msg}[/red]")
         return False, "Crowdloan is already finalized."
@@ -517,7 +514,7 @@ async def finalize_crowdloan(
             f"Cap: {crowdloan.cap.tao}, Still needed: {still_needed.tao}"
         )
         if json_output:
-            json_console.print(json.dumps({"success": False, "error": error_msg}))
+            print_json_data({"success": False, "error": error_msg})
         else:
             print_error(
                 f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
@@ -606,7 +603,7 @@ async def finalize_crowdloan(
             "\nProceed with finalization?", decline=decline, quiet=quiet
         ):
             if json_output:
-                json_console.print(
+                print_json_data(
                     json.dumps(
                         {"success": False, "error": "Finalization cancelled by user."}
                     )
@@ -618,7 +615,7 @@ async def finalize_crowdloan(
     unlock_status = unlock_key(wallet)
     if not unlock_status.success:
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps({"success": False, "error": unlock_status.message})
             )
         else:
@@ -635,7 +632,7 @@ async def finalize_crowdloan(
 
     if not success:
         if json_output:
-            json_console.print(
+            print_json_data(
                 json.dumps(
                     {
                         "success": False,
@@ -664,7 +661,7 @@ async def finalize_crowdloan(
                 "call_executed": crowdloan.has_call,
             },
         }
-        json_console.print(json.dumps(output_dict))
+        print_json_data(output_dict)
     else:
         console.print(
             f"\n[dark_sea_green3]Successfully finalized crowdloan #{crowdloan_id}![/dark_sea_green3]\n"

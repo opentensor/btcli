@@ -13,10 +13,10 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
-    json_console,
     U16_MAX,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import print_json_data
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -33,8 +33,7 @@ async def count(
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
         print_error(f"Subnet {netuid} does not exist")
         if json_output:
-            json_console.print_json(
-                data={"success": False, "error": f"Subnet {netuid} does not exist"}
+            print_json_data({"success": False, "error": f"Subnet {netuid} does not exist"}
             )
         return None
 
@@ -47,13 +46,11 @@ async def count(
         )
         if not mechanism_count:
             if json_output:
-                json_console.print_json(
-                    data={
-                        "netuid": netuid,
-                        "count": None,
-                        "error": "Failed to get mechanism count",
-                    }
-                )
+                print_json_data({
+                    "netuid": netuid,
+                    "count": None,
+                    "error": "Failed to get mechanism count",
+                })
             else:
                 print_error(
                     "Subnet mechanism count: [red]Failed to get mechanism count[/red]"
@@ -61,13 +58,11 @@ async def count(
             return None
 
     if json_output:
-        json_console.print_json(
-            data={
-                "netuid": netuid,
-                "count": mechanism_count,
-                "error": "",
-            }
-        )
+        print_json_data({
+            "netuid": netuid,
+            "count": mechanism_count,
+            "error": "",
+        })
     else:
         console.print(
             f"[blue]Subnet {netuid}[/blue] currently has [blue]{mechanism_count}[/blue] mechanism"
@@ -91,8 +86,7 @@ async def get_emission_split(
             f"Subnet {netuid} only has the primary mechanism (mechanism 0). No emission split to display."
         )
         if json_output:
-            json_console.print_json(
-                data={
+            print_json_data({
                     "success": False,
                     "error": "Subnet only has the primary mechanism (mechanism 0). No emission split to display.",
                 }
@@ -127,7 +121,7 @@ async def get_emission_split(
     }
 
     if json_output:
-        json_console.print_json(data=data)
+        print_json_data(data)
     else:
         table = Table(
             Column(
@@ -203,7 +197,7 @@ async def set_emission_split(
             f"Subnet {netuid} does not currently contain any mechanisms to configure."
         )
         if json_output:
-            json_console.print_json(data={"success": False, "error": message})
+            print_json_data({"success": False, "error": message})
         else:
             print_error(message)
         return False
@@ -231,7 +225,7 @@ async def set_emission_split(
                 "Invalid `--split` values. Provide a comma-separated list of numbers."
             )
             if json_output:
-                json_console.print_json(data={"success": False, "error": message})
+                print_json_data({"success": False, "error": message})
             else:
                 print_error(message)
             return False
@@ -270,7 +264,7 @@ async def set_emission_split(
     if len(weights) != mech_count:
         message = f"Expected {mech_count} weight values, received {len(weights)}."
         if json_output:
-            json_console.print_json(data={"success": False, "error": message})
+            print_json_data({"success": False, "error": message})
         else:
             print_error(message)
         return False
@@ -278,7 +272,7 @@ async def set_emission_split(
     if any(value < 0 for value in weights):
         message = "Weights must be non-negative."
         if json_output:
-            json_console.print_json(data={"success": False, "error": message})
+            print_json_data({"success": False, "error": message})
         else:
             print_error(message)
         return False
@@ -288,7 +282,7 @@ async def set_emission_split(
     except ValueError as exc:
         message = str(exc)
         if json_output:
-            json_console.print_json(data={"success": False, "error": message})
+            print_json_data({"success": False, "error": message})
         else:
             print_error(message)
         return False
@@ -296,8 +290,7 @@ async def set_emission_split(
     if normalized_weights == existing_split:
         message = ":white_heavy_check_mark: [dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
         if json_output:
-            json_console.print_json(
-                data={
+            print_json_data({
                     "success": True,
                     "message": "Emission split unchanged.",
                     "split": normalized_weights,
@@ -372,15 +365,13 @@ async def set_emission_split(
     )
 
     if json_output:
-        json_console.print_json(
-            data={
-                "success": success,
-                "err_msg": err_msg,
-                "split": normalized_weights,
-                "percentages": [round(value * 100, 6) for value in fractions],
-                "extrinsic_identifier": ext_id,
-            }
-        )
+        print_json_data({
+            "success": success,
+            "err_msg": err_msg,
+            "split": normalized_weights,
+            "percentages": [round(value * 100, 6) for value in fractions],
+            "extrinsic_identifier": ext_id,
+        })
 
     return success
 
