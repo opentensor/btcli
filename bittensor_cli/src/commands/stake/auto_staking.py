@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
@@ -10,6 +9,7 @@ from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    print_success,
     get_subnet_name,
     is_valid_ss58_address,
     print_error,
@@ -292,8 +292,8 @@ async def set_auto_stake_destination(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            f":white_heavy_check_mark: [dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
+        print_success(
+            f"[dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
         )
         return True
 

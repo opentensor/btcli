@@ -37,7 +37,6 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     convert_blocks_to_time,
-    err_console,
     print_error,
     print_verbose,
     get_all_wallets_for_path,
@@ -143,9 +142,7 @@ async def associate_hotkey(
         )
 
         if not success:
-            console.print(
-                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
-            )
+            print_error(f"Failed to associate hotkey: {err_msg}")
             return False
 
         console.print(

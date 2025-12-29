@@ -156,6 +156,17 @@ def print_error(message: str, status=None):
         print_console(error_message, "red", err_console)
 
 
+def print_success(message: str, status=None):
+    """Print success messages while temporarily pausing the status spinner."""
+    success_message = f":white_heavy_check_mark: {message}"
+    if status:
+        status.stop()
+        print_console(success_message, "green", console)
+        status.start()
+    else:
+        print_console(success_message, "green", console)
+
+
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615
@@ -919,6 +930,16 @@ class TableDefinition:
             return [header] + rows
 
     @classmethod
+    def clear_table(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+    ):
+        """Truncates the table. Use with caution."""
+        cursor.execute(f"DELETE FROM {cls.name}")
+        conn.commit()
+
+    @classmethod
     def update_entry(cls, *args, **kwargs):
         """
         Updates an existing entry in the table.
@@ -974,7 +995,7 @@ class AddressBook(TableDefinition):
             f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         note_ = note or row[1]
         conn.execute(
@@ -1022,7 +1043,7 @@ class ProxyAddressBook(TableDefinition):
             f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
             (name,),
         )
-        row = cursor.fetchone()[0]
+        row = cursor.fetchone()
         ss58_address_ = ss58_address or row[0]
         spawner_ = spawner or row[1]
         proxy_type_ = proxy_type or row[2]
@@ -1030,7 +1051,7 @@ class ProxyAddressBook(TableDefinition):
         note_ = note or row[4]
         conn.execute(
             f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
-            (ss58_address_, spawner_, proxy_type_, note_, delay, name),
+            (ss58_address_, spawner_, proxy_type_, delay, note_, name),
         )
         conn.commit()
 

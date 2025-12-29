@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     is_valid_ss58_address,
     unlock_key,
     print_extrinsic_id,
@@ -183,11 +184,11 @@ async def create_crowdloan(
         if cap <= deposit:
             if prompt:
                 print_error(
-                    f"[red]Cap must be greater than the deposit ({deposit.tao:,.4f} TAO).[/red]"
+                    f"Cap must be greater than the deposit ({deposit.tao:,.4f} TAO)."
                 )
                 cap_value = None
                 continue
-            print_error("[red]Cap must be greater than the initial deposit.[/red]")
+            print_error("Cap must be greater than the initial deposit.")
             return False, "Cap must be greater than the initial deposit."
         break
 
@@ -201,12 +202,12 @@ async def create_crowdloan(
         if duration_value < min_duration or duration_value > max_duration:
             if prompt:
                 print_error(
-                    f"[red]Duration must be between {min_duration} and "
-                    f"{max_duration} blocks.[/red]"
+                    f"Duration must be between {min_duration} and "
+                    f"{max_duration} blocks."
                 )
                 duration_value = None
                 continue
-            print_error("[red]Crowdloan duration is outside the allowed range.[/red]")
+            print_error("Crowdloan duration is outside the allowed range.")
             return False, "Crowdloan duration is outside the allowed range."
         duration = duration_value
         break
@@ -224,7 +225,7 @@ async def create_crowdloan(
 
         if not 0 <= emissions_share <= 100:
             print_error(
-                f"[red]Emissions share must be between 0 and 100, got {emissions_share}[/red]"
+                f"Emissions share must be between 0 and 100, got {emissions_share}"
             )
             return False, "Invalid emissions share percentage."
 
@@ -252,9 +253,7 @@ async def create_crowdloan(
         if target_address:
             target_address = target_address.strip()
             if not is_valid_ss58_address(target_address):
-                print_error(
-                    f"[red]Invalid target SS58 address provided: {target_address}[/red]"
-                )
+                print_error(f"Invalid target SS58 address provided: {target_address}")
                 return False, "Invalid target SS58 address provided."
         elif prompt:
             target_input = Prompt.ask(
@@ -263,9 +262,7 @@ async def create_crowdloan(
             target_address = target_input.strip() or None
 
         if not is_valid_ss58_address(target_address):
-            print_error(
-                f"[red]Invalid target SS58 address provided: {target_address}[/red]"
-            )
+            print_error(f"Invalid target SS58 address provided: {target_address}")
             return False, "Invalid target SS58 address provided."
 
         call_to_attach = None
@@ -275,8 +272,8 @@ async def create_crowdloan(
     )
     if deposit > creator_balance:
         print_error(
-            f"[red]Insufficient balance to cover the deposit. "
-            f"Available: {creator_balance}, required: {deposit}[/red]"
+            f"Insufficient balance to cover the deposit. "
+            f"Available: {creator_balance}, required: {deposit}"
         )
         return False, "Insufficient balance to cover the deposit."
 
@@ -380,7 +377,7 @@ async def create_crowdloan(
                 )
             )
         else:
-            print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
+            print_error(f"{error_message or 'Failed to create crowdloan.'}")
         return False, error_message or "Failed to create crowdloan."
 
     if json_output:
@@ -411,8 +408,8 @@ async def create_crowdloan(
     else:
         if crowdloan_type == "subnet":
             message = "Subnet lease crowdloan created successfully."
+            print_success(message)
             console.print(
-                f"\n:white_check_mark: [green]{message}[/green]\n"
                 f"  Type: [magenta]Subnet Leasing[/magenta]\n"
                 f"  Emissions Share: [cyan]{emissions_share}%[/cyan]\n"
                 f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
@@ -426,8 +423,8 @@ async def create_crowdloan(
                 console.print("  Lease: [green]Perpetual[/green]")
         else:
             message = "Fundraising crowdloan created successfully."
+            print_success(message)
             console.print(
-                f"\n:white_check_mark: [green]{message}[/green]\n"
                 f"  Type: [cyan]General Fundraising[/cyan]\n"
                 f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
                 f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
@@ -486,7 +483,7 @@ async def finalize_crowdloan(
         if json_output:
             print_json_data({"success": False, "error": error_msg})
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, error_msg
 
     if wallet.coldkeypub.ss58_address != crowdloan.creator:
@@ -496,7 +493,7 @@ async def finalize_crowdloan(
         if json_output:
             print_json_data({"success": False, "error": error_msg})
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Only the creator can finalize a crowdloan."
 
     if crowdloan.finalized:
@@ -504,7 +501,7 @@ async def finalize_crowdloan(
         if json_output:
             print_json_data({"success": False, "error": error_msg})
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Crowdloan is already finalized."
 
     if crowdloan.raised < crowdloan.cap:
@@ -517,9 +514,9 @@ async def finalize_crowdloan(
             print_json_data({"success": False, "error": error_msg})
         else:
             print_error(
-                f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
+                f"Crowdloan #{crowdloan_id} has not reached its cap.\n"
                 f"Raised: {crowdloan.raised}, Cap: {crowdloan.cap}\n"
-                f"Still needed: {still_needed.tao}[/red]"
+                f"Still needed: {still_needed.tao}"
             )
         return False, "Crowdloan has not reached its cap."
 

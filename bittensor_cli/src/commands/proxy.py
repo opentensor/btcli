@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 import sys
 
+from async_substrate_interface.errors import StateDiscardedError
 from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from scalecodec import GenericCall, ScaleBytes
 
@@ -11,6 +12,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     console,
     print_error,
+    print_success,
     unlock_key,
     ProxyAddressBook,
     is_valid_ss58_address_prompt,
@@ -91,7 +93,7 @@ async def submit_proxy(
             print_transaction_response(success, msg, await receipt.get_extrinsic_identifier())
         else:
             await print_extrinsic_id(receipt)
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
     else:
         if json_output:
             print_transaction_response(success, msg)
@@ -490,7 +492,7 @@ async def execute_announced(
     """
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
-        if current_block - delay > created_block:
+        if current_block - delay < created_block:
             if not confirm_action(
                 f"The delay for this account is set to {delay} blocks, but the call was created"
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
@@ -567,11 +569,46 @@ async def execute_announced(
                 block_hash=block_hash,
             )
     else:
-        runtime = await subtensor.substrate.init_runtime(block_id=created_block)
-        inner_call = GenericCall(
-            data=ScaleBytes(data=bytearray.fromhex(call_hex)), metadata=runtime.metadata
-        )
-        inner_call.process()
+        try:
+            runtime = await subtensor.substrate.init_runtime(block_id=created_block)
+            inner_call = GenericCall(
+                data=ScaleBytes(data=bytearray.fromhex(call_hex)),
+                metadata=runtime.metadata,
+            )
+            inner_call.process()
+        except StateDiscardedError:
+            print_error(
+                "The state has already been discarded for this block "
+                "(you are likely not using an archive node endpoint)"
+            )
+            if prompt:
+                if not confirm_action(
+                    "Would you like to try using the latest runtime? This may fail, and if so, "
+                    "this command will need to be re-run on an archive node endpoint."
+                ):
+                    return False
+            try:
+                runtime = await subtensor.substrate.init_runtime(block_hash=None)
+                inner_call = GenericCall(
+                    data=ScaleBytes(data=bytearray.fromhex(call_hex)),
+                    metadata=runtime.metadata,
+                )
+                inner_call.process()
+            except Exception as e:
+                print_error(
+                    f"Failure: Unable to regenerate the call data using the latest runtime: {e}\n"
+                    "You should rerun this command on an archive node endpoint."
+                )
+                if json_output:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": f"Unable to regenerate the call data using the latest runtime: {e}. "
+                            "You should rerun this command on an archive node endpoint.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                return False
 
     announced_call = await subtensor.substrate.compose_call(
         "Proxy",
@@ -594,7 +631,7 @@ async def execute_announced(
         if json_output:
             print_transaction_response(True, msg, await receipt.get_extrinsic_identifier())
         else:
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
             await print_extrinsic_id(receipt)
     else:
         if json_output:

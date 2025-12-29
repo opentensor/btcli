@@ -33,6 +33,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     format_error_message,
     millify,
     get_human_readable,
@@ -587,8 +588,8 @@ async def register_extrinsic(
                 subtensor, netuid=netuid, hotkey_ss58=get_hotkey_pub_ss58(wallet)
             )
             if is_registered:
-                print_error(
-                    f":white_heavy_check_mark: [dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
+                print_success(
+                    f"[dark_sea_green3]Already registered on netuid:{netuid}[/dark_sea_green3]"
                 )
                 return True
 
@@ -630,8 +631,8 @@ async def register_extrinsic(
                             # https://github.com/opentensor/subtensor/blob/development/pallets/subtensor/src/errors.rs
 
                             if "HotKeyAlreadyRegisteredInSubNet" in err_msg:
-                                console.print(
-                                    f":white_heavy_check_mark: [dark_sea_green3]Already Registered on "
+                                print_success(
+                                    f"[dark_sea_green3]Already Registered on "
                                     f"[bold]subnet:{netuid}[/bold][/dark_sea_green3]"
                                 )
                                 return True
@@ -647,8 +648,8 @@ async def register_extrinsic(
                             hotkey_ss58=get_hotkey_pub_ss58(wallet),
                         )
                         if is_registered:
-                            console.print(
-                                ":white_heavy_check_mark: [dark_sea_green3]Registered[/dark_sea_green3]"
+                            print_success(
+                                "[dark_sea_green3]Registered[/dark_sea_green3]"
                             )
                             return True
                         else:
@@ -738,8 +739,8 @@ async def burned_register_extrinsic(
             era_ = {"period": era}
 
     if not neuron.is_null:
+        print_success("[dark_sea_green3]Already Registered[/dark_sea_green3]:")
         console.print(
-            ":white_heavy_check_mark: [dark_sea_green3]Already Registered[/dark_sea_green3]:\n"
             f"uid: [{COLOR_PALETTE.G.NETUID_EXTRA}]{neuron.uid}[/{COLOR_PALETTE.G.NETUID_EXTRA}]\n"
             f"netuid: [{COLOR_PALETTE.G.NETUID}]{neuron.netuid}[/{COLOR_PALETTE.G.NETUID}]\n"
             f"hotkey: [{COLOR_PALETTE.G.HK}]{neuron.hotkey}[/{COLOR_PALETTE.G.HK}]\n"
@@ -798,9 +799,7 @@ async def burned_register_extrinsic(
         )
 
         if len(netuids_for_hotkey) > 0:
-            console.print(
-                f":white_heavy_check_mark: [green]Registered on netuid {netuid} with UID {my_uid}[/green]"
-            )
+            print_success(f"Registered on netuid {netuid} with UID {my_uid}")
             return True, f"Registered on {netuid} with UID {my_uid}", ext_id
         else:
             # neuron not found, try again

@@ -11,6 +11,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     format_error_message,
     unlock_key,
     print_extrinsic_id,
@@ -112,8 +113,8 @@ async def reset_axon_extrinsic(
 
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                console.print(
-                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                print_success(
+                    "[dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
                 )
                 return True, "Not waiting for finalization or inclusion.", None
 
@@ -125,8 +126,8 @@ async def reset_axon_extrinsic(
             else:
                 ext_id = await response.get_extrinsic_identifier()
                 await print_extrinsic_id(response)
-                console.print(
-                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                print_success(
+                    "[dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
                 )
                 return True, "Axon reset successfully", ext_id
 
@@ -230,8 +231,8 @@ async def set_axon_extrinsic(
 
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
+                print_success(
+                    f"[dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
                 )
                 return True, "Not waiting for finalization or inclusion.", None
 
@@ -243,8 +244,8 @@ async def set_axon_extrinsic(
             else:
                 ext_id = await response.get_extrinsic_identifier()
                 await print_extrinsic_id(response)
-                console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
+                print_success(
+                    f"[dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
                 )
                 return True, f"Axon set successfully to {ip}:{port}", ext_id
 
