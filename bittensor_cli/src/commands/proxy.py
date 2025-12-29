@@ -600,13 +600,10 @@ async def execute_announced(
                     "You should rerun this command on an archive node endpoint."
                 )
                 if json_output:
-                    json_console.print_json(
-                        data={
-                            "success": False,
-                            "message": f"Unable to regenerate the call data using the latest runtime: {e}. "
-                            "You should rerun this command on an archive node endpoint.",
-                            "extrinsic_identifier": None,
-                        }
+                    print_transaction_response(
+                        False,
+                        f"Unable to regenerate the call data using the latest runtime: {e}. "
+                        "You should rerun this command on an archive node endpoint.",
                     )
                 return False
 
