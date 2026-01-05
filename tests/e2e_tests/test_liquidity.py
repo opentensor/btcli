@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 import json
 import time
@@ -14,6 +15,7 @@ Verify commands:
 """
 
 
+@pytest.mark.skip(reason="User liquidity currently disabled on chain")
 def test_liquidity(local_chain, wallet_setup):
     wallet_path_alice = "//Alice"
     netuid = 2
