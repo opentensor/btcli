@@ -9552,7 +9552,7 @@ class CLIManager:
         If you do not provide the call hash or call hex of the announced call in the command, you would be prompted to enter details of the call including the module name and call function.
 
         [bold]Note[/bold]: Using the `--call-hash` flag attempts to resolve the call from the proxy announcements address book. Use this flag only if the announcement was created through BTCLI.
-        If the announcement was created by any other method, you must provide the call using `--call-hex` or rebuild the call explicitly via the command prompts.
+        If the announcement was created by any other method, you must provide the call hex using the `--call-hex` flag or rebuild the call explicitly via the command prompts.
 
         [bold]Common Examples:[/bold]
         1. Using the call hash 
