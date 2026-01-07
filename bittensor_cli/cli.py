@@ -2008,7 +2008,7 @@ class CLIManager:
         Adds a new pure proxy to the address book.
 
         [bold]Example:[/bold]
-        [green]$[/green] btcli config add-proxy 
+        [green]$[/green] btcli config add-proxy
         """
         if self.proxies.get(name) is not None:
             err_console.print(
@@ -9548,14 +9548,14 @@ class CLIManager:
         Executes a previously announced proxy call.
 
         This command submits the inner call on-chain using the proxy relationship. The command will fail if the required delay has not passed or if the call does not match the announcement parameters.
-        
+
         If you do not provide the call hash or call hex of the announced call in the command, you would be prompted to enter details of the call including the module name and call function.
 
         [bold]Note[/bold]: Using the `--call-hash` flag attempts to resolve the call from the proxy announcements address book. Use this flag only if the announcement was created through BTCLI.
         If the announcement was created by any other method, you must provide the call hex using the `--call-hex` flag or rebuild the call explicitly via the command prompts.
 
         [bold]Common Examples:[/bold]
-        1. Using the call hash 
+        1. Using the call hash
         [green]$[/green] btcli proxy execute --call-hash caf4da69610d379c2e2e5...0cbc6b012f6cff6340c45a1
 
         2. Using the call hex
