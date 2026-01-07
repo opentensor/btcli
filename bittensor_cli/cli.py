@@ -2007,6 +2007,9 @@ class CLIManager:
     ):
         """
         Adds a new pure proxy to the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config add-proxy
         """
         if self.proxies.get(name) is not None:
             print_error(
@@ -2053,6 +2056,9 @@ class CLIManager:
         Removes a pure proxy from the address book.
 
         Note: Does not remove the proxy on chain. Only removes it from the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config remove-proxy --name test-proxy
         """
         if name in self.proxies:
             del self.proxies[name]
@@ -2066,6 +2072,9 @@ class CLIManager:
     def config_get_proxies(self):
         """
         Displays the current proxies address book
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config proxies
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
@@ -2114,6 +2123,14 @@ class CLIManager:
         delay: Optional[int] = typer.Option(None, help="Delay, in blocks."),
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
+        """
+        Updates the details of a proxy in the address book.
+
+        Note: This command not update the proxy on chain. It only updates it on the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config update-proxy --name test-proxy
+        """
         if name not in self.proxies:
             print_error(
                 f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
@@ -9476,15 +9493,10 @@ class CLIManager:
 
         Revokes proxy permissions previously granted to another account. This prevents the delegate account from executing any further transactions on your behalf.
 
-        [bold]Note[/bold]: You can specify a delegate to remove a single proxy or use the `--all` flag to remove all existing proxies linked to an account.
 
-
-        [bold]Common Examples:[/bold]
-        1. Revoke proxy permissions from a single proxy account
+        [bold]Example:[/bold]
+        Revoke proxy permissions from a single proxy account
         [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type Transfer
-
-        2. Remove all proxies linked to an account
-        [green]$[/green] btcli proxy remove --all
 
         """
         # TODO should add a --all flag to call Proxy.remove_proxies ?
@@ -9649,7 +9661,25 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        """
+        Executes a previously announced proxy call.
+
+        This command submits the inner call on-chain using the proxy relationship. The command will fail if the required delay has not passed or if the call does not match the announcement parameters.
+
+        If you do not provide the call hash or call hex of the announced call in the command, you would be prompted to enter details of the call including the module name and call function.
+
+        [bold]Note[/bold]: Using the `--call-hash` flag attempts to resolve the call from the proxy announcements address book. Use this flag only if the announcement was created through BTCLI.
+        If the announcement was created by any other method, you must provide the call hex using the `--call-hex` flag or rebuild the call explicitly via the command prompts.
+
+        [bold]Common Examples:[/bold]
+        1. Using the call hash
+        [green]$[/green] btcli proxy execute --call-hash caf4da69610d379c2e2e5...0cbc6b012f6cff6340c45a1
+
+        2. Using the call hex
+        [green]$[/green] btcli proxy execute --call-hex 0x0503008f0667364ff11915b0b2a54387...27948e8f950f79a69cff9c029cdb69
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
         outer_proxy_from_config = self.proxies.get(proxy, {})
         proxy_from_config = outer_proxy_from_config.get("address")
         delay = 0
@@ -9761,7 +9791,7 @@ class CLIManager:
                 else:
                     console.print(
                         f"The call hash you have provided matches {len(potential_call_matches)}"
-                        f" possible entries. The results will be iterated for you to selected your intended"
+                        f" possible entries. The results will be iterated for you to select your intended "
                         f"call."
                     )
                     for row in potential_call_matches:
