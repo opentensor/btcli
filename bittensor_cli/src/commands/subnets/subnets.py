@@ -2724,7 +2724,7 @@ async def get_start_schedule(
         ),
         subtensor.substrate.get_constant(
             module_name="SubtensorModule",
-            constant_name="DurationOfStartCall",
+            constant_name="InitialStartCallDelay",
             block_hash=block_hash,
         ),
         subtensor.substrate.get_block_number(block_hash=block_hash),
