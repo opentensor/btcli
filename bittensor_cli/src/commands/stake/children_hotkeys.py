@@ -2,28 +2,28 @@ import asyncio
 import json
 from typing import Optional
 
+from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_wallet import Wallet
-from rich.prompt import IntPrompt, FloatPrompt
+from rich.prompt import FloatPrompt, IntPrompt
 from rich.table import Table
 from rich.text import Text
-from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    print_error,
     float_to_u16,
     float_to_u64,
+    format_error_message,
+    get_hotkey_pub_ss58,
+    is_valid_ss58_address,
+    json_console,
+    print_error,
+    print_extrinsic_id,
     u16_to_float,
     u64_to_float,
-    is_valid_ss58_address,
-    format_error_message,
     unlock_key,
-    json_console,
-    get_hotkey_pub_ss58,
-    print_extrinsic_id,
 )
 
 
@@ -775,7 +775,7 @@ async def childkey_take(
             subtensor=subtensor,
             wallet=wallet,
             netuid=subnet,
-            hotkey=get_hotkey_pub_ss58(wallet),
+            hotkey=hotkey,
             take=chk_take,
             proxy=proxy,
             prompt=prompt,
@@ -786,7 +786,7 @@ async def childkey_take(
         if success_:
             console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
             console.print(
-                f"The childkey take for {get_hotkey_pub_ss58(wallet)} is now set to {take * 100:.2f}%."
+                f"The childkey take for {hotkey} is now set to {take * 100:.2f}%."
             )
             return True, ext_id_
         else:
