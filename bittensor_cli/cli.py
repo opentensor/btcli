@@ -5589,6 +5589,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="stake transfer",
+        )
         if prompt:
             if not confirm_action(
                 "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
