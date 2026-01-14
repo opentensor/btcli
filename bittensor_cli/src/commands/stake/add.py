@@ -17,10 +17,10 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
+    print_success,
     print_verbose,
     unlock_key,
     json_console,
@@ -193,9 +193,8 @@ async def stake_add(
                     block_hash=block_hash,
                 ),
             )
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Finalized. "
-                f"Stake added to netuid: {netuid_}[/dark_sea_green3]"
+            print_success(
+                f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_}[/dark_sea_green3]"
             )
             console.print(
                 f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
@@ -288,8 +287,7 @@ async def stake_add(
                     block_hash=new_block_hash,
                 ),
             )
-            console.print(
-                f":white_heavy_check_mark: "
+            print_success(
                 f"[dark_sea_green3]Finalized. Stake added to netuid: {netuid_i}[/dark_sea_green3]"
             )
             console.print(
@@ -356,7 +354,7 @@ async def stake_add(
             # Check that the subnet exists.
             subnet_info = all_subnets.get(netuid)
             if not subnet_info:
-                err_console.print(f"Subnet with netuid: {netuid} does not exist.")
+                print_error(f"Subnet with netuid: {netuid} does not exist.")
                 continue
             current_stake_balances.append(hotkey_stake_map[hotkey[1]][netuid])
 
@@ -376,8 +374,8 @@ async def stake_add(
 
             # Check enough to stake.
             if amount_to_stake > remaining_wallet_balance:
-                err_console.print(
-                    f"[red]Not enough stake[/red]:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                print_error(
+                    f"Not enough stake:[bold white]\n wallet balance:{remaining_wallet_balance} < "
                     f"staking amount: {amount_to_stake}[/bold white]"
                 )
                 return

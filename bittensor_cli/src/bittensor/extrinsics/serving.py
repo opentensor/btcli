@@ -10,7 +10,8 @@ from bittensor_wallet import Wallet
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
+    print_success,
     format_error_message,
     unlock_key,
     print_extrinsic_id,
@@ -112,29 +113,27 @@ async def reset_axon_extrinsic(
 
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                console.print(
-                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                print_success(
+                    "[dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
                 )
                 return True, "Not waiting for finalization or inclusion.", None
 
             success = await response.is_success
             if not success:
                 error_msg = format_error_message(await response.error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                print_error(f"Failed: {error_msg}")
                 return False, error_msg, None
             else:
                 ext_id = await response.get_extrinsic_identifier()
                 await print_extrinsic_id(response)
-                console.print(
-                    ":white_heavy_check_mark: [dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
+                print_success(
+                    "[dark_sea_green3]Axon reset successfully[/dark_sea_green3]"
                 )
                 return True, "Axon reset successfully", ext_id
 
         except Exception as e:
             error_message = format_error_message(e)
-            err_console.print(
-                f":cross_mark: [red]Failed to reset axon: {error_message}[/red]"
-            )
+            print_error(f"Failed to reset axon: {error_message}")
             return False, error_message, None
 
 
@@ -232,27 +231,25 @@ async def set_axon_extrinsic(
 
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
+                print_success(
+                    f"[dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
                 )
                 return True, "Not waiting for finalization or inclusion.", None
 
             success = await response.is_success
             if not success:
                 error_msg = format_error_message(await response.error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {error_msg}")
+                print_error(f"Failed: {error_msg}")
                 return False, error_msg, None
             else:
                 ext_id = await response.get_extrinsic_identifier()
                 await print_extrinsic_id(response)
-                console.print(
-                    f":white_heavy_check_mark: [dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
+                print_success(
+                    f"[dark_sea_green3]Axon set successfully to {ip}:{port}[/dark_sea_green3]"
                 )
                 return True, f"Axon set successfully to {ip}:{port}", ext_id
 
         except Exception as e:
             error_message = format_error_message(e)
-            err_console.print(
-                f":cross_mark: [red]Failed to set axon: {error_message}[/red]"
-            )
+            print_error(f"Failed to set axon: {error_message}")
             return False, error_message, None

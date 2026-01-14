@@ -11,7 +11,8 @@ from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
-    err_console,
+    print_error,
+    print_success,
     console,
     format_error_message,
     json_console,
@@ -146,7 +147,7 @@ class SetWeightsExtrinsic:
                 commit_hash=commit_hash
             )
         except SubstrateRequestException as e:
-            err_console.print(f"Error committing weights: {format_error_message(e)}")
+            print_error(f"Error committing weights: {format_error_message(e)}")
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
@@ -181,9 +182,7 @@ class SetWeightsExtrinsic:
             reveal_time = (current_time + timedelta(seconds=interval)).isoformat()
             cli_retry_cmd = f"--netuid {self.netuid} --uids {weight_uids} --weights {self.weights} --reveal-using-salt {self.salt}"
             # Print params to screen and notify user this is a blocking operation
-            console.print(
-                ":white_heavy_check_mark: [green]Weights hash committed to chain[/green]"
-            )
+            print_success("Weights hash committed to chain")
             console.print(
                 f":alarm_clock: [dark_orange3]Weights hash will be revealed at {reveal_time}[/dark_orange3]"
             )
@@ -212,7 +211,7 @@ class SetWeightsExtrinsic:
             async with self.subtensor:
                 return await self.reveal(weight_uids, weight_vals)
         else:
-            console.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
+            print_error(f"Failed: error:{commit_msg}")
             # bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit",
             #                         suffix=f"<red>Failed: {commit_msg}</red>")
             return False, f"Failed to commit weights hash. {commit_msg}", None
@@ -227,9 +226,7 @@ class SetWeightsExtrinsic:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
                 return True, "Not waiting for finalization or inclusion.", ext_id
 
-            console.print(
-                ":white_heavy_check_mark: [green]Weights hash revealed on chain[/green]"
-            )
+            print_success("Weights hash revealed on chain")
             return (
                 True,
                 "Successfully revealed previously committed weights hash.",
@@ -284,7 +281,7 @@ class SetWeightsExtrinsic:
                 return True, "Not waiting for finalization or inclusion.", None
 
             if success:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 # bittensor.logging.success(prefix="Set weights", suffix="<green>Finalized: </green>" + str(success))
                 return True, "Successfully set weights and finalized.", ext_id
             else:
@@ -417,7 +414,7 @@ async def reveal_weights(
         if success:
             console.print("Weights revealed successfully")
         else:
-            err_console.print(f"Failed to reveal weights: {message}")
+            print_error(f"Failed to reveal weights: {message}")
 
 
 async def commit_weights(
@@ -467,4 +464,4 @@ async def commit_weights(
         if success:
             console.print("Weights set successfully")
         else:
-            err_console.print(f"Failed to commit weights: {message}")
+            print_error(f"Failed to commit weights: {message}")

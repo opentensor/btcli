@@ -11,7 +11,8 @@ from bittensor_cli.src.bittensor.subtensor_interface import (
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
+    print_success,
     print_verbose,
     is_valid_bittensor_address_or_public_key,
     print_error,
@@ -95,8 +96,8 @@ async def transfer_extrinsic(
 
     # Validate destination address.
     if not is_valid_bittensor_address_or_public_key(destination):
-        err_console.print(
-            f":cross_mark: [red]Invalid destination SS58 address[/red]:[bold white]\n  {destination}[/bold white]"
+        print_error(
+            f"Invalid destination SS58 address:[bold white]\n  {destination}[/bold white]"
         )
         return False, None
     console.print(f"[dark_orange]Initiating transfer on network: {subtensor.network}")
@@ -139,8 +140,8 @@ async def transfer_extrinsic(
 
     if proxy:
         if proxy_balance < (amount + existential_deposit) and not allow_death:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{proxy_balance}[/bright_cyan]\n"
                 f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
                 f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
@@ -148,8 +149,8 @@ async def transfer_extrinsic(
             )
             return False, None
         if account_balance < fee:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
                 f"  fee: [bright_cyan]{fee}[/bright_cyan]\n"
                 f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
@@ -157,15 +158,15 @@ async def transfer_extrinsic(
             return False, None
         if account_balance < amount and allow_death:
             print_error(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_red]{account_balance}[/bright_red]\n"
                 f"  amount: [bright_red]{amount}[/bright_red]\n"
             )
             return False, None
     else:
         if account_balance < (amount + fee + existential_deposit) and not allow_death:
-            err_console.print(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+            print_error(
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_cyan]{account_balance}[/bright_cyan]\n"
                 f"  amount: [bright_cyan]{amount}[/bright_cyan]\n"
                 f"  for fee: [bright_cyan]{fee}[/bright_cyan]\n"
@@ -175,7 +176,7 @@ async def transfer_extrinsic(
             return False, None
         elif account_balance < (amount + fee) and allow_death:
             print_error(
-                ":cross_mark: [bold red]Not enough balance[/bold red]:\n\n"
+                "[bold red]Not enough balance[/bold red]:\n\n"
                 f"  balance: [bright_red]{account_balance}[/bright_red]\n"
                 f"  amount: [bright_red]{amount}[/bright_red]\n"
                 f"  for fee: [bright_red]{fee}[/bright_red]"
@@ -219,11 +220,10 @@ async def transfer_extrinsic(
         success, block_hash, err_msg, ext_receipt = await do_transfer()
 
         if success:
-            console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-            console.print(f"[green]Block Hash: {block_hash}[/green]")
+            print_success(f"Finalized. Block Hash: {block_hash}")
 
         else:
-            console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
 
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):

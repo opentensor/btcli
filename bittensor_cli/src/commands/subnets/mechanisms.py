@@ -12,10 +12,11 @@ from bittensor_cli.src.commands import sudo
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
     json_console,
     U16_MAX,
     print_extrinsic_id,
+    print_success,
 )
 
 if TYPE_CHECKING:
@@ -31,7 +32,7 @@ async def count(
 
     block_hash = await subtensor.substrate.get_chain_head()
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
-        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        print_error(f"Subnet {netuid} does not exist")
         if json_output:
             json_console.print_json(
                 data={"success": False, "error": f"Subnet {netuid} does not exist"}
@@ -55,7 +56,7 @@ async def count(
                     }
                 )
             else:
-                err_console.print(
+                print_error(
                     "Subnet mechanism count: [red]Failed to get mechanism count[/red]"
                 )
             return None
@@ -205,7 +206,7 @@ async def set_emission_split(
         if json_output:
             json_console.print_json(data={"success": False, "error": message})
         else:
-            err_console.print(message)
+            print_error(message)
         return False
 
     if not json_output:
@@ -233,11 +234,11 @@ async def set_emission_split(
             if json_output:
                 json_console.print_json(data={"success": False, "error": message})
             else:
-                err_console.print(message)
+                print_error(message)
             return False
     else:
         if not prompt:
-            err_console.print(
+            print_error(
                 "Split values not supplied with `--no-prompt` flag. Cannot continue."
             )
             return False
@@ -264,7 +265,7 @@ async def set_emission_split(
             try:
                 weights.append(float(response))
             except ValueError:
-                err_console.print("Invalid number provided. Aborting.")
+                print_error("Invalid number provided. Aborting.")
                 return False
 
     if len(weights) != mech_count:
@@ -272,7 +273,7 @@ async def set_emission_split(
         if json_output:
             json_console.print_json(data={"success": False, "error": message})
         else:
-            err_console.print(message)
+            print_error(message)
         return False
 
     if any(value < 0 for value in weights):
@@ -280,7 +281,7 @@ async def set_emission_split(
         if json_output:
             json_console.print_json(data={"success": False, "error": message})
         else:
-            err_console.print(message)
+            print_error(message)
         return False
 
     try:
@@ -290,11 +291,11 @@ async def set_emission_split(
         if json_output:
             json_console.print_json(data={"success": False, "error": message})
         else:
-            err_console.print(message)
+            print_error(message)
         return False
 
     if normalized_weights == existing_split:
-        message = ":white_heavy_check_mark: [dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
+        message = "[dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
         if json_output:
             json_console.print_json(
                 data={
@@ -306,7 +307,7 @@ async def set_emission_split(
                 }
             )
         else:
-            console.print(message)
+            print_success(message)
         return True
 
     if not json_output:
@@ -357,7 +358,7 @@ async def set_emission_split(
             decline=decline,
             quiet=quiet,
         ):
-            console.print(":cross_mark: Aborted!")
+            print_error("Aborted!")
             return False
 
     success, err_msg, ext_id = await set_mechanism_emission(
@@ -428,13 +429,13 @@ async def set_mechanism_count(
     if mechanism_count < 1:
         err_msg = "Mechanism count must be greater than or equal to one."
         if not json_output:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False, err_msg, None
 
     if not await subtensor.subnet_exists(netuid):
         err_msg = f"Subnet with netuid {netuid} does not exist."
         if not json_output:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False, err_msg, None
 
     if not confirm_action(
@@ -462,12 +463,11 @@ async def set_mechanism_count(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: "
+        print_success(
             f"[dark_sea_green3]Mechanism count set to {mechanism_count} for subnet {netuid}[/dark_sea_green3]"
         )
     else:
-        err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        print_error(f"Failed: {err_msg}")
 
     return success, err_msg, ext_id
 
@@ -487,7 +487,7 @@ async def set_mechanism_emission(
     if not split:
         err_msg = "Emission split must include at least one weight."
         if not json_output:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False, err_msg, None
 
     success, err_msg, ext_receipt = await sudo.set_mechanism_emission_extrinsic(
@@ -506,11 +506,10 @@ async def set_mechanism_emission(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: "
+        print_success(
             f"[dark_sea_green3]Emission split updated for subnet {netuid}[/dark_sea_green3]"
         )
     else:
-        err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+        print_error(f"Failed: {err_msg}")
 
     return success, err_msg, ext_id

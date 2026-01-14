@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 import sys
 
+from async_substrate_interface.errors import StateDiscardedError
 from rich.prompt import Prompt, FloatPrompt, IntPrompt
 from scalecodec import GenericCall, ScaleBytes
 
@@ -11,7 +12,8 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     json_console,
     console,
-    err_console,
+    print_error,
+    print_success,
     unlock_key,
     ProxyAddressBook,
     is_valid_ss58_address_prompt,
@@ -94,7 +96,7 @@ async def submit_proxy(
             )
         else:
             await print_extrinsic_id(receipt)
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
     else:
         if json_output:
             json_console.print_json(
@@ -105,7 +107,7 @@ async def submit_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed: {msg}[/red]")
+            print_error(f"Failed: {msg}")
 
 
 async def create_proxy(
@@ -142,7 +144,7 @@ async def create_proxy(
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -246,7 +248,7 @@ async def create_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to create pure proxy: {msg}")
+            print_error(f"Failed to create pure proxy: {msg}")
     return None
 
 
@@ -277,7 +279,7 @@ async def remove_proxy(
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -342,7 +344,7 @@ async def add_proxy(
                 return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -447,7 +449,7 @@ async def add_proxy(
                 }
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed to add proxy: {msg}")
+            print_error(f"Failed to add proxy: {msg}")
     return None
 
 
@@ -477,11 +479,11 @@ async def kill_proxy(
             f"To proceed, enter [red]KILL[/red]"
         )
         if confirmation != "KILL":
-            err_console.print("Invalid input. Exiting.")
+            print_error("Invalid input. Exiting.")
             return None
     if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
         if not json_output:
-            err_console.print(ulw.message)
+            print_error(ulw.message)
         else:
             json_console.print_json(
                 data={
@@ -541,7 +543,7 @@ async def execute_announced(
     """
     if prompt and created_block is not None:
         current_block = await subtensor.substrate.get_block_number()
-        if current_block - delay > created_block:
+        if current_block - delay < created_block:
             if not confirm_action(
                 f"The delay for this account is set to {delay} blocks, but the call was created"
                 f" at block {created_block}. It is currently only {current_block}. The call will likely fail."
@@ -553,8 +555,8 @@ async def execute_announced(
 
     if call_hex is None:
         if not prompt:
-            err_console.print(
-                f":cross_mark:[red]You have not provided a call, and are using"
+            print_error(
+                f"You have not provided a call, and are using"
                 f" [{COLORS.G.ARG}]--no-prompt[/{COLORS.G.ARG}], so we are unable to request"
                 f"the information to craft this call."
             )
@@ -589,8 +591,8 @@ async def execute_announced(
                     value = FloatPrompt.ask(f"Enter the amount of Tao for {arg}")
                     value = Balance.from_tao(value)
                 elif "RuntimeCall" in type_name:
-                    err_console.print(
-                        f":cross_mark:[red]Unable to craft a Call Type for arg {arg}. {failure_}"
+                    print_error(
+                        f"Unable to craft a Call Type for arg {arg}. {failure_}"
                     )
                     return False
                 elif type_name == "NetUid":
@@ -608,9 +610,7 @@ async def execute_announced(
                     else:
                         value = False
                 else:
-                    err_console.print(
-                        f":cross_mark:[red]Unrecognized type name {type_name}. {failure_}"
-                    )
+                    print_error(f"Unrecognized type name {type_name}. {failure_}")
                     return False
                 call_args[arg] = value
             inner_call = await subtensor.substrate.compose_call(
@@ -620,11 +620,46 @@ async def execute_announced(
                 block_hash=block_hash,
             )
     else:
-        runtime = await subtensor.substrate.init_runtime(block_id=created_block)
-        inner_call = GenericCall(
-            data=ScaleBytes(data=bytearray.fromhex(call_hex)), metadata=runtime.metadata
-        )
-        inner_call.process()
+        try:
+            runtime = await subtensor.substrate.init_runtime(block_id=created_block)
+            inner_call = GenericCall(
+                data=ScaleBytes(data=bytearray.fromhex(call_hex)),
+                metadata=runtime.metadata,
+            )
+            inner_call.process()
+        except StateDiscardedError:
+            print_error(
+                "The state has already been discarded for this block "
+                "(you are likely not using an archive node endpoint)"
+            )
+            if prompt:
+                if not confirm_action(
+                    "Would you like to try using the latest runtime? This may fail, and if so, "
+                    "this command will need to be re-run on an archive node endpoint."
+                ):
+                    return False
+            try:
+                runtime = await subtensor.substrate.init_runtime(block_hash=None)
+                inner_call = GenericCall(
+                    data=ScaleBytes(data=bytearray.fromhex(call_hex)),
+                    metadata=runtime.metadata,
+                )
+                inner_call.process()
+            except Exception as e:
+                print_error(
+                    f"Failure: Unable to regenerate the call data using the latest runtime: {e}\n"
+                    "You should rerun this command on an archive node endpoint."
+                )
+                if json_output:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": f"Unable to regenerate the call data using the latest runtime: {e}. "
+                            "You should rerun this command on an archive node endpoint.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                return False
 
     announced_call = await subtensor.substrate.compose_call(
         "Proxy",
@@ -653,7 +688,7 @@ async def execute_announced(
                 }
             )
         else:
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
             await print_extrinsic_id(receipt)
     else:
         if json_output:
@@ -661,5 +696,5 @@ async def execute_announced(
                 data={"success": False, "message": msg, "extrinsic_identifier": None}
             )
         else:
-            err_console.print(f":cross_mark:[red]Failed[/red]. {msg} ")
+            print_error(f"Failed. {msg} ")
     return success

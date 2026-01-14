@@ -18,7 +18,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_success,
     print_verbose,
     print_error,
     get_hotkey_wallets_for_wallet,
@@ -203,8 +203,8 @@ async def unstake(
             # Check enough stake to remove.
             amount_to_unstake_as_balance.set_unit(netuid)
             if amount_to_unstake_as_balance > current_stake_balance:
-                err_console.print(
-                    f"[red]Not enough stake to remove[/red]:\n"
+                print_error(
+                    f"Not enough stake to remove:\n"
                     f" Stake balance: [dark_orange]{current_stake_balance}[/dark_orange]"
                     f" < Unstaking amount: [dark_orange]{amount_to_unstake_as_balance}[/dark_orange]"
                     f" on netuid: {netuid}"
@@ -658,7 +658,7 @@ async def _unstake_extrinsic(
             )
             if not mev_success:
                 status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                print_error(f"\nFailed: {mev_error}")
                 return False, None
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
@@ -672,7 +672,7 @@ async def _unstake_extrinsic(
             ),
         )
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        print_success("Finalized")
         console.print(
             f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
@@ -772,7 +772,7 @@ async def _safe_unstake_extrinsic(
             )
             if not mev_success:
                 status.stop()
-                err_console.print(f"\n:cross_mark: [red]Failed[/red]: {mev_error}")
+                print_error(f"\nFailed: {mev_error}")
                 return False, None
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
@@ -786,7 +786,7 @@ async def _safe_unstake_extrinsic(
             ),
         )
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        print_success("Finalized")
         console.print(
             f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )

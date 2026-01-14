@@ -31,7 +31,8 @@ from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_regist
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
+    print_error,
+    print_success,
     u16_normalized_float,
     print_verbose,
     format_error_message,
@@ -343,9 +344,7 @@ async def root_register_extrinsic(
         subtensor, netuid=0, hotkey_ss58=get_hotkey_pub_ss58(wallet)
     )
     if is_registered:
-        console.print(
-            ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
-        )
+        print_success("Already registered on root network.")
         return True, "Already registered on root network", None
 
     with console.status(":satellite: Registering to root network...", spinner="earth"):
@@ -363,7 +362,7 @@ async def root_register_extrinsic(
         )
 
         if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             await asyncio.sleep(0.5)
             return False, err_msg, None
 
@@ -377,15 +376,11 @@ async def root_register_extrinsic(
                 params=[0, get_hotkey_pub_ss58(wallet)],
             )
             if uid is not None:
-                console.print(
-                    f":white_heavy_check_mark: [green]Registered with UID {uid}[/green]"
-                )
+                print_success(f"Registered with UID {uid}")
                 return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again
-                err_console.print(
-                    ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
-                )
+                print_error("Unknown error. Neuron not found.")
                 return False, "Unknown error. Neuron not found.", ext_id
 
 
@@ -454,7 +449,7 @@ async def set_root_weights_extrinsic(
     )
 
     if my_uid is None:
-        err_console.print("Your hotkey is not registered to the root network")
+        print_error("Your hotkey is not registered to the root network")
         return False
 
     if not unlock_key(wallet).success:
@@ -542,14 +537,14 @@ async def set_root_weights_extrinsic(
                 return True
 
             if success is True:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 return True
             else:
                 fmt_err = format_error_message(error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
+                print_error(f"Failed: {fmt_err}")
                 return False
 
     except SubstrateRequestException as e:
         fmt_err = format_error_message(e)
-        err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(fmt_err))
+        print_error("Failed: error:{}".format(fmt_err))
         return False

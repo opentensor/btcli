@@ -22,8 +22,8 @@ from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
-    err_console,
     print_error,
+    print_success,
     print_verbose,
     normalize_hyperparameters,
     unlock_key,
@@ -311,8 +311,8 @@ async def set_hyperparameter_extrinsic(
         )
         extrinsic = parameter
         if not arbitrary_extrinsic:
-            err_msg = ":cross_mark: [red]Invalid hyperparameter specified.[/red]"
-            err_console.print(err_msg)
+            err_msg = "Invalid hyperparameter specified."
+            print_error(err_msg)
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
         if not confirm_action(
@@ -342,7 +342,7 @@ async def set_hyperparameter_extrinsic(
 
             if len(value) < len(non_netuid_fields):
                 err_msg = "Not enough values provided in the list for all parameters"
-                err_console.print(err_msg)
+                print_error(err_msg)
                 return False, err_msg, None
 
             call_params.update(
@@ -385,16 +385,14 @@ async def set_hyperparameter_extrinsic(
             )
         else:
             if subnet_owner != coldkey_ss58:
-                err_msg = ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-                err_console.print(err_msg)
+                err_msg = "This wallet doesn't own the specified subnet."
+                print_error(err_msg)
                 return False, err_msg, None
             call = call_
     else:
         if subnet_owner != coldkey_ss58:
-            err_msg = (
-                ":cross_mark: [red]This wallet doesn't own the specified subnet.[/red]"
-            )
-            err_console.print(err_msg)
+            err_msg = "This wallet doesn't own the specified subnet."
+            print_error(err_msg)
             return False, err_msg, None
         call = call_
     with console.status(
@@ -407,21 +405,19 @@ async def set_hyperparameter_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
     if not success:
-        err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+        print_error(f"Failed: {err_msg}")
         return False, err_msg, None
     else:
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
         if arbitrary_extrinsic:
-            console.print(
-                f":white_heavy_check_mark: "
+            print_success(
                 f"[dark_sea_green3]Hyperparameter {parameter} values changed to {call_params}[/dark_sea_green3]"
             )
             return True, "", ext_id
         # Successful registration, final check for membership
         else:
-            console.print(
-                f":white_heavy_check_mark: "
+            print_success(
                 f"[dark_sea_green3]Hyperparameter {parameter} changed to {value}[/dark_sea_green3]"
             )
             return True, "", ext_id
@@ -448,7 +444,7 @@ async def _get_senate_members(
             decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
         ]
     except (IndexError, TypeError):
-        err_console.print("Unable to retrieve senate members.")
+        print_error("Unable to retrieve senate members.")
         return []
 
 
@@ -476,7 +472,7 @@ async def _get_proposals(
             f"0x{bytes(ph[0][x][0]).hex()}" for x in range(len(ph[0]))
         ]
     except (IndexError, TypeError):
-        err_console.print("Unable to retrieve proposal vote data")
+        print_error("Unable to retrieve proposal vote data")
         return {}
 
     call_data_, vote_data_ = await asyncio.gather(
@@ -633,7 +629,7 @@ async def vote_senate_extrinsic(
             call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
         if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             return False
         # Successful vote, final check for data
         else:
@@ -644,13 +640,11 @@ async def vote_senate_extrinsic(
                     vote_data.ayes.count(hotkey_ss58) > 0
                     or vote_data.nays.count(hotkey_ss58) > 0
                 ):
-                    console.print(":white_heavy_check_mark: [green]Vote cast.[/green]")
+                    print_success("Vote cast.")
                     return True
                 else:
                     # hotkey not found in ayes/nays
-                    err_console.print(
-                        ":cross_mark: [red]Unknown error. Couldn't find vote.[/red]"
-                    )
+                    print_error("Unknown error. Couldn't find vote.")
                     return False
             else:
                 return False
@@ -731,12 +725,10 @@ async def set_take_extrinsic(
             )
 
     if not success:
-        err_console.print(err)
+        print_error(err)
         ext_id = None
     else:
-        console.print(
-            ":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]"
-        )
+        print_success("Success")
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
     return success, ext_id
@@ -770,7 +762,7 @@ async def sudo_set_hyperparameter(
             sys.stdout.write(json_str + "\n")
             sys.stdout.flush()
         else:
-            err_console.print(err_msg)
+            print_error(err_msg)
         return False, err_msg, None
     if json_output:
         prompt = False
@@ -1127,12 +1119,12 @@ async def senate_vote(
     """Vote in Bittensor's governance protocol proposals"""
 
     if not proposal_hash:
-        err_console.print(
+        print_error(
             "Aborting: Proposal hash not specified. View all proposals with the `proposals` command."
         )
         return False
     elif not _validate_proposal_hash(proposal_hash):
-        err_console.print(
+        print_error(
             "Aborting. Proposal hash is invalid. Proposal hashes should start with '0x' and be 32 bytes long"
         )
         return False
@@ -1140,7 +1132,7 @@ async def senate_vote(
     print_verbose(f"Fetching senate status of {wallet.hotkey_str}")
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if not await _is_senate_member(subtensor, hotkey_ss58=hotkey_ss58):
-        err_console.print(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
+        print_error(f"Aborting: Hotkey {hotkey_ss58} isn't a senate member.")
         return False
 
     # Unlock the wallet.
@@ -1150,7 +1142,7 @@ async def senate_vote(
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
     vote_data = await subtensor.get_vote_data(proposal_hash, reuse_block=True)
     if not vote_data:
-        err_console.print(":cross_mark: [red]Failed[/red]: Proposal not found.")
+        print_error("Failed: Proposal not found.")
         return False
 
     success = await vote_senate_extrinsic(
@@ -1187,7 +1179,7 @@ async def set_take(
 
     async def _do_set_take() -> tuple[bool, Optional[str]]:
         if take > 0.18 or take < 0:
-            err_console.print("ERROR: Take value should not exceed 18% or be below 0%")
+            print_error("ERROR: Take value should not exceed 18% or be below 0%")
             return False, None
 
         block_hash = await subtensor.substrate.get_chain_head()
@@ -1196,7 +1188,7 @@ async def set_take(
             hotkey_ss58, block_hash=block_hash
         )
         if not len(netuids_registered) > 0:
-            err_console.print(
+            print_error(
                 f"Hotkey [{COLOR_PALETTE.G.HK}]{hotkey_ss58}[/{COLOR_PALETTE.G.HK}] is not registered to"
                 f" any subnet. Please register using [{COLOR_PALETTE.G.SUBHEAD}]`btcli subnets register`"
                 f"[{COLOR_PALETTE.G.SUBHEAD}] and try again."
@@ -1213,7 +1205,7 @@ async def set_take(
         success, ext_id = result
 
         if not success:
-            err_console.print("Could not set the take")
+            print_error("Could not set the take")
             return False, None
         else:
             new_take = await get_current_take(subtensor, wallet)
@@ -1259,7 +1251,7 @@ async def trim(
         if json_output:
             json_console.print_json(data={"success": False, "message": err_msg})
         else:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(err_msg)
         return False
     if prompt and not json_output:
         if not confirm_action(
@@ -1268,7 +1260,7 @@ async def trim(
             decline=decline,
             quiet=quiet,
         ):
-            err_console.print(":cross_mark: [red]User aborted.[/red]")
+            print_error("User aborted.")
     call = await subtensor.substrate.compose_call(
         call_module="AdminUtils",
         call_function="sudo_trim_to_max_allowed_uids",
@@ -1287,7 +1279,7 @@ async def trim(
                 }
             )
         else:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(err_msg)
         return False
     else:
         ext_id = await ext_receipt.get_extrinsic_identifier()
@@ -1298,7 +1290,5 @@ async def trim(
             )
         else:
             await print_extrinsic_id(ext_receipt)
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]{msg}[/dark_sea_green3]"
-            )
+            print_success(f"[dark_sea_green3]{msg}[/dark_sea_green3]")
         return True

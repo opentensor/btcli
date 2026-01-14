@@ -11,10 +11,10 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     json_console,
+    print_success,
     get_subnet_name,
     is_valid_ss58_address,
     print_error,
-    err_console,
     unlock_key,
     print_extrinsic_id,
 )
@@ -297,10 +297,10 @@ async def set_auto_stake_destination(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            f":white_heavy_check_mark: [dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
+        print_success(
+            f"[dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
         )
         return True
 
-    err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+    print_error(f"Failed: {error_message}")
     return False
