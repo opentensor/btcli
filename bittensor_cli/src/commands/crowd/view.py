@@ -434,28 +434,26 @@ async def list_crowdloans(
         else:
             time_cell = time_label
 
-        # Format creator cell with identity if available
-        if loan.creator in identity_map:
-            creator_identity = identity_map[loan.creator]
-            if verbose:
-                creator_cell = f"{creator_identity} ({loan.creator})"
-            else:
-                creator_cell = f"{creator_identity} ({_shorten(loan.creator)})"
-        else:
-            creator_cell = loan.creator if verbose else _shorten(loan.creator)
+        # Format creator cell
+        creator_identity = identity_map.get(loan.creator)
+        address_display = loan.creator if verbose else _shorten(loan.creator)
+        creator_cell = (
+            f"{creator_identity} ({address_display})"
+            if creator_identity
+            else address_display
+        )
 
-        # Format target cell with identity if available
+        # Format target cell
         if loan.target_address:
-            if loan.target_address in identity_map:
-                target_identity = identity_map[loan.target_address]
-                if verbose:
-                    target_cell = f"{target_identity} ({loan.target_address})"
-                else:
-                    target_cell = f"{target_identity} ({_shorten(loan.target_address)})"
-            else:
-                target_cell = (
-                    loan.target_address if verbose else _shorten(loan.target_address)
-                )
+            target_identity = identity_map.get(loan.target_address)
+            address_display = (
+                loan.target_address if verbose else _shorten(loan.target_address)
+            )
+            target_cell = (
+                f"{target_identity} ({address_display})"
+                if target_identity
+                else address_display
+            )
         else:
             target_cell = (
                 f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
@@ -734,17 +732,14 @@ async def show_crowdloan_details(
 
     table.add_row("Status", f"[{status_color}]{status}[/{status_color}]{status_detail}")
 
-    # Display creator with identity if available
-    if crowdloan.creator in identity_map:
-        creator_identity = identity_map[crowdloan.creator]
-        if verbose:
-            creator_display = f"{creator_identity} ({crowdloan.creator})"
-        else:
-            creator_display = f"{creator_identity} ({_shorten(crowdloan.creator)})"
-    elif verbose:
-        creator_display = crowdloan.creator
-    else:
-        creator_display = _shorten(crowdloan.creator)
+    # Display creator
+    creator_identity = identity_map.get(crowdloan.creator)
+    address_display = crowdloan.creator if verbose else _shorten(crowdloan.creator)
+    creator_display = (
+        f"{creator_identity} ({address_display})"
+        if creator_identity
+        else address_display
+    )
     table.add_row(
         "Creator",
         f"[{COLORS.G.TEMPO}]{creator_display}[/{COLORS.G.TEMPO}]",
@@ -853,20 +848,15 @@ async def show_crowdloan_details(
     table.add_section()
 
     if crowdloan.target_address:
-        if crowdloan.target_address in identity_map:
-            target_identity = identity_map[crowdloan.target_address]
-            if verbose:
-                target_display = f"{target_identity} ({crowdloan.target_address})"
-            else:
-                target_display = (
-                    f"{target_identity} ({_shorten(crowdloan.target_address)})"
-                )
-        else:
-            target_display = (
-                crowdloan.target_address
-                if verbose
-                else _shorten(crowdloan.target_address)
-            )
+        target_identity = identity_map.get(crowdloan.target_address)
+        address_display = (
+            crowdloan.target_address if verbose else _shorten(crowdloan.target_address)
+        )
+        target_display = (
+            f"{target_identity} ({address_display})"
+            if target_identity
+            else address_display
+        )
     else:
         target_display = (
             f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
