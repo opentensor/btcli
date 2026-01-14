@@ -986,7 +986,7 @@ async def show_crowdloan_details(
 
                 table.add_row(
                     f"#{rank}",
-                    f"{contributor_display} - {contribution_display} ({percentage:.2f}%)",
+                    f"{contributor_display:<70} - {contribution_display} ({percentage:.2f}%)",
                 )
 
             if len(contributor_data) > 10:
