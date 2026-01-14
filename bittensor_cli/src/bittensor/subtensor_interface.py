@@ -2538,6 +2538,36 @@ class SubtensorInterface:
 
         return public_key_bytes
 
+    async def compose_custom_crowdloan_call(
+        self,
+        pallet_name: str,
+        method_name: str,
+        call_params: dict,
+        block_hash: Optional[str] = None,
+    ) -> tuple[Optional[GenericCall], Optional[str]]:
+        """
+        Compose a custom Substrate call.
+
+        Args:
+            pallet_name: Name of the pallet/module
+            method_name: Name of the method/function
+            call_params: Dictionary of call parameters
+            block_hash: Optional block hash for the query
+
+        Returns:
+            Tuple of (GenericCall or None, error_message or None)
+        """
+        try:
+            call = await self.substrate.compose_call(
+                call_module=pallet_name,
+                call_function=method_name,
+                call_params=call_params,
+                block_hash=block_hash,
+            )
+            return call, None
+        except Exception as e:
+            return None, f"Failed to compose call: {str(e)}"
+
 
 async def best_connection(networks: list[str]):
     """
