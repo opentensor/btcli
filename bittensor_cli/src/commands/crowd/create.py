@@ -6,12 +6,14 @@ from bittensor_wallet import Wallet
 from rich.prompt import IntPrompt, Prompt, FloatPrompt
 from rich.table import Table, Column, box
 from scalecodec import GenericCall
-
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.commands.crowd.utils import get_constant
+from bittensor_cli.src.commands.crowd.utils import (
+    get_constant,
+    prompt_custom_call_params,
+)
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     confirm_action,
@@ -22,105 +24,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     print_extrinsic_id,
 )
-
-
-async def validate_and_compose_custom_call(
-    subtensor: SubtensorInterface,
-    pallet_name: str,
-    method_name: str,
-    args_json: str,
-) -> tuple[Optional[GenericCall], Optional[str]]:
-    """
-    Validate and compose a custom Substrate call.
-
-    Args:
-        subtensor: SubtensorInterface instance
-        pallet_name: Name of the pallet/module
-        method_name: Name of the method/function
-        args_json: JSON string of call arguments
-
-    Returns:
-        Tuple of (GenericCall or None, error_message or None)
-    """
-    try:
-        # Parse JSON arguments
-        try:
-            call_params = json.loads(args_json) if args_json else {}
-        except json.JSONDecodeError as e:
-            return None, f"Invalid JSON in custom call args: {e}"
-
-        # Get metadata to validate call exists
-        block_hash = await subtensor.substrate.get_chain_head()
-        runtime = await subtensor.substrate.init_runtime(block_hash=block_hash)
-        metadata = runtime.metadata
-
-        # Check if pallet exists
-        try:
-            # Try using get_metadata_pallet if available (cleaner approach)
-            if hasattr(metadata, "get_metadata_pallet"):
-                pallet = metadata.get_metadata_pallet(pallet_name)
-            else:
-                # Fallback to iteration
-                pallet = None
-                for pallet_item in metadata.pallets:
-                    if pallet_item.name == pallet_name:
-                        pallet = pallet_item
-                        break
-        except (AttributeError, ValueError):
-            # Pallet not found
-            pallet = None
-
-        if pallet is None:
-            available_pallets = [p.name for p in metadata.pallets]
-            return None, (
-                f"Pallet '{pallet_name}' not found in runtime metadata. "
-                f"Available pallets: {', '.join(available_pallets[:10])}"
-                + (
-                    f" and {len(available_pallets) - 10} more..."
-                    if len(available_pallets) > 10
-                    else ""
-                )
-            )
-
-        # Check if method exists in pallet
-        call_index = None
-        call_type = None
-        for call_item in pallet.calls:
-            if call_item.name == method_name:
-                call_index = call_item.index
-                call_type = call_item.type
-                break
-
-        if call_index is None:
-            available_methods = [c.name for c in pallet.calls]
-            return None, (
-                f"Method '{method_name}' not found in pallet '{pallet_name}'. "
-                f"Available methods: {', '.join(available_methods[:10])}"
-                + (
-                    f" and {len(available_methods) - 10} more..."
-                    if len(available_methods) > 10
-                    else ""
-                )
-            )
-
-        # Validate and compose the call
-        # The compose_call method will validate the parameters match expected types
-        try:
-            call = await subtensor.substrate.compose_call(
-                call_module=pallet_name,
-                call_function=method_name,
-                call_params=call_params,
-            )
-            return call, None
-        except Exception as e:
-            error_msg = str(e)
-            # Try to provide more helpful error messages
-            if "parameter" in error_msg.lower() or "type" in error_msg.lower():
-                return None, f"Invalid call parameters: {error_msg}"
-            return None, f"Failed to compose call: {error_msg}"
-
-    except Exception as e:
-        return None, f"Error validating custom call: {str(e)}"
 
 
 async def create_crowdloan(
@@ -160,43 +63,53 @@ async def create_crowdloan(
             print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
-    # Check for custom call options
-    has_custom_call = any([custom_call_pallet, custom_call_method, custom_call_args])
-    if has_custom_call:
-        if not all([custom_call_pallet, custom_call_method]):
-            error_msg = "Both --custom-call-pallet and --custom-call-method must be provided when using custom call."
-            if json_output:
-                json_console.print(json.dumps({"success": False, "error": error_msg}))
-            else:
-                print_error(f"[red]{error_msg}[/red]")
-            return False, error_msg
-
-        # Custom call args can be empty JSON object if method has no parameters
-        if custom_call_args is None:
-            custom_call_args = "{}"
-
-        # Check mutual exclusivity with subnet_lease
-        if subnet_lease is not None:
-            error_msg = "--custom-call-pallet/--custom-call-method cannot be used together with --subnet-lease. Use one or the other."
-            if json_output:
-                json_console.print(json.dumps({"success": False, "error": error_msg}))
-            else:
-                print_error(f"[red]{error_msg}[/red]")
-            return False, error_msg
-
+    # Determine crowdloan type and validate
     crowdloan_type: str
     if subnet_lease is not None:
+        if custom_call_pallet or custom_call_method or custom_call_args:
+            error_msg = "--custom-call-* cannot be used with --subnet-lease."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
         crowdloan_type = "subnet" if subnet_lease else "fundraising"
-    elif has_custom_call:
+    elif custom_call_pallet or custom_call_method or custom_call_args:
+        if not (custom_call_pallet and custom_call_method):
+            error_msg = (
+                "Both --custom-call-pallet and --custom-call-method must be provided."
+            )
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
         crowdloan_type = "custom"
     elif prompt:
         type_choice = IntPrompt.ask(
             "\n[bold cyan]What type of crowdloan would you like to create?[/bold cyan]\n"
             "[cyan][1][/cyan] General Fundraising (funds go to address)\n"
-            "[cyan][2][/cyan] Subnet Leasing (create new subnet)",
-            choices=["1", "2"],
+            "[cyan][2][/cyan] Subnet Leasing (create new subnet)\n"
+            "[cyan][3][/cyan] Custom Call (attach custom Substrate call)",
+            choices=["1", "2", "3"],
         )
-        crowdloan_type = "subnet" if type_choice == 2 else "fundraising"
+
+        if type_choice == 2:
+            crowdloan_type = "subnet"
+        elif type_choice == 3:
+            crowdloan_type = "custom"
+            success, pallet, method, args, error_msg = await prompt_custom_call_params(
+                subtensor=subtensor, json_output=json_output
+            )
+            if not success:
+                return False, error_msg or "Failed to get custom call parameters."
+            custom_call_pallet, custom_call_method, custom_call_args = (
+                pallet,
+                method,
+                args,
+            )
+        else:
+            crowdloan_type = "fundraising"
 
         if crowdloan_type == "subnet":
             current_burn_cost = await subtensor.burn_cost()
@@ -354,12 +267,11 @@ async def create_crowdloan(
     custom_call_info: Optional[dict] = None
 
     if crowdloan_type == "custom":
-        # Validate and compose custom call
-        call_to_attach, error_msg = await validate_and_compose_custom_call(
-            subtensor=subtensor,
+        call_params = json.loads(custom_call_args or "{}")
+        call_to_attach, error_msg = await subtensor.compose_custom_crowdloan_call(
             pallet_name=custom_call_pallet,
             method_name=custom_call_method,
-            args_json=custom_call_args or "{}",
+            call_params=call_params,
         )
 
         if call_to_attach is None:
@@ -367,12 +279,12 @@ async def create_crowdloan(
                 json_console.print(json.dumps({"success": False, "error": error_msg}))
             else:
                 print_error(f"[red]{error_msg}[/red]")
-            return False, error_msg or "Failed to validate custom call."
+            return False, error_msg or "Failed to compose custom call."
 
         custom_call_info = {
             "pallet": custom_call_pallet,
             "method": custom_call_method,
-            "args": json.loads(custom_call_args or "{}"),
+            "args": call_params,
         }
         target_address = None  # Custom calls don't use target_address
     elif crowdloan_type == "subnet":
