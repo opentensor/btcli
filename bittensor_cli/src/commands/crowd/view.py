@@ -647,36 +647,9 @@ async def show_crowdloan_details(
 
         # Add contributors list if requested
         if show_contributors:
-            # We'll fetch contributors separately and add to output
-            contributors_data = await subtensor.substrate.query_map(
-                module="Crowdloan",
-                storage_function="Contributions",
-                params=[crowdloan_id],
-                fully_exhaust=True,
+            contributor_contributions = await subtensor.get_crowdloan_contributors(
+                crowdloan_id
             )
-
-            from bittensor_cli.src.bittensor.utils import decode_account_id
-
-            contributor_contributions = {}
-            async for contributor_key, contribution_amount in contributors_data:
-                try:
-                    contributor_address = decode_account_id(contributor_key)
-                    contribution_value = (
-                        contribution_amount.value
-                        if hasattr(contribution_amount, "value")
-                        else contribution_amount
-                    )
-                    contribution_balance = (
-                        Balance.from_rao(int(contribution_value))
-                        if contribution_value
-                        else Balance.from_tao(0)
-                    )
-                    contributor_contributions[contributor_address] = (
-                        contribution_balance
-                    )
-                except Exception:
-                    continue
-
             contributors_list = list(contributor_contributions.keys())
             if contributors_list:
                 contributors_json = []
@@ -955,32 +928,9 @@ async def show_crowdloan_details(
         table.add_section()
 
         # Fetch contributors
-        contributors_data = await subtensor.substrate.query_map(
-            module="Crowdloan",
-            storage_function="Contributions",
-            params=[crowdloan_id],
-            fully_exhaust=True,
+        contributor_contributions = await subtensor.get_crowdloan_contributors(
+            crowdloan_id
         )
-
-        from bittensor_cli.src.bittensor.utils import decode_account_id
-
-        contributor_contributions = {}
-        async for contributor_key, contribution_amount in contributors_data:
-            try:
-                contributor_address = decode_account_id(contributor_key)
-                contribution_value = (
-                    contribution_amount.value
-                    if hasattr(contribution_amount, "value")
-                    else contribution_amount
-                )
-                contribution_balance = (
-                    Balance.from_rao(int(contribution_value))
-                    if contribution_value
-                    else Balance.from_tao(0)
-                )
-                contributor_contributions[contributor_address] = contribution_balance
-            except Exception:
-                continue
 
         if contributor_contributions:
             contributors_list = list(contributor_contributions.keys())
