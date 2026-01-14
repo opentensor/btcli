@@ -28,12 +28,12 @@ from bittensor_cli.src.bittensor.utils import (
     normalize_hyperparameters,
     unlock_key,
     blocks_to_duration,
-    json_console,
     string_to_u16,
     string_to_u64,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
+from bittensor_cli.src.bittensor.json_utils import print_json_data, print_transaction_response
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import (
@@ -1008,7 +1008,7 @@ async def get_senate(
         )
         dict_output.append({"name": member_name, "ss58_address": ss58_address})
     if json_output:
-        json_console.print(json.dumps(dict_output, ensure_ascii=True))
+        print_json_data(dict_output)
     return console.print(table)
 
 
@@ -1101,7 +1101,7 @@ async def proposals(
             }
         )
     if json_output:
-        json_console.print(json.dumps(dict_output, ensure_ascii=True))
+        print_json_data(dict_output)
     console.print(table)
     console.print(
         "\n[dim]* Both Ayes and Nays percentages are calculated relative to the proposal's threshold.[/dim]"
@@ -1249,7 +1249,7 @@ async def trim(
     if subnet_owner != wallet.coldkeypub.ss58_address:
         err_msg = "This wallet doesn't own the specified subnet."
         if json_output:
-            json_console.print_json(data={"success": False, "message": err_msg})
+            print_transaction_response(False, err_msg, None)
         else:
             print_error(err_msg)
         return False
@@ -1271,13 +1271,7 @@ async def trim(
     )
     if not success:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": False,
-                    "message": err_msg,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(False, err_msg, None)
         else:
             print_error(err_msg)
         return False
@@ -1285,9 +1279,7 @@ async def trim(
         ext_id = await ext_receipt.get_extrinsic_identifier()
         msg = f"Successfully trimmed UIDs on SN{netuid} to {max_n}"
         if json_output:
-            json_console.print_json(
-                data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
-            )
+            print_transaction_response(True, msg, ext_id)
         else:
             await print_extrinsic_id(ext_receipt)
             print_success(f"[dark_sea_green3]{msg}[/dark_sea_green3]")

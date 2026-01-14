@@ -10,13 +10,16 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     print_extrinsic_id,
-    json_console,
     console,
     print_error,
     print_success,
     unlock_key,
     ProxyAddressBook,
     is_valid_ss58_address_prompt,
+)
+from bittensor_cli.src.bittensor.json_utils import (
+    print_transaction_response,
+    print_transaction_with_data,
 )
 
 if TYPE_CHECKING:
@@ -87,25 +90,13 @@ async def submit_proxy(
     )
     if success:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": success,
-                    "message": msg,
-                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                }
-            )
+            print_transaction_response(success, msg, await receipt.get_extrinsic_identifier())
         else:
             await print_extrinsic_id(receipt)
             print_success("Success!")
     else:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": success,
-                    "message": msg,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(success, msg)
         else:
             print_error(f"Failed: {msg}")
 
@@ -146,13 +137,7 @@ async def create_proxy(
         if not json_output:
             print_error(ulw.message)
         else:
-            json_console.print_json(
-                data={
-                    "success": ulw.success,
-                    "message": ulw.message,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(ulw.success, ulw.message)
         return None
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
@@ -187,18 +172,16 @@ async def create_proxy(
         )
 
         if json_output:
-            json_console.print_json(
+            print_transaction_with_data(
+                success,
+                msg,
+                await receipt.get_extrinsic_identifier(),
                 data={
-                    "success": success,
-                    "message": msg,
-                    "data": {
-                        "pure": created_pure,
-                        "spawner": created_spawner,
-                        "proxy_type": created_proxy_type.value,
-                        "delay": delay,
-                    },
-                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                }
+                    "pure": created_pure,
+                    "spawner": created_spawner,
+                    "proxy_type": created_proxy_type.value,
+                    "delay": delay,
+                },
             )
         else:
             await print_extrinsic_id(receipt)
@@ -239,14 +222,7 @@ async def create_proxy(
                     return None
     else:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": success,
-                    "message": msg,
-                    "data": None,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_with_data(success, msg, None, data=None)
         else:
             print_error(f"Failed to create pure proxy: {msg}")
     return None
@@ -281,13 +257,7 @@ async def remove_proxy(
         if not json_output:
             print_error(ulw.message)
         else:
-            json_console.print_json(
-                data={
-                    "success": ulw.success,
-                    "message": ulw.message,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(ulw.success, ulw.message)
         return None
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
@@ -346,13 +316,7 @@ async def add_proxy(
         if not json_output:
             print_error(ulw.message)
         else:
-            json_console.print_json(
-                data={
-                    "success": ulw.success,
-                    "message": ulw.message,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(ulw.success, ulw.message)
         return None
     call = await subtensor.substrate.compose_call(
         call_module="Proxy",
@@ -389,18 +353,16 @@ async def add_proxy(
         )
 
         if json_output:
-            json_console.print_json(
+            print_transaction_with_data(
+                success,
+                msg,
+                await receipt.get_extrinsic_identifier(),
                 data={
-                    "success": success,
-                    "message": msg,
-                    "data": {
-                        "delegatee": delegatee,
-                        "delegator": delegator,
-                        "proxy_type": created_proxy_type.value,
-                        "delay": delay,
-                    },
-                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                }
+                    "delegatee": delegatee,
+                    "delegator": delegator,
+                    "proxy_type": created_proxy_type.value,
+                    "delay": delay,
+                },
             )
         else:
             await print_extrinsic_id(receipt)
@@ -440,14 +402,7 @@ async def add_proxy(
                     )
     else:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": success,
-                    "message": msg,
-                    "data": None,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_with_data(success, msg, None, data=None)
         else:
             print_error(f"Failed to add proxy: {msg}")
     return None
@@ -485,13 +440,7 @@ async def kill_proxy(
         if not json_output:
             print_error(ulw.message)
         else:
-            json_console.print_json(
-                data={
-                    "success": ulw.success,
-                    "message": ulw.message,
-                    "extrinsic_identifier": None,
-                }
-            )
+            print_transaction_response(ulw.success, ulw.message)
         return None
     spawner = spawner or wallet.coldkeypub.ss58_address
     call = await subtensor.substrate.compose_call(
@@ -651,13 +600,10 @@ async def execute_announced(
                     "You should rerun this command on an archive node endpoint."
                 )
                 if json_output:
-                    json_console.print_json(
-                        data={
-                            "success": False,
-                            "message": f"Unable to regenerate the call data using the latest runtime: {e}. "
-                            "You should rerun this command on an archive node endpoint.",
-                            "extrinsic_identifier": None,
-                        }
+                    print_transaction_response(
+                        False,
+                        f"Unable to regenerate the call data using the latest runtime: {e}. "
+                        "You should rerun this command on an archive node endpoint.",
                     )
                 return False
 
@@ -680,21 +626,13 @@ async def execute_announced(
     )
     if success is True:
         if json_output:
-            json_console.print_json(
-                data={
-                    "success": True,
-                    "message": msg,
-                    "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                }
-            )
+            print_transaction_response(True, msg, await receipt.get_extrinsic_identifier())
         else:
             print_success("Success!")
             await print_extrinsic_id(receipt)
     else:
         if json_output:
-            json_console.print_json(
-                data={"success": False, "message": msg, "extrinsic_identifier": None}
-            )
+            print_transaction_response(False, msg)
         else:
             print_error(f"Failed. {msg} ")
     return success
