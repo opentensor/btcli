@@ -8595,11 +8595,6 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
-        show_identities: Optional[str] = typer.Option(
-            None,
-            "--show-identities",
-            help="Show identity names for creators and target addresses. Use 'true' or 'false', or omit for default (true).",
-        ),
         status: Optional[str] = typer.Option(
             None,
             "--status",
@@ -8634,7 +8629,6 @@ class CLIManager:
         or a general fundraising crowdloan.
 
         Use `--verbose` for full-precision amounts and longer addresses.
-        Use `--show-identities` to show identity names (default: true).
         Use `--status` to filter by status (active, funded, closed, finalized).
         Use `--type` to filter by type (subnet, fundraising).
         Use `--sort-by` and `--sort-order` to sort results.
@@ -8646,8 +8640,6 @@ class CLIManager:
 
         [green]$[/green] btcli crowd list --verbose
 
-        [green]$[/green] btcli crowd list --show-identities true
-
         [green]$[/green] btcli crowd list --status active --type subnet
 
         [green]$[/green] btcli crowd list --sort-by raised --sort-order desc
@@ -8655,16 +8647,11 @@ class CLIManager:
         [green]$[/green] btcli crowd list --search-creator "5D..."
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
-        # Parse show_identities: None or "true" -> True, "false" -> False
-        show_identities_bool = True  # default
-        if show_identities is not None:
-            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
         return self._run_command(
             view_crowdloan.list_crowdloans(
                 subtensor=self.initialize_chain(network),
                 verbose=verbose,
                 json_output=json_output,
-                show_identities=show_identities_bool,
                 status_filter=status,
                 type_filter=type_filter,
                 sort_by=sort_by,
@@ -8689,11 +8676,6 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
-        show_identities: Optional[str] = typer.Option(
-            None,
-            "--show-identities",
-            help="Show identity names for creator and target address. Use 'true' or 'false', or omit for default (true).",
-        ),
         show_contributors: Optional[str] = typer.Option(
             None,
             "--show-contributors",
@@ -8704,7 +8686,6 @@ class CLIManager:
         Display detailed information about a specific crowdloan.
 
         Includes funding progress, target account, and call details among other information.
-        Use `--show-identities` to show identity names (default: true).
         Use `--show-contributors` to display the list of contributors (default: false).
 
         EXAMPLES
@@ -8713,9 +8694,7 @@ class CLIManager:
 
         [green]$[/green] btcli crowd info --id 1 --verbose
 
-        [green]$[/green] btcli crowd info --id 0 --show-identities true
-
-        [green]$[/green] btcli crowd info --id 0 --show-identities true --show-contributors true
+        [green]$[/green] btcli crowd info --id 0 --show-contributors true
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
 
@@ -8736,11 +8715,6 @@ class CLIManager:
                 validate=WV.WALLET,
             )
 
-        # Parse show_identities: None or "true" -> True, "false" -> False
-        show_identities_bool = True  # default
-        if show_identities is not None:
-            show_identities_bool = show_identities.lower() in ("true", "1", "yes")
-
         # Parse show_contributors: None or "false" -> False, "true" -> True
         show_contributors_bool = False  # default
         if show_contributors is not None:
@@ -8753,7 +8727,6 @@ class CLIManager:
                 wallet=wallet,
                 verbose=verbose,
                 json_output=json_output,
-                show_identities=show_identities_bool,
                 show_contributors=show_contributors_bool,
             )
         )
