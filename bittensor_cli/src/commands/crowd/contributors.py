@@ -1,6 +1,7 @@
 from typing import Optional
 import json
 from rich.table import Table
+import asyncio
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.balances import Balance
@@ -37,7 +38,8 @@ async def list_contributors(
     Returns:
         bool: True if successful, False otherwise
     """
-    crowdloan = await subtensor.get_single_crowdloan(crowdloan_id)
+    with console.status(":satellite: Fetching crowdloan details..."):
+        crowdloan = await subtensor.get_single_crowdloan(crowdloan_id)
     if not crowdloan:
         error_msg = f"Crowdloan #{crowdloan_id} not found."
         if json_output:
@@ -46,7 +48,11 @@ async def list_contributors(
             print_error(f"{error_msg}")
         return False
 
-    contributor_contributions = await subtensor.get_crowdloan_contributors(crowdloan_id)
+    with console.status(":satellite: Fetching contributors and identities..."):
+        contributor_contributions, all_identities = await asyncio.gather(
+            subtensor.get_crowdloan_contributors(crowdloan_id),
+            subtensor.query_all_identities(),
+        )
 
     if not contributor_contributions:
         if json_output:
@@ -69,8 +75,6 @@ async def list_contributors(
                 f"[yellow]No contributors found for crowdloan #{crowdloan_id}.[/yellow]"
             )
         return True
-
-    all_identities = await subtensor.query_all_identities()
 
     total_contributed = sum(
         contributor_contributions.values(), start=Balance.from_tao(0)
