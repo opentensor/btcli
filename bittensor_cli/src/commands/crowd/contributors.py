@@ -1,5 +1,4 @@
 from typing import Optional
-import asyncio
 import json
 from rich.table import Table
 
@@ -11,7 +10,6 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     print_error,
     millify_tao,
-    decode_account_id,
 )
 
 
@@ -20,8 +18,6 @@ def _shorten(account: Optional[str]) -> str:
     if not account:
         return "-"
     return f"{account[:6]}…{account[-6:]}"
-
-
 
 
 async def list_contributors(
@@ -51,54 +47,7 @@ async def list_contributors(
             print_error(f"[red]{error_msg}[/red]")
         return False
 
-    # Query contributors from Contributions storage (double map)
-    # Query map with first key fixed to crowdloan_id to get all contributors
-    contributors_data = await subtensor.substrate.query_map(
-        module="Crowdloan",
-        storage_function="Contributions",
-        params=[crowdloan_id],
-        fully_exhaust=True,
-    )
-
-    # Extract contributors and their contributions from the map
-    contributor_contributions = {}
-    async for contributor_key, contribution_amount in contributors_data:
-        # Extract contributor address from the storage key
-        # For double maps queried with first key fixed, the key is a tuple: ((account_bytes_tuple,),)
-        # where account_bytes_tuple is a tuple of integers representing the account ID
-        try:
-            # The key structure is: ((account_bytes_tuple,),)
-            # where account_bytes_tuple is a tuple of integers (32 bytes = 32 ints)
-            if isinstance(contributor_key, tuple) and len(contributor_key) > 0:
-                inner_tuple = contributor_key[0]
-                if isinstance(inner_tuple, tuple):
-                    # Decode the account ID from the tuple of integers
-                    # decode_account_id handles both tuple[int] and tuple[tuple[int]] formats
-                    contributor_address = decode_account_id(contributor_key)
-                else:
-                    # Fallback: try to decode directly
-                    contributor_address = decode_account_id(contributor_key)
-            else:
-                # Fallback: try to decode the key directly
-                contributor_address = decode_account_id(contributor_key)
-
-            # Store contribution amount
-            # The value is a BittensorScaleType object, access .value to get the integer
-            contribution_value = (
-                contribution_amount.value
-                if hasattr(contribution_amount, "value")
-                else contribution_amount
-            )
-            contribution_balance = (
-                Balance.from_rao(int(contribution_value))
-                if contribution_value
-                else Balance.from_tao(0)
-            )
-            contributor_contributions[contributor_address] = contribution_balance
-        except Exception as e:
-            # Skip invalid entries - uncomment for debugging
-            # print(f"Error processing contributor: {e}, key: {contributor_key}")
-            continue
+    contributor_contributions = await subtensor.get_crowdloan_contributors(crowdloan_id)
 
     if not contributor_contributions:
         if json_output:
