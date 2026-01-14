@@ -8676,10 +8676,10 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
-        show_contributors: Optional[str] = typer.Option(
-            None,
+        show_contributors: bool = typer.Option(
+            False,
             "--show-contributors",
-            help="Show contributor list with identities. Use 'true' or 'false', or omit for default (false).",
+            help="Show contributor list with identities.",
         ),
     ):
         """
@@ -8715,11 +8715,6 @@ class CLIManager:
                 validate=WV.WALLET,
             )
 
-        # Parse show_contributors: None or "false" -> False, "true" -> True
-        show_contributors_bool = False  # default
-        if show_contributors is not None:
-            show_contributors_bool = show_contributors.lower() in ("true", "1", "yes")
-
         return self._run_command(
             view_crowdloan.show_crowdloan_details(
                 subtensor=self.initialize_chain(network),
@@ -8727,7 +8722,7 @@ class CLIManager:
                 wallet=wallet,
                 verbose=verbose,
                 json_output=json_output,
-                show_contributors=show_contributors_bool,
+                show_contributors=show_contributors,
             )
         )
 
