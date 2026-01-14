@@ -167,6 +167,42 @@ def print_success(message: str, status=None):
         print_console(success_message, "green", console)
 
 
+def print_protection_warnings(
+    mev_protection: bool,
+    safe_staking: Optional[bool] = None,
+    command_name: str = "",
+) -> None:
+    """
+    Print warnings about missing MEV protection and/or limit price protection.
+
+    Args:
+        mev_protection: Whether MEV protection is enabled.
+        safe_staking: Whether safe staking (limit price protection) is enabled.
+                      None if limit price protection is not available for this command.
+        command_name: Name of the command (e.g., "stake add") for context.
+    """
+    warnings = []
+
+    if not mev_protection:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] MEV protection is disabled. "
+            "This transaction may be exposed to MEV attacks.[/dim]"
+        )
+
+    if safe_staking is not None and not safe_staking:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] Limit price protection (safe staking) is disabled. "
+            "This transaction may be subject to slippage.[/dim]"
+        )
+
+    if warnings:
+        if command_name:
+            console.print(f"\n[dim]Protection status for '{command_name}':[/dim]")
+        for warning in warnings:
+            console.print(warning)
+        console.print()
+
+
 RAO_PER_TAO = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615

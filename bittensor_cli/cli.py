@@ -74,6 +74,7 @@ from bittensor_cli.src.bittensor.utils import (
     ProxyAddressBook,
     ProxyAnnouncements,
     confirm_action,
+    print_protection_warnings,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -4699,7 +4700,12 @@ class CLIManager:
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-            console.print("\n")
+
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake add",
+        )
 
         if netuids:
             netuids = parse_to_list(
@@ -5016,8 +5022,12 @@ class CLIManager:
             if safe_staking:
                 rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
                 allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-                console.print("\n")
 
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake remove",
+        )
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
         ):
@@ -5353,6 +5363,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="stake move",
+        )
         if prompt:
             if not confirm_action(
                 "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
@@ -5574,6 +5589,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="stake transfer",
+        )
         if prompt:
             if not confirm_action(
                 "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
@@ -5780,6 +5800,15 @@ class CLIManager:
             "[dim]This command moves stake from one subnet to another subnet while keeping "
             "the same coldkey-hotkey pair.[/dim]"
         )
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake swap",
+        )
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -5803,10 +5832,6 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
-        safe_staking = self.ask_safe_staking(safe_staking)
-        if safe_staking:
-            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
-            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
 
         logger.debug(
             "args:\n"
@@ -7598,6 +7623,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="subnets create",
+        )
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
