@@ -22,15 +22,6 @@ def _shorten(account: Optional[str]) -> str:
     return f"{account[:6]}…{account[-6:]}"
 
 
-def _get_identity_name(identity: dict) -> str:
-    """Extract identity name from identity dict."""
-    if not identity:
-        return "-"
-    info = identity.get("info", {})
-    display = info.get("display", {})
-    if isinstance(display, dict):
-        return display.get("Raw", "") or display.get("value", "") or "-"
-    return str(display) if display else "-"
 
 
 async def list_contributors(
@@ -131,21 +122,20 @@ async def list_contributors(
             )
         return True
 
-    # Fetch identities for all contributors
-    contributors_list = list(contributor_contributions.keys())
-    identity_tasks = [
-        subtensor.query_identity(contributor) for contributor in contributors_list
-    ]
-    identities = await asyncio.gather(*identity_tasks)
+    all_identities = await subtensor.query_all_identities()
 
     # Build contributor data list
+    contributors_list = list(contributor_contributions.keys())
     contributor_data = []
     total_contributed = Balance.from_tao(0)
 
-    for contributor_address, identity in zip(contributors_list, identities):
+    for contributor_address in contributors_list:
         contribution_amount = contributor_contributions[contributor_address]
         total_contributed += contribution_amount
-        identity_name = _get_identity_name(identity)
+        identity = all_identities.get(contributor_address)
+        identity_name = None
+        if identity:
+            identity_name = identity.get("name") or identity.get("display")
 
         contributor_data.append(
             {
