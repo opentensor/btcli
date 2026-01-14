@@ -25,47 +25,6 @@ def _shorten(account: Optional[str]) -> str:
     return f"{account[:6]}…{account[-6:]}"
 
 
-def _get_identity_name(identity: dict) -> str:
-    """Extract identity name from identity dict.
-
-    Handles both flat structure (from decode_hex_identity) and nested structure.
-    """
-    if not identity:
-        return ""
-
-    # Try direct display/name fields first (flat structure from decode_hex_identity)
-    if identity.get("display"):
-        display = identity.get("display")
-        if isinstance(display, str):
-            return display
-        if isinstance(display, dict):
-            return display.get("Raw", "") or display.get("value", "") or ""
-
-    if identity.get("name"):
-        name = identity.get("name")
-        if isinstance(name, str):
-            return name
-        if isinstance(name, dict):
-            return name.get("Raw", "") or name.get("value", "") or ""
-
-    # Try nested structure (info.display.Raw)
-    info = identity.get("info", {})
-    if info:
-        display = info.get("display", {})
-        if isinstance(display, dict):
-            return display.get("Raw", "") or display.get("value", "") or ""
-        if isinstance(display, str):
-            return display
-
-        name = info.get("name", {})
-        if isinstance(name, dict):
-            return name.get("Raw", "") or name.get("value", "") or ""
-        if isinstance(name, str):
-            return name
-
-    return ""
-
-
 def _status(loan: CrowdloanData, current_block: int) -> str:
     if loan.finalized:
         return "Finalized"
@@ -104,7 +63,6 @@ async def list_crowdloans(
     subtensor: SubtensorInterface,
     verbose: bool = False,
     json_output: bool = False,
-    show_identities: bool = True,
     status_filter: Optional[str] = None,
     type_filter: Optional[str] = None,
     sort_by: Optional[str] = None,
@@ -117,7 +75,6 @@ async def list_crowdloans(
         subtensor: SubtensorInterface object for chain interaction
         verbose: Show full addresses and precise amounts
         json_output: Output as JSON
-        show_identities: Show identity names for creators and targets
         status_filter: Filter by status (active, funded, closed, finalized)
         type_filter: Filter by type (subnet, fundraising)
         sort_by: Sort by field (raised, end, contributors, id)
@@ -125,9 +82,10 @@ async def list_crowdloans(
         search_creator: Search by creator address or identity name
     """
 
-    current_block, loans = await asyncio.gather(
+    current_block, loans, all_identities = await asyncio.gather(
         subtensor.substrate.get_block_number(None),
         subtensor.get_crowdloans(),
+        subtensor.query_all_identities(),
     )
     if not loans:
         if json_output:
@@ -150,22 +108,18 @@ async def list_crowdloans(
             console.print("[yellow]No crowdloans found.[/yellow]")
         return True
 
-    # Batch fetch identities early if needed for filtering/searching
+    # Build identity map from all identities
     identity_map = {}
-    if show_identities or search_creator:
-        addresses_to_fetch = set()
-        for loan in loans.values():
-            addresses_to_fetch.add(loan.creator)
-            if loan.target_address:
-                addresses_to_fetch.add(loan.target_address)
+    addresses_to_check = set()
+    for loan in loans.values():
+        addresses_to_check.add(loan.creator)
+        if loan.target_address:
+            addresses_to_check.add(loan.target_address)
 
-        identity_tasks = [
-            subtensor.query_identity(address) for address in addresses_to_fetch
-        ]
-        identities = await asyncio.gather(*identity_tasks)
-
-        for address, identity in zip(addresses_to_fetch, identities):
-            identity_name = _get_identity_name(identity)
+    for address in addresses_to_check:
+        identity = all_identities.get(address)
+        if identity:
+            identity_name = identity.get("name") or identity.get("display")
             if identity_name:
                 identity_map[address] = identity_name
 
@@ -263,12 +217,10 @@ async def list_crowdloans(
                 "time_remaining": time_remaining,
                 "contributors_count": loan.contributors_count,
                 "creator": loan.creator,
-                "creator_identity": identity_map.get(loan.creator)
-                if show_identities
-                else None,
+                "creator_identity": identity_map.get(loan.creator),
                 "target_address": loan.target_address,
                 "target_identity": identity_map.get(loan.target_address)
-                if show_identities and loan.target_address
+                if loan.target_address
                 else None,
                 "funds_account": loan.funds_account,
                 "call": call_info,
@@ -483,7 +435,7 @@ async def list_crowdloans(
             time_cell = time_label
 
         # Format creator cell with identity if available
-        if show_identities and loan.creator in identity_map:
+        if loan.creator in identity_map:
             creator_identity = identity_map[loan.creator]
             if verbose:
                 creator_cell = f"{creator_identity} ({loan.creator})"
@@ -494,7 +446,7 @@ async def list_crowdloans(
 
         # Format target cell with identity if available
         if loan.target_address:
-            if show_identities and loan.target_address in identity_map:
+            if loan.target_address in identity_map:
                 target_identity = identity_map[loan.target_address]
                 if verbose:
                     target_cell = f"{target_identity} ({loan.target_address})"
@@ -560,16 +512,19 @@ async def show_crowdloan_details(
     wallet: Optional[Wallet] = None,
     verbose: bool = False,
     json_output: bool = False,
-    show_identities: bool = True,
     show_contributors: bool = False,
 ) -> tuple[bool, str]:
     """Display detailed information about a specific crowdloan."""
 
     if not crowdloan or not current_block:
-        current_block, crowdloan = await asyncio.gather(
+        current_block, crowdloan, all_identities = await asyncio.gather(
             subtensor.substrate.get_block_number(None),
             subtensor.get_single_crowdloan(crowdloan_id),
+            subtensor.query_all_identities(),
         )
+    else:
+        all_identities = await subtensor.query_all_identities()
+
     if not crowdloan:
         error_msg = f"Crowdloan #{crowdloan_id} not found."
         if json_output:
@@ -584,20 +539,16 @@ async def show_crowdloan_details(
             crowdloan_id, wallet.coldkeypub.ss58_address
         )
 
-    # Fetch identities if show_identities is enabled
+    # Build identity map from all identities
     identity_map = {}
-    if show_identities:
-        addresses_to_fetch = [crowdloan.creator]
-        if crowdloan.target_address:
-            addresses_to_fetch.append(crowdloan.target_address)
+    addresses_to_check = [crowdloan.creator]
+    if crowdloan.target_address:
+        addresses_to_check.append(crowdloan.target_address)
 
-        identity_tasks = [
-            subtensor.query_identity(address) for address in addresses_to_fetch
-        ]
-        identities = await asyncio.gather(*identity_tasks)
-
-        for address, identity in zip(addresses_to_fetch, identities):
-            identity_name = _get_identity_name(identity)
+    for address in addresses_to_check:
+        identity = all_identities.get(address)
+        if identity:
+            identity_name = identity.get("name") or identity.get("display")
             if identity_name:
                 identity_map[address] = identity_name
 
@@ -669,9 +620,7 @@ async def show_crowdloan_details(
                 "status": status,
                 "finalized": crowdloan.finalized,
                 "creator": crowdloan.creator,
-                "creator_identity": identity_map.get(crowdloan.creator)
-                if show_identities
-                else None,
+                "creator_identity": identity_map.get(crowdloan.creator),
                 "funds_account": crowdloan.funds_account,
                 "raised": crowdloan.raised.tao,
                 "cap": crowdloan.cap.tao,
@@ -687,7 +636,7 @@ async def show_crowdloan_details(
                 "average_contribution": avg_contribution,
                 "target_address": crowdloan.target_address,
                 "target_identity": identity_map.get(crowdloan.target_address)
-                if show_identities and crowdloan.target_address
+                if crowdloan.target_address
                 else None,
                 "has_call": crowdloan.has_call,
                 "call_details": call_info,
@@ -698,8 +647,6 @@ async def show_crowdloan_details(
 
         # Add contributors list if requested
         if show_contributors:
-            from bittensor_cli.src.commands.crowd.contributors import list_contributors
-
             # We'll fetch contributors separately and add to output
             contributors_data = await subtensor.substrate.query_map(
                 module="Crowdloan",
@@ -730,17 +677,8 @@ async def show_crowdloan_details(
                 except Exception:
                     continue
 
-            # Fetch identities for contributors
             contributors_list = list(contributor_contributions.keys())
             if contributors_list:
-                contributor_identity_tasks = [
-                    subtensor.query_identity(contributor)
-                    for contributor in contributors_list
-                ]
-                contributor_identities = await asyncio.gather(
-                    *contributor_identity_tasks
-                )
-
                 contributors_json = []
                 total_contributed = Balance.from_tao(0)
                 for (
@@ -750,15 +688,16 @@ async def show_crowdloan_details(
                     total_contributed += contribution_amount
 
                 contributor_data = []
-                for contributor_address, identity in zip(
-                    contributors_list, contributor_identities
-                ):
+                for contributor_address in contributors_list:
                     contribution_amount = contributor_contributions[contributor_address]
-                    identity_name = _get_identity_name(identity)
+                    identity = all_identities.get(contributor_address)
+                    identity_name = None
+                    if identity:
+                        identity_name = identity.get("name") or identity.get("display")
                     contributor_data.append(
                         {
                             "address": contributor_address,
-                            "identity": identity_name if identity_name else None,
+                            "identity": identity_name,
                             "contribution": contribution_amount,
                         }
                     )
@@ -823,14 +762,15 @@ async def show_crowdloan_details(
     table.add_row("Status", f"[{status_color}]{status}[/{status_color}]{status_detail}")
 
     # Display creator with identity if available
-    creator_display = crowdloan.creator
-    if show_identities and crowdloan.creator in identity_map:
+    if crowdloan.creator in identity_map:
         creator_identity = identity_map[crowdloan.creator]
         if verbose:
             creator_display = f"{creator_identity} ({crowdloan.creator})"
         else:
             creator_display = f"{creator_identity} ({_shorten(crowdloan.creator)})"
-    elif not verbose:
+    elif verbose:
+        creator_display = crowdloan.creator
+    else:
         creator_display = _shorten(crowdloan.creator)
     table.add_row(
         "Creator",
@@ -940,7 +880,7 @@ async def show_crowdloan_details(
     table.add_section()
 
     if crowdloan.target_address:
-        if show_identities and crowdloan.target_address in identity_map:
+        if crowdloan.target_address in identity_map:
             target_identity = identity_map[crowdloan.target_address]
             if verbose:
                 target_display = f"{target_identity} ({crowdloan.target_address})"
@@ -1043,24 +983,17 @@ async def show_crowdloan_details(
                 continue
 
         if contributor_contributions:
-            # Fetch identities for contributors
             contributors_list = list(contributor_contributions.keys())
-            contributor_identity_tasks = [
-                subtensor.query_identity(contributor)
-                for contributor in contributors_list
-            ]
-            contributor_identities = await asyncio.gather(*contributor_identity_tasks)
-
-            # Build contributor data list
             contributor_data = []
             total_contributed = Balance.from_tao(0)
 
-            for contributor_address, identity in zip(
-                contributors_list, contributor_identities
-            ):
+            for contributor_address in contributors_list:
                 contribution_amount = contributor_contributions[contributor_address]
                 total_contributed += contribution_amount
-                identity_name = _get_identity_name(identity)
+                identity = all_identities.get(contributor_address)
+                identity_name = None
+                if identity:
+                    identity_name = identity.get("name") or identity.get("display")
 
                 contributor_data.append(
                     {
