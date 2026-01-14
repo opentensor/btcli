@@ -5795,6 +5795,15 @@ class CLIManager:
             "[dim]This command moves stake from one subnet to another subnet while keeping "
             "the same coldkey-hotkey pair.[/dim]"
         )
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake swap",
+        )
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -5818,10 +5827,6 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
-        safe_staking = self.ask_safe_staking(safe_staking)
-        if safe_staking:
-            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
-            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
 
         logger.debug(
             "args:\n"
