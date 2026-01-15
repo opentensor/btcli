@@ -811,6 +811,12 @@ HYPERPARAMS_METADATA = {
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxallowedvalidators",
     },
+    "max_uids": {
+        "description": "Maximum number of UIDs allowed in the subnet.",
+        "side_effects": "Lower values cap subnet size; higher values allow more neurons to register.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxalloweduids",
+    },
     "adjustment_alpha": {
         "description": "Alpha parameter for difficulty adjustment algorithm.",
         "side_effects": "Higher values make difficulty adjustments more aggressive; lower values provide smoother transitions.",

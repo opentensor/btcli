@@ -172,6 +172,7 @@ class SubnetHyperparameters(InfoBase):
         max_regs_per_block (int): Maximum number of registrations per block.
         serving_rate_limit (int): Limit on the rate of service.
         max_validators (int): Maximum number of validators.
+        max_uids (int): Maximum number of UIDs allowed on the subnet.
         adjustment_alpha (int): Alpha value for adjustments.
         difficulty (int): Difficulty level.
         commit_reveal_period (int): Interval for commit-reveal weights.
@@ -207,6 +208,7 @@ class SubnetHyperparameters(InfoBase):
     max_regs_per_block: int
     serving_rate_limit: int
     max_validators: int
+    max_uids: int
     adjustment_alpha: int
     difficulty: int
     commit_reveal_period: int
@@ -246,6 +248,7 @@ class SubnetHyperparameters(InfoBase):
             max_difficulty=decoded["max_difficulty"],
             max_regs_per_block=decoded["max_regs_per_block"],
             max_validators=decoded["max_validators"],
+            max_uids=decoded.get("max_uids", decoded.get("max_allowed_uids")),
             max_weight_limit=decoded["max_weights_limit"],
             min_allowed_weights=decoded["min_allowed_weights"],
             min_burn=decoded["min_burn"],
