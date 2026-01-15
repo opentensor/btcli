@@ -726,51 +726,64 @@ async def wallet_balance(
 
 
 async def get_wallet_transfers(wallet_address: str) -> list[dict]:
-    """Get all transfers associated with the provided wallet address."""
-
-    api_url = "https://api.subquery.network/sq/TaoStats/bittensor-indexer"
-    max_txn = 1000
-    graphql_query = """
-    query ($first: Int!, $after: Cursor, $filter: TransferFilter, $order: [TransfersOrderBy!]!) {
-        transfers(first: $first, after: $after, filter: $filter, orderBy: $order) {
-            nodes {
-                id
-                from
-                to
-                amount
-                extrinsicId
-                blockNumber
-            }
-            pageInfo {
-                endCursor
-                hasNextPage
-                hasPreviousPage
-            }
-            totalCount
-        }
-    }
     """
-    variables = {
-        "first": max_txn,
-        "filter": {
-            "or": [
-                {"from": {"equalTo": wallet_address}},
-                {"to": {"equalTo": wallet_address}},
-            ]
-        },
-        "order": "BLOCK_NUMBER_DESC",
-    }
-    async with aiohttp.ClientSession() as session:
-        response = await session.post(
-            api_url, json={"query": graphql_query, "variables": variables}
-        )
-        data = await response.json()
+    Get all transfers associated with the provided wallet address.
 
-    # Extract nodes and pageInfo from the response
-    transfer_data = data.get("data", {}).get("transfers", {})
-    transfers = transfer_data.get("nodes", [])
+    Args:
+        wallet_address: The SS58 address of the wallet to fetch transfers for.
 
-    return transfers
+    Returns:
+        A list of transfer dictionaries containing transaction details.
+
+    Raises:
+        ValueError: If the API response is invalid or the request fails.
+    """
+    api_url = f"https://mainnet.scantensor.opentensor.ai/account/{wallet_address}/transactions"
+    timeout = aiohttp.ClientTimeout(total=30)
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(api_url) as response:
+                # Check if the request was successful
+                if response.status != 200:
+                    error_msg = (
+                        f"Failed to fetch wallet transfers. "
+                        f"API returned status {response.status}"
+                    )
+                    print_error(error_msg)
+                    raise ValueError(error_msg)
+
+                # Parse JSON response
+                try:
+                    data = await response.json()
+                except aiohttp.ContentTypeError as e:
+                    error_msg = "Invalid response format from API"
+                    print_error(f"{error_msg}: {str(e)}")
+                    raise ValueError(error_msg) from e
+
+                # Validate that data is a list
+                if not isinstance(data, list):
+                    error_msg = (
+                        f"Expected list of transfers, but got {type(data).__name__}. "
+                        f"Returning empty list."
+                    )
+                    print_error(error_msg)
+                    return []
+
+                return data
+
+    except aiohttp.ClientError as e:
+        error_msg = f"Network error while fetching wallet transfers: {str(e)}"
+        print_error(error_msg)
+        raise ValueError(error_msg) from e
+    except asyncio.TimeoutError:
+        error_msg = "Request timed out while fetching wallet transfers"
+        print_error(error_msg)
+        raise ValueError(error_msg)
+    except Exception as e:
+        error_msg = f"Unexpected error while fetching wallet transfers: {str(e)}"
+        print_error(error_msg)
+        raise ValueError(error_msg) from e
 
 
 def create_transfer_history_table(transfers: list[dict]) -> Table:
@@ -826,19 +839,19 @@ def create_transfer_history_table(transfers: list[dict]) -> Table:
         ratio=2,
     )
 
-    for item in transfers:
+    for id, item in enumerate(transfers):
         try:
             tao_amount = int(item["amount"]) / RAO_PER_TAO
         except ValueError:
             tao_amount = item["amount"]
         table.add_row(
-            item["id"],
+            str(id + 1),
             item["from"],
             item["to"],
             f"{tao_amount:.3f}",
-            str(item["extrinsicId"]),
-            item["blockNumber"],
-            f"{taostats_url_base}/{item['blockNumber']}-{item['extrinsicId']:04}",
+            str(item.get("event_index", "")),
+            str(item["block_number"]),
+            f"{taostats_url_base}/{item['block_number']}-{item.get('event_index', 0):04}",
         )
     table.add_row()
     return table
