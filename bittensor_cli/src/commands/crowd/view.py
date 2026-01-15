@@ -25,6 +25,11 @@ def _shorten(account: Optional[str]) -> str:
     return f"{account[:6]}…{account[-6:]}"
 
 
+def _identity_label(account: str, identities: dict[str, dict]) -> str:
+    identity = identities.get(account, {})
+    return identity.get("name") or identity.get("display") or _shorten(account)
+
+
 def _status(loan: CrowdloanData, current_block: int) -> str:
     if loan.finalized:
         return "Finalized"
@@ -358,6 +363,31 @@ async def show_crowdloan_details(
     }
     status_color = status_color_map.get(status, "white")
 
+    contributors: list[tuple[str, Balance]] = []
+    contributors_view: list[dict[str, object]] = []
+    if crowdloan.contributors_count > 0:
+        status_msg = "Fetching contributors and identities..." if not json_output else None
+        status_ctx = console.status(status_msg) if status_msg else None
+        try:
+            if status_ctx:
+                status_ctx.__enter__()
+            contributors, identities = await asyncio.gather(
+                subtensor.get_crowdloan_contributors(crowdloan_id),
+                subtensor.query_all_identities(),
+            )
+            contributors_view = [
+                {
+                    "address": address,
+                    "identity": _identity_label(address, identities),
+                    "amount": contribution.tao,
+                }
+                for address, contribution in contributors
+            ]
+            contributors_view.sort(key=lambda x: x["amount"], reverse=True)
+        finally:
+            if status_ctx:
+                status_ctx.__exit__(None, None, None)
+
     if json_output:
         time_remaining = _time_remaining(crowdloan, current_block)
 
@@ -429,6 +459,7 @@ async def show_crowdloan_details(
                 "current_block": current_block,
                 "time_remaining": time_remaining,
                 "contributors_count": crowdloan.contributors_count,
+                "contributors": contributors_view,
                 "average_contribution": avg_contribution,
                 "target_address": crowdloan.target_address,
                 "has_call": crowdloan.has_call,
@@ -638,4 +669,27 @@ async def show_crowdloan_details(
                         table.add_row(arg_name, str(display_value))
 
     console.print(table)
+    if contributors_view:
+        contrib_table = Table(
+            Column("Contributor", style=COLORS.G.SUBHEAD, no_wrap=True),
+            Column("Identity", style=COLORS.G.TEMPO),
+            Column(f"Contribution ({Balance.get_unit(0)})", style=COLORS.P.TAO),
+            title=f"[{COLORS.G.HEADER}]Contributors[/]",
+            show_header=True,
+            show_edge=False,
+            box=box.SIMPLE,
+            border_style="bright_black",
+        )
+        for entry in contributors_view:
+            amount = (
+                f"τ {entry['amount']:,.4f}"
+                if verbose
+                else f"τ {millify_tao(entry['amount'])}"
+            )
+            contrib_table.add_row(
+                _shorten(entry["address"]),
+                entry["identity"],
+                amount,
+            )
+        console.print(contrib_table)
     return True, f"Displayed info for crowdloan #{crowdloan_id}"

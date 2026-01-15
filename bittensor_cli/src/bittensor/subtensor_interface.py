@@ -1925,6 +1925,44 @@ class SubtensorInterface:
             return Balance.from_rao(contribution)
         return None
 
+    async def get_crowdloan_contributors(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[tuple[str, Balance]]:
+        """
+        Retrieves all contributors and their contributions for a specific crowdloan.
+
+        Args:
+            crowdloan_id: The ID of the crowdloan.
+            block_hash: Optional block hash to query against.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            List of (contributor_ss58, contribution_balance) tuples.
+        """
+        result = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+        )
+        contributors: list[tuple[str, Balance]] = []
+        async for key, value in result:
+            # For double-map storage, the contributor is the remaining key after crowdloan_id.
+            contributor_key = key[0] if isinstance(key, (list, tuple)) else key
+            contributor_ss58 = decode_account_id(contributor_key)
+            amount = (
+                Balance.from_rao(value.value)
+                if hasattr(value, "value")
+                else Balance.from_rao(value)
+            )
+            contributors.append((contributor_ss58, amount))
+        return contributors
+
     async def get_coldkey_swap_schedule_duration(
         self,
         block_hash: Optional[str] = None,

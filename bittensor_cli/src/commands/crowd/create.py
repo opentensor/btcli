@@ -36,6 +36,9 @@ async def create_crowdloan(
     subnet_lease: Optional[bool],
     emissions_share: Optional[int],
     lease_end_block: Optional[int],
+    call_module: Optional[str],
+    call_function: Optional[str],
+    call_args: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
@@ -273,6 +276,51 @@ async def create_crowdloan(
 
         call_to_attach = None
 
+    if call_module or call_function or call_args:
+        if not call_module or not call_function:
+            error_msg = "Both --call-module and --call-function are required for custom calls."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+        if crowdloan_type == "subnet":
+            error_msg = "Custom calls cannot be combined with subnet lease crowdloans."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+        try:
+            call_params = json.loads(call_args) if call_args else {}
+        except json.JSONDecodeError as exc:
+            error_msg = f"Invalid JSON for --call-args: {exc}"
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+        if call_params and not isinstance(call_params, dict):
+            error_msg = "--call-args must be a JSON object."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+        try:
+            call_to_attach = await subtensor.substrate.compose_call(
+                call_module=call_module,
+                call_function=call_function,
+                call_params=call_params,
+            )
+        except Exception as exc:
+            error_msg = f"Failed to compose custom call: {exc}"
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+
     creator_balance = await subtensor.get_balance(
         proxy or wallet.coldkeypub.ss58_address
     )
@@ -336,6 +384,8 @@ async def create_crowdloan(
                 else f"[{COLORS.G.SUBHEAD_MAIN}]Not specified[/{COLORS.G.SUBHEAD_MAIN}]"
             )
             table.add_row("Target address", target_text)
+            if call_module and call_function:
+                table.add_row("Custom Call", f"{call_module}.{call_function}")
 
         table.add_row("Deposit", f"[{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]")
         table.add_row(
@@ -408,6 +458,12 @@ async def create_crowdloan(
             output_dict["data"]["perpetual_lease"] = lease_end_block is None
         else:
             output_dict["data"]["target_address"] = target_address
+            if call_module and call_function:
+                output_dict["data"]["call"] = {
+                    "pallet": call_module,
+                    "method": call_function,
+                    "args": json.loads(call_args) if call_args else {},
+                }
 
         json_console.print(json.dumps(output_dict))
         message = f"{crowdloan_type.capitalize()} crowdloan created successfully."
