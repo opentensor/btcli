@@ -52,7 +52,7 @@ _no_color = os.getenv("NO_COLOR", "") != "" or not sys.stdout.isatty() or _is_py
 _force_terminal = False if (_is_pytest or not sys.stdout.isatty()) else None
 console = Console(no_color=_no_color, force_terminal=_force_terminal)
 json_console = Console(
-    markup=False, highlight=False, force_terminal=False, no_color=True
+    markup=False, highlight=False, force_terminal=True, no_color=True
 )
 err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_terminal)
 verbose_console = Console(

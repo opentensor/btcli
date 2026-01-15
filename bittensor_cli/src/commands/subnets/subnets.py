@@ -601,7 +601,7 @@ async def subnets_list(
             tao_flow_ema = None
             if netuid in ema_tao_inflow:
                 tao_flow_ema = ema_tao_inflow[netuid].tao
-                total_tao_flow_ema += tao_flow_ema.tao
+                total_tao_flow_ema += tao_flow_ema
             subnet_rows[netuid] = {
                 "netuid": netuid,
                 "subnet_name": subnet_name,
