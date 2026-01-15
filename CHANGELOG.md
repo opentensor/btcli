@@ -1,5 +1,21 @@
 # Changelog
 
+## 9.18.0 /2026-01-15
+
+## What's Changed
+* Standardize Success Message Printing with print.success by @leonace924 in https://github.com/opentensor/btcli/pull/786
+* Fix live display formatting on macOS Terminal.app by @calm329 in https://github.com/opentensor/btcli/pull/789
+* Update User Liquidity E2E test  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/794
+* updated proxy help text by @chideraao in https://github.com/opentensor/btcli/pull/788
+* Update DurationOfStartCall -> InitialStartCallDelay by @ibraheem-abe in https://github.com/opentensor/btcli/pull/797
+* Feat: Add protection warnings by @ibraheem-abe in https://github.com/opentensor/btcli/pull/799
+* feat: Add crowdloan contributors command and enhance create/view functionality by @circlecrystalin & @ibraheem-abe in https://github.com/opentensor/btcli/pull/776
+
+## New Contributors
+* @circlecrystalin made their first contribution in https://github.com/opentensor/btcli/pull/776
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.17.0...v9.18.0
+
 ## 9.17.0 /2025-12-22
 
 ## What's Changed
