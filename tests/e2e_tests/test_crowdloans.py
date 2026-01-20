@@ -1373,3 +1373,241 @@ def test_crowdloan_refund(local_chain, wallet_setup):
     assert "finalized" in refund_output.get("error", "").lower()
 
     print("✅ Crowdloan refund test passed")
+
+
+def test_crowdloan_dissolve(local_chain, wallet_setup):
+    """
+    Test dissolve functionality:
+    - Successful dissolution: Dissolve after all contributors refunded
+    - Dissolution failure: Cannot dissolve when contributors still exist
+    - Dissolution failure: Cannot dissolve finalized crowdloan
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
+
+    alice_address = wallet_alice.coldkeypub.ss58_address
+    bob_address = wallet_bob.coldkeypub.ss58_address
+
+    print("\n🧪 Testing Crowdloan Dissolve Functionality...")
+
+    # Create a fundraising crowdloan
+    create_result = exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    create_output = json.loads(create_result.stdout)
+    assert create_output.get("success") is True
+    crowdloan_id = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    # Test 1: Cannot dissolve when contributors still exist
+    exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "30",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_result = exec_command_alice(
+        command="crowd",
+        sub_command="dissolve",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_output = json.loads(dissolve_result.stdout)
+    assert dissolve_output.get("success") is False
+    assert "contributors" in dissolve_output.get("error", "").lower()
+
+    # Test 2: Successful dissolution after refunding all contributors
+    exec_command_alice(
+        command="crowd",
+        sub_command="refund",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_result = exec_command_alice(
+        command="crowd",
+        sub_command="dissolve",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_output = json.loads(dissolve_result.stdout)
+    assert dissolve_output.get("success") is True
+    assert dissolve_output["data"]["crowdloan_id"] == crowdloan_id
+
+    # Test 3: Cannot dissolve finalized crowdloan
+    exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    crowdloan_id2 = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "90",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    exec_command_alice(
+        command="crowd",
+        sub_command="finalize",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_result = exec_command_alice(
+        command="crowd",
+        sub_command="dissolve",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    dissolve_output = json.loads(dissolve_result.stdout)
+    assert dissolve_output.get("success") is False
+    assert "finalized" in dissolve_output.get("error", "").lower()
+
+    print("✅ Crowdloan dissolve test passed")
