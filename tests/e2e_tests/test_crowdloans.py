@@ -784,3 +784,183 @@ def test_crowdloan_withdraw(local_chain, wallet_setup):
     assert withdraw_output.get("success") is False
 
     print("✅ Crowdloan withdraw test passed")
+
+
+def test_crowdloan_finalize(local_chain, wallet_setup):
+    """
+    Test finalization functionality:
+    - Successful finalization: Finalize crowdloan that reached cap
+    - Finalization failure: Cannot finalize before cap is reached
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
+
+    alice_address = wallet_alice.coldkeypub.ss58_address
+    bob_address = wallet_bob.coldkeypub.ss58_address
+
+    print("\n🧪 Testing Crowdloan Finalize Functionality...")
+
+    # Create a fundraising crowdloan with cap of 100
+    create_result = exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    create_output = json.loads(create_result.stdout)
+    assert create_output.get("success") is True
+    crowdloan_id = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    # Cannot finalize before cap is reached
+    finalize_result = exec_command_alice(
+        command="crowd",
+        sub_command="finalize",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    finalize_output = json.loads(finalize_result.stdout)
+    assert finalize_output.get("success") is False
+    assert "cap" in finalize_output.get("error", "").lower()
+
+    # Bob contributes to reach cap
+    exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "90",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    # Bob tries to finalize (should fail)
+    finalize_result = exec_command_bob(
+        command="crowd",
+        sub_command="finalize",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    finalize_output = json.loads(finalize_result.stdout)
+    assert finalize_output.get("success") is False
+    assert "creator" in finalize_output.get("error", "").lower()
+
+    # Successful finalization by creator
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["raised"] >= info_output["data"]["cap"]
+    assert info_output["data"]["status"] == "Funded"
+
+    finalize_result = exec_command_alice(
+        command="crowd",
+        sub_command="finalize",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    finalize_output = json.loads(finalize_result.stdout)
+    assert finalize_output.get("success") is True
+    assert finalize_output["data"]["crowdloan_id"] == crowdloan_id
+
+    # Verify crowdloan is finalized
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["status"] == "Finalized"
+    assert info_output["data"]["finalized"] is True
+
+    print("✅ Crowdloan finalize test passed")
