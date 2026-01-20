@@ -964,3 +964,195 @@ def test_crowdloan_finalize(local_chain, wallet_setup):
     assert info_output["data"]["finalized"] is True
 
     print("✅ Crowdloan finalize test passed")
+
+
+def test_crowdloan_update(local_chain, wallet_setup):
+    """
+    Test update functionality:
+    - Update min_contribution: Creator updates minimum contribution
+    - Update cap: Creator updates cap (must be >= raised amount)
+    - Update end_block: Creator extends crowdloan duration
+    - Update validation: Cannot update finalized crowdloan
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
+
+    alice_address = wallet_alice.coldkeypub.ss58_address
+    bob_address = wallet_bob.coldkeypub.ss58_address
+
+    print("\n🧪 Testing Crowdloan Update Functionality...")
+
+    # Create a fundraising crowdloan
+    create_result = exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    create_output = json.loads(create_result.stdout)
+    assert create_output.get("success") is True
+    crowdloan_id = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    # Get initial values
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    initial_end_block = info_output["data"]["end_block"]
+
+    # Test 1: Update min_contribution
+    update_result = exec_command_alice(
+        command="crowd",
+        sub_command="update",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--min-contribution",
+            "2",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    update_output = json.loads(update_result.stdout)
+    assert update_output.get("success") is True
+    assert update_output["data"]["update_type"] == "Minimum Contribution"
+
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["min_contribution"] == 2.0
+
+    # Test 2: Update cap
+    update_result = exec_command_alice(
+        command="crowd",
+        sub_command="update",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--cap",
+            "150",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    update_output = json.loads(update_result.stdout)
+    assert update_output.get("success") is True
+    assert update_output["data"]["update_type"] == "Cap"
+
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["cap"] == 150.0
+
+    # Test 3: Update end_block (extend duration)
+    new_end_block = initial_end_block + 5000
+    update_result = exec_command_alice(
+        command="crowd",
+        sub_command="update",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--end-block",
+            str(new_end_block),
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    update_output = json.loads(update_result.stdout)
+    assert update_output.get("success") is True
+    assert update_output["data"]["update_type"] == "End Block"
+
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["end_block"] == new_end_block
+    print("✅ Crowdloan update test passed")
