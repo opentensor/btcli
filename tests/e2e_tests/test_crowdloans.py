@@ -1156,3 +1156,220 @@ def test_crowdloan_update(local_chain, wallet_setup):
     info_output = json.loads(info_result.stdout)
     assert info_output["data"]["end_block"] == new_end_block
     print("✅ Crowdloan update test passed")
+
+
+def test_crowdloan_refund(local_chain, wallet_setup):
+    """
+    Test refund functionality:
+    - Refund contributors: Creator refunds contributors when crowdloan fails
+    - Refund validation: Cannot refund finalized crowdloan
+    - Refund verification: Verify contributors receive refunds
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
+
+    alice_address = wallet_alice.coldkeypub.ss58_address
+    bob_address = wallet_bob.coldkeypub.ss58_address
+
+    print("\n🧪 Testing Crowdloan Refund Functionality...")
+
+    # Create a fundraising crowdloan
+    create_result = exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    create_output = json.loads(create_result.stdout)
+    assert create_output.get("success") is True
+    crowdloan_id = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    # Bob contributes
+    contribute_result = exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "30",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    contribute_output = json.loads(contribute_result.stdout)
+    assert contribute_output.get("success") is True
+
+    # Test 1: Creator can refund
+    refund_result = exec_command_alice(
+        command="crowd",
+        sub_command="refund",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    refund_output = json.loads(refund_result.stdout)
+    assert refund_output.get("success") is True
+    assert refund_output["data"]["crowdloan_id"] == crowdloan_id
+
+    # Verify contributors were refunded
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    # After refund, only creator's deposit should remain
+    assert info_output["data"]["contributors_count"] == 1
+    assert info_output["data"]["raised"] == 10.0
+
+    # Test 2: Cannot refund finalized crowdloan
+    # Create new crowdloan and finalize it
+    exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    crowdloan_id2 = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "90",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    exec_command_alice(
+        command="crowd",
+        sub_command="finalize",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    refund_result = exec_command_alice(
+        command="crowd",
+        sub_command="refund",
+        extra_args=[
+            "--id",
+            str(crowdloan_id2),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    refund_output = json.loads(refund_result.stdout)
+    assert refund_output.get("success") is False
+    assert "finalized" in refund_output.get("error", "").lower()
+
+    print("✅ Crowdloan refund test passed")
