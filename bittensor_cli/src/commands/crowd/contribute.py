@@ -414,6 +414,7 @@ async def withdraw_from_crowdloan(
     user_contribution, user_balance = await asyncio.gather(
         subtensor.get_crowdloan_contribution(
             crowdloan_id,
+            contributor_address,
         ),
         subtensor.get_balance(contributor_address),
     )
