@@ -4163,6 +4163,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         force_swap: bool = typer.Option(
@@ -4237,6 +4238,8 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 new_coldkey_ss58=new_wallet_coldkey_ss58,
                 force_swap=force_swap,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
             )
         )
@@ -5961,6 +5964,8 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
                     mev_protection=mev_protection,
                 )
             )
@@ -6048,6 +6053,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6090,6 +6096,8 @@ class CLIManager:
                 netuids=netuids,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -6104,6 +6112,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6157,6 +6166,8 @@ class CLIManager:
                 netuids=parsed_netuids,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
                 verbose=verbose,
             )
@@ -6517,6 +6528,7 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6564,18 +6576,17 @@ class CLIManager:
             mechanism_count = IntPrompt.ask(prompt_text)
 
         if mechanism_count == current_count:
-            visible_count = max(mechanism_count - 1, 0)
             message = (
                 ":white_heavy_check_mark: "
-                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
-                f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
+                f"[dark_sea_green3]Subnet {netuid} already has {mechanism_count} mechanism"
+                f"{'s' if mechanism_count != 1 else ''}.[/dark_sea_green3]"
             )
             if json_output:
                 json_console.print(
                     json.dumps(
                         {
                             "success": True,
-                            "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
+                            "message": f"Subnet {netuid} already has {mechanism_count} mechanisms.",
                             "extrinsic_identifier": None,
                         }
                     )
@@ -6610,6 +6621,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 json_output=json_output,
+                quiet=quiet,
+                decline=decline,
             )
         )
 
@@ -6668,6 +6681,7 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6707,6 +6721,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -7606,6 +7622,7 @@ class CLIManager:
         mev_protection: bool = Options.mev_protection,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7666,6 +7683,8 @@ class CLIManager:
                 proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 mev_protection=mev_protection,
             )
         )
@@ -7700,6 +7719,7 @@ class CLIManager:
         announce_only: bool = Options.announce_only,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7736,6 +7756,8 @@ class CLIManager:
                 netuid=netuid,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
             )
         )
 
@@ -7798,6 +7820,7 @@ class CLIManager:
         ),
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7858,6 +7881,8 @@ class CLIManager:
                 netuid=netuid,
                 subnet_identity=identity,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
             )
         )
