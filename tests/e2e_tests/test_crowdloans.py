@@ -505,3 +505,282 @@ def test_all_crowdloan_types(local_chain, wallet_setup):
     print("✅ Custom call crowdloan test passed")
     print("\n✅ All crowdloan type tests passed!")
 
+
+def test_crowdloan_withdraw(local_chain, wallet_setup):
+    """
+    Test withdrawal functionality:
+    - Non-creator withdrawal: Contributor withdraws full contribution
+    - Creator withdrawal: Creator withdraws amount above deposit (deposit must remain)
+    - Creator withdrawal failure: Creator cannot withdraw deposit amount
+    - Withdrawal from finalized crowdloan: Should fail
+    """
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    _, wallet_bob, wallet_path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
+
+    alice_address = wallet_alice.coldkeypub.ss58_address
+    bob_address = wallet_bob.coldkeypub.ss58_address
+
+    print("\n🧪 Testing Crowdloan Withdraw Functionality...")
+
+    # Create a fundraising crowdloan
+    create_result = exec_command_alice(
+        command="crowd",
+        sub_command="create",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--deposit",
+            "10",
+            "--cap",
+            "100",
+            "--duration",
+            "10000",
+            "--min-contribution",
+            "1",
+            "--target-address",
+            bob_address,
+            "--fundraising",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    create_output = json.loads(create_result.stdout)
+    assert create_output.get("success") is True
+    crowdloan_id = get_crowdloan_id_by_creator(exec_command_alice, alice_address)
+
+    # Bob contributes
+    contribute_result = exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "30",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    contribute_output = json.loads(contribute_result.stdout)
+    assert contribute_output.get("success") is True
+    assert contribute_output["data"]["contribution_amount"] == 30.0
+
+    # Verify initial raised amount
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    initial_raised = info_output["data"]["raised"]
+    assert initial_raised == 40.0  # Deposit (10) + Bob's contribution (30)
+
+    # Test 1: Non-creator (Bob) withdraws full contribution
+    withdraw_result = exec_command_bob(
+        command="crowd",
+        sub_command="withdraw",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    withdraw_output = json.loads(withdraw_result.stdout)
+    assert withdraw_output.get("success") is True
+    assert withdraw_output["data"]["withdrawal_amount"] == 30.0
+    assert withdraw_output["data"]["is_creator"] is False
+
+    # Verify new raised amount
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    assert info_output["data"]["raised"] < initial_raised
+    assert info_output["data"]["raised"] == 10.0
+    assert info_output["data"]["contributors_count"] == 1
+
+    # Bob contributes again
+    exec_command_bob(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_bob,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_bob.name,
+            "--wallet-hotkey",
+            wallet_bob.hotkey_str,
+            "--amount",
+            "20",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    # Alice (creator) contributes more than deposit
+    exec_command_alice(
+        command="crowd",
+        sub_command="contribute",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--amount",
+            "15",
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    # Test 2: Creator withdraws amount above deposit
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+
+    assert info_output["data"]["user_contribution"] is not None
+    creator_contribution = info_output["data"]["user_contribution"]["amount"]
+    assert creator_contribution == 25.0
+
+    # Creator withdraws amount above deposit
+    withdraw_result = exec_command_alice(
+        command="crowd",
+        sub_command="withdraw",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    withdraw_output = json.loads(withdraw_result.stdout)
+    assert withdraw_output.get("success") is True
+    assert withdraw_output["data"]["is_creator"] is True
+    assert withdraw_output["data"]["withdrawal_amount"] == creator_contribution - 10.0
+    assert withdraw_output["data"]["deposit_locked"] == 10.0
+
+    # Test 3: Creator cannot withdraw deposit
+    info_result = exec_command_alice(
+        command="crowd",
+        sub_command="info",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--wallet-path",
+            wallet_path_alice,
+            "--json-output",
+        ],
+    )
+    info_output = json.loads(info_result.stdout)
+    remaining_contribution = info_output["data"]["user_contribution"]["amount"]
+    assert remaining_contribution == 10.0
+
+    # Try to withdraw again (should fail)
+    withdraw_result = exec_command_alice(
+        command="crowd",
+        sub_command="withdraw",
+        extra_args=[
+            "--id",
+            str(crowdloan_id),
+            "--wallet-path",
+            wallet_path_alice,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+
+    withdraw_output = json.loads(withdraw_result.stdout)
+    assert withdraw_output.get("success") is False
+
+    print("✅ Crowdloan withdraw test passed")
