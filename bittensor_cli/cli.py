@@ -6564,18 +6564,17 @@ class CLIManager:
             mechanism_count = IntPrompt.ask(prompt_text)
 
         if mechanism_count == current_count:
-            visible_count = max(mechanism_count - 1, 0)
             message = (
                 ":white_heavy_check_mark: "
-                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
-                f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
+                f"[dark_sea_green3]Subnet {netuid} already has {mechanism_count} mechanism"
+                f"{'s' if mechanism_count != 1 else ''}.[/dark_sea_green3]"
             )
             if json_output:
                 json_console.print(
                     json.dumps(
                         {
                             "success": True,
-                            "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
+                            "message": f"Subnet {netuid} already has {mechanism_count} mechanisms.",
                             "extrinsic_identifier": None,
                         }
                     )
