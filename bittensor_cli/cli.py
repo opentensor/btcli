@@ -74,6 +74,7 @@ from bittensor_cli.src.bittensor.utils import (
     ProxyAddressBook,
     ProxyAnnouncements,
     confirm_action,
+    print_protection_warnings,
 )
 from bittensor_cli.src.commands import sudo, wallets, view
 from bittensor_cli.src.commands import weights as weights_cmds
@@ -85,6 +86,7 @@ from bittensor_cli.src.commands.crowd import (
     view as view_crowdloan,
     update as crowd_update,
     refund as crowd_refund,
+    contributors as crowd_contributors,
 )
 from bittensor_cli.src.commands.liquidity.utils import (
     prompt_liquidity,
@@ -1334,6 +1336,9 @@ class CLIManager:
             self.crowd_info
         )
         self.crowd_app.command(
+            "contributors", rich_help_panel=HELP_PANELS["CROWD"]["INFO"]
+        )(self.crowd_contributors)
+        self.crowd_app.command(
             "create", rich_help_panel=HELP_PANELS["CROWD"]["INITIATOR"]
         )(self.crowd_create)
         self.crowd_app.command(
@@ -2007,6 +2012,9 @@ class CLIManager:
     ):
         """
         Adds a new pure proxy to the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config add-proxy
         """
         if self.proxies.get(name) is not None:
             print_error(
@@ -2053,6 +2061,9 @@ class CLIManager:
         Removes a pure proxy from the address book.
 
         Note: Does not remove the proxy on chain. Only removes it from the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config remove-proxy --name test-proxy
         """
         if name in self.proxies:
             del self.proxies[name]
@@ -2066,6 +2077,9 @@ class CLIManager:
     def config_get_proxies(self):
         """
         Displays the current proxies address book
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config proxies
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
@@ -2114,6 +2128,14 @@ class CLIManager:
         delay: Optional[int] = typer.Option(None, help="Delay, in blocks."),
         note: Optional[str] = typer.Option(None, help="Any notes about this entry"),
     ):
+        """
+        Updates the details of a proxy in the address book.
+
+        Note: This command not update the proxy on chain. It only updates it on the address book.
+
+        [bold]Example:[/bold]
+        [green]$[/green] btcli config update-proxy --name test-proxy
+        """
         if name not in self.proxies:
             print_error(
                 f"\n[red]Error[/red] Proxy of name '{name}' not found in address book.\n"
@@ -2886,6 +2908,7 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2893,7 +2916,7 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet (coldkey) on the Bittensor network.
+        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
 
         The output is presented as a table with the below columns:
 
@@ -2938,7 +2961,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
@@ -4140,6 +4163,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         force_swap: bool = typer.Option(
@@ -4214,6 +4238,8 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 new_coldkey_ss58=new_wallet_coldkey_ss58,
                 force_swap=force_swap,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
             )
         )
@@ -4682,7 +4708,12 @@ class CLIManager:
         if safe_staking:
             rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
             allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-            console.print("\n")
+
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake add",
+        )
 
         if netuids:
             netuids = parse_to_list(
@@ -4999,8 +5030,12 @@ class CLIManager:
             if safe_staking:
                 rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
                 allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
-                console.print("\n")
 
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake remove",
+        )
         if interactive and any(
             [hotkey_ss58_address, include_hotkeys, exclude_hotkeys, all_hotkeys]
         ):
@@ -5336,6 +5371,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="stake move",
+        )
         if prompt:
             if not confirm_action(
                 "This transaction will [bold]move stake[/bold] to another hotkey while keeping the same "
@@ -5557,6 +5597,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="stake transfer",
+        )
         if prompt:
             if not confirm_action(
                 "This transaction will [bold]transfer ownership[/bold] from one coldkey to another, in subnets "
@@ -5763,6 +5808,15 @@ class CLIManager:
             "[dim]This command moves stake from one subnet to another subnet while keeping "
             "the same coldkey-hotkey pair.[/dim]"
         )
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="stake swap",
+        )
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -5786,10 +5840,6 @@ class CLIManager:
                 )
             if not amount and not swap_all:
                 amount = FloatPrompt.ask("Enter the [blue]amount[/blue] to swap")
-        safe_staking = self.ask_safe_staking(safe_staking)
-        if safe_staking:
-            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
-            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
 
         logger.debug(
             "args:\n"
@@ -5914,6 +5964,8 @@ class CLIManager:
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
+                    decline=decline,
+                    quiet=quiet,
                     mev_protection=mev_protection,
                 )
             )
@@ -6001,6 +6053,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6043,6 +6096,8 @@ class CLIManager:
                 netuids=netuids,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -6057,6 +6112,7 @@ class CLIManager:
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6110,6 +6166,8 @@ class CLIManager:
                 netuids=parsed_netuids,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
                 verbose=verbose,
             )
@@ -6470,6 +6528,7 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6517,18 +6576,17 @@ class CLIManager:
             mechanism_count = IntPrompt.ask(prompt_text)
 
         if mechanism_count == current_count:
-            visible_count = max(mechanism_count - 1, 0)
             message = (
                 ":white_heavy_check_mark: "
-                f"[dark_sea_green3]Subnet {netuid} already has {visible_count} mechanism"
-                f"{'s' if visible_count != 1 else ''}.[/dark_sea_green3]"
+                f"[dark_sea_green3]Subnet {netuid} already has {mechanism_count} mechanism"
+                f"{'s' if mechanism_count != 1 else ''}.[/dark_sea_green3]"
             )
             if json_output:
                 json_console.print(
                     json.dumps(
                         {
                             "success": True,
-                            "message": f"Subnet {netuid} already has {visible_count} mechanisms.",
+                            "message": f"Subnet {netuid} already has {mechanism_count} mechanisms.",
                             "extrinsic_identifier": None,
                         }
                     )
@@ -6563,6 +6621,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 json_output=json_output,
+                quiet=quiet,
+                decline=decline,
             )
         )
 
@@ -6621,6 +6681,7 @@ class CLIManager:
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
@@ -6660,6 +6721,8 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 json_output=json_output,
             )
         )
@@ -7559,6 +7622,7 @@ class CLIManager:
         mev_protection: bool = Options.mev_protection,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7581,6 +7645,11 @@ class CLIManager:
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=None,
+            command_name="subnets create",
+        )
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
@@ -7614,6 +7683,8 @@ class CLIManager:
                 proxy=proxy,
                 json_output=json_output,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 mev_protection=mev_protection,
             )
         )
@@ -7648,6 +7719,7 @@ class CLIManager:
         announce_only: bool = Options.announce_only,
         netuid: int = Options.netuid,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7684,6 +7756,8 @@ class CLIManager:
                 netuid=netuid,
                 proxy=proxy,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
             )
         )
 
@@ -7746,6 +7820,7 @@ class CLIManager:
         ),
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
     ):
@@ -7806,6 +7881,8 @@ class CLIManager:
                 netuid=netuid,
                 subnet_identity=identity,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
                 proxy=proxy,
             )
         )
@@ -8698,6 +8775,31 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        status: Optional[str] = typer.Option(
+            None,
+            "--status",
+            help="Filter by status: active, funded, closed, finalized",
+        ),
+        type_filter: Optional[str] = typer.Option(
+            None,
+            "--type",
+            help="Filter by type: subnet, fundraising",
+        ),
+        sort_by: Optional[str] = typer.Option(
+            None,
+            "--sort-by",
+            help="Sort by: raised, end, contributors, id",
+        ),
+        sort_order: Optional[str] = typer.Option(
+            None,
+            "--sort-order",
+            help="Sort order: asc, desc (default: desc for raised, asc for id)",
+        ),
+        search_creator: Optional[str] = typer.Option(
+            None,
+            "--search-creator",
+            help="Search by creator address or identity name",
+        ),
     ):
         """
         List crowdloans together with their funding progress and key metadata.
@@ -8707,12 +8809,22 @@ class CLIManager:
         or a general fundraising crowdloan.
 
         Use `--verbose` for full-precision amounts and longer addresses.
+        Use `--status` to filter by status (active, funded, closed, finalized).
+        Use `--type` to filter by type (subnet, fundraising).
+        Use `--sort-by` and `--sort-order` to sort results.
+        Use `--search-creator` to search by creator address or identity name.
 
         EXAMPLES
 
         [green]$[/green] btcli crowd list
 
         [green]$[/green] btcli crowd list --verbose
+
+        [green]$[/green] btcli crowd list --status active --type subnet
+
+        [green]$[/green] btcli crowd list --sort-by raised --sort-order desc
+
+        [green]$[/green] btcli crowd list --search-creator "5D..."
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
         return self._run_command(
@@ -8720,6 +8832,11 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 verbose=verbose,
                 json_output=json_output,
+                status_filter=status,
+                type_filter=type_filter,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                search_creator=search_creator,
             )
         )
 
@@ -8739,17 +8856,25 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        show_contributors: bool = typer.Option(
+            False,
+            "--show-contributors",
+            help="Show contributor list with identities.",
+        ),
     ):
         """
         Display detailed information about a specific crowdloan.
 
         Includes funding progress, target account, and call details among other information.
+        Use `--show-contributors` to display the list of contributors (default: false).
 
         EXAMPLES
 
         [green]$[/green] btcli crowd info --id 0
 
         [green]$[/green] btcli crowd info --id 1 --verbose
+
+        [green]$[/green] btcli crowd info --id 0 --show-contributors true
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
 
@@ -8775,6 +8900,53 @@ class CLIManager:
                 subtensor=self.initialize_chain(network),
                 crowdloan_id=crowdloan_id,
                 wallet=wallet,
+                verbose=verbose,
+                json_output=json_output,
+                show_contributors=show_contributors,
+            )
+        )
+
+    def crowd_contributors(
+        self,
+        crowdloan_id: Optional[int] = typer.Option(
+            None,
+            "--crowdloan-id",
+            "--crowdloan_id",
+            "--id",
+            help="The ID of the crowdloan to list contributors for",
+        ),
+        network: Optional[list[str]] = Options.network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        List all contributors to a specific crowdloan.
+
+        Shows contributor addresses, contribution amounts, identity names, and percentages.
+        Contributors are sorted by contribution amount (highest first).
+
+        EXAMPLES
+
+        [green]$[/green] btcli crowd contributors --id 0
+
+        [green]$[/green] btcli crowd contributors --id 1 --verbose
+
+        [green]$[/green] btcli crowd contributors --id 2 --json-output
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt=False)
+
+        if crowdloan_id is None:
+            crowdloan_id = IntPrompt.ask(
+                f"Enter the [{COLORS.G.SUBHEAD_MAIN}]crowdloan id[/{COLORS.G.SUBHEAD_MAIN}]",
+                default=None,
+                show_default=False,
+            )
+
+        return self._run_command(
+            crowd_contributors.list_contributors(
+                subtensor=self.initialize_chain(network),
+                crowdloan_id=crowdloan_id,
                 verbose=verbose,
                 json_output=json_output,
             )
@@ -8839,6 +9011,21 @@ class CLIManager:
             help="Block number when subnet lease ends (omit for perpetual lease).",
             min=1,
         ),
+        custom_call_pallet: Optional[str] = typer.Option(
+            None,
+            "--custom-call-pallet",
+            help="Pallet name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_method: Optional[str] = typer.Option(
+            None,
+            "--custom-call-method",
+            help="Method name for custom Substrate call to attach to crowdloan.",
+        ),
+        custom_call_args: Optional[str] = typer.Option(
+            None,
+            "--custom-call-args",
+            help='JSON string of arguments for custom call (e.g., \'{"arg1": "value1", "arg2": 123}\').',
+        ),
         prompt: bool = Options.prompt,
         wait_for_inclusion: bool = Options.wait_for_inclusion,
         wait_for_finalization: bool = Options.wait_for_finalization,
@@ -8851,6 +9038,7 @@ class CLIManager:
         Create a crowdloan that can either:
         1. Raise funds for a specific address (general fundraising)
         2. Create a new leased subnet where contributors receive emissions
+        3. Attach any custom Substrate call (using --custom-call-pallet, --custom-call-method, --custom-call-args)
 
         EXAMPLES
 
@@ -8862,6 +9050,9 @@ class CLIManager:
 
         Subnet lease ending at block 500000:
         [green]$[/green] btcli crowd create --subnet-lease --emissions-share 25 --lease-end-block 500000
+
+        Custom call:
+        [green]$[/green] btcli crowd create --deposit 10 --cap 1000 --duration 1000 --min-contribution 1 --custom-call-pallet "SomeModule" --custom-call-method "some_method" --custom-call-args '{"param1": "value", "param2": 42}'
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -8886,6 +9077,9 @@ class CLIManager:
                 subnet_lease=subnet_lease,
                 emissions_share=emissions_share,
                 lease_end_block=lease_end_block,
+                custom_call_pallet=custom_call_pallet,
+                custom_call_method=custom_call_method,
+                custom_call_args=custom_call_args,
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 prompt=prompt,
@@ -9476,15 +9670,10 @@ class CLIManager:
 
         Revokes proxy permissions previously granted to another account. This prevents the delegate account from executing any further transactions on your behalf.
 
-        [bold]Note[/bold]: You can specify a delegate to remove a single proxy or use the `--all` flag to remove all existing proxies linked to an account.
 
-
-        [bold]Common Examples:[/bold]
-        1. Revoke proxy permissions from a single proxy account
+        [bold]Example:[/bold]
+        Revoke proxy permissions from a single proxy account
         [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type Transfer
-
-        2. Remove all proxies linked to an account
-        [green]$[/green] btcli proxy remove --all
 
         """
         # TODO should add a --all flag to call Proxy.remove_proxies ?
@@ -9649,7 +9838,25 @@ class CLIManager:
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
     ):
-        self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        """
+        Executes a previously announced proxy call.
+
+        This command submits the inner call on-chain using the proxy relationship. The command will fail if the required delay has not passed or if the call does not match the announcement parameters.
+
+        If you do not provide the call hash or call hex of the announced call in the command, you would be prompted to enter details of the call including the module name and call function.
+
+        [bold]Note[/bold]: Using the `--call-hash` flag attempts to resolve the call from the proxy announcements address book. Use this flag only if the announcement was created through BTCLI.
+        If the announcement was created by any other method, you must provide the call hex using the `--call-hex` flag or rebuild the call explicitly via the command prompts.
+
+        [bold]Common Examples:[/bold]
+        1. Using the call hash
+        [green]$[/green] btcli proxy execute --call-hash caf4da69610d379c2e2e5...0cbc6b012f6cff6340c45a1
+
+        2. Using the call hex
+        [green]$[/green] btcli proxy execute --call-hex 0x0503008f0667364ff11915b0b2a54387...27948e8f950f79a69cff9c029cdb69
+
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
         outer_proxy_from_config = self.proxies.get(proxy, {})
         proxy_from_config = outer_proxy_from_config.get("address")
         delay = 0
@@ -9761,7 +9968,7 @@ class CLIManager:
                 else:
                     console.print(
                         f"The call hash you have provided matches {len(potential_call_matches)}"
-                        f" possible entries. The results will be iterated for you to selected your intended"
+                        f" possible entries. The results will be iterated for you to select your intended "
                         f"call."
                     )
                     for row in potential_call_matches:

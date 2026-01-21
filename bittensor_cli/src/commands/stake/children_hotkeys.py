@@ -16,6 +16,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     float_to_u16,
     float_to_u64,
+    print_success,
     u16_to_float,
     u64_to_float,
     is_valid_ss58_address,
@@ -145,7 +146,7 @@ async def set_children_extrinsic(
             await print_extrinsic_id(ext_receipt)
             modifier = "included"
             if wait_for_finalization:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 modifier = "finalized"
             return True, f"{operation} successfully {modifier}.", ext_id
         else:
@@ -236,7 +237,7 @@ async def set_childkey_take_extrinsic(
                 modifier = "included"
                 if wait_for_finalization:
                     modifier = "finalized"
-                    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    print_success("Finalized")
                 return True, f"Successfully {modifier} childkey take", ext_id
             else:
                 print_error(f"Failed: {error_message}")
@@ -569,11 +570,9 @@ async def set_children(
                     f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
                     f"The current block is {current_block}"
                 )
-            console.print(
-                ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
-            )
+            print_success("Set children hotkeys.")
         else:
-            console.print(f"Unable to set children hotkeys. {message}")
+            print_error(f"Unable to set children hotkeys. {message}")
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
@@ -606,9 +605,7 @@ async def set_children(
                 f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
                 f"block {completion_block}. The current block is {current_block}."
             )
-        console.print(
-            ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
-        )
+        print_success("Sent set children request for all subnets.")
     if json_output:
         json_console.print(json.dumps(successes))
 
@@ -784,7 +781,7 @@ async def childkey_take(
         )
         # Result
         if success_:
-            console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
+            print_success("Set childkey take.")
             console.print(
                 f"The childkey take for {get_hotkey_pub_ss58(wallet)} is now set to {take * 100:.2f}%."
             )
@@ -864,7 +861,5 @@ async def childkey_take(
                     wait_for_finalization=False,
                 )
                 output_list.append((netuid_, result, ext_id))
-            console.print(
-                f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]"
-            )
+            print_success(f"Sent childkey take of {take * 100:.2f}% to all subnets.")
             return output_list

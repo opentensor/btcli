@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "bittensor-cli"
-version = "9.17.0"
+version = "9.18.0"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
@@ -65,3 +65,6 @@ dev = [
 # more details can be found here
 homepage = "https://github.com/opentensor/btcli"
 Repository = "https://github.com/opentensor/btcli"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
