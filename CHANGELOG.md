@@ -10,6 +10,8 @@
 * Update DurationOfStartCall -> InitialStartCallDelay by @ibraheem-abe in https://github.com/opentensor/btcli/pull/797
 * Feat: Add protection warnings by @ibraheem-abe in https://github.com/opentensor/btcli/pull/799
 * feat: Add crowdloan contributors command and enhance create/view functionality by @circlecrystalin & @ibraheem-abe in https://github.com/opentensor/btcli/pull/776
+* Tests: Adds e2e tests for crowdloan functionality by @ibraheem-abe in https://github.com/opentensor/btcli/pull/806
+* Fix: Mech count indication + missing params by @ibraheem-abe in https://github.com/opentensor/btcli/pull/807
 
 ## New Contributors
 * @circlecrystalin made their first contribution in https://github.com/opentensor/btcli/pull/776
