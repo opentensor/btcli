@@ -3841,8 +3841,10 @@ class CLIManager:
         #     if self.config.get("network") != "finney":
         #         console.print(no_use_config_str)
 
-        # For Rao games
-        print_error("This command is disabled on the 'rao' network.")
+        print_error(
+            "This command is currently disabled as it used external APIs which are no longer "
+            "feasible; meanwhile a chain native data fetching solution is being investigated."
+        )
         raise typer.Exit()
 
         self.verbosity_handler(quiet, verbose, False, False)
