@@ -3528,6 +3528,7 @@ class CLIManager:
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
         Check the status of pending coldkey swap announcements.
@@ -3557,11 +3558,13 @@ class CLIManager:
 
         [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
         """
-        self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
+        self.verbosity_handler(quiet, verbose, json_output=json_output, prompt=False)
         self.initialize_chain(network)
 
         if show_all:
-            return self._run_command(wallets.check_swap_status(self.subtensor, None))
+            return self._run_command(
+                wallets.check_swap_status(self.subtensor, None, json_output=json_output)
+            )
 
         if not wallet_ss58_address:
             wallet_ss58_address = Prompt.ask(
@@ -3570,7 +3573,9 @@ class CLIManager:
             )
             if not wallet_ss58_address:
                 return self._run_command(
-                    wallets.check_swap_status(self.subtensor, None)
+                    wallets.check_swap_status(
+                        self.subtensor, None, json_output=json_output
+                    )
                 )
 
         if is_valid_ss58_address(wallet_ss58_address):
@@ -3587,7 +3592,9 @@ class CLIManager:
 
         logger.debug(f"args:\nss58_address {ss58_address}\nnetwork {network}\n")
         return self._run_command(
-            wallets.check_swap_status(self.subtensor, ss58_address)
+            wallets.check_swap_status(
+                self.subtensor, ss58_address, json_output=json_output
+            )
         )
 
     def wallet_create_wallet(
