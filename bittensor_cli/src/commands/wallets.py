@@ -2233,6 +2233,106 @@ async def announce_coldkey_swap(
     return True
 
 
+async def dispute_coldkey_swap(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    decline: bool = False,
+    quiet: bool = False,
+    mev_protection: bool = False,
+) -> bool:
+    """Dispute a pending coldkey swap for the calling coldkey.
+
+    Disputing freezes the current swap process until the triumvirate can intervene.
+
+    Args:
+        wallet: Wallet initiating the dispute (must be the announcing coldkey).
+        subtensor: Connection to the Bittensor network.
+        decline: If True, default to declining at confirmation prompt.
+        quiet: If True, skip confirmation prompts and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
+
+    Returns:
+        bool: True if the dispute extrinsic was included successfully, else False.
+    """
+    block_hash = await subtensor.substrate.get_chain_head()
+    announcement, dispute = await asyncio.gather(
+        subtensor.get_coldkey_swap_announcement(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+        subtensor.get_coldkey_swap_dispute(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+    )
+
+    if not announcement:
+        print_error(
+            f"No coldkey swap announcement found for {wallet.coldkeypub.ss58_address}.\n"
+            "You can only dispute an active announcement."
+        )
+        return False
+
+    if dispute is not None:
+        console.print(
+            f"[yellow]Swap already disputed at block {dispute}.[/yellow] "
+            "Account remains frozen until a root reset."
+        )
+        return False
+
+    current_block = await subtensor.substrate.get_block_number(block_hash=block_hash)
+    info = create_key_value_table("Dispute Coldkey Swap\n")
+    info.add_row(
+        "Coldkey", f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+    )
+    info.add_row("Execution Block", str(announcement.execution_block))
+    info.add_row(
+        "Status",
+        "[yellow]Pending[/yellow]"
+        if current_block < announcement.execution_block
+        else "[green]Ready[/green]",
+    )
+    info.add_row(
+        "Warning",
+        "[red]Disputing freezes all transactions from this coldkey until the triumvirate can intervene.[/red]",
+    )
+    console.print(info)
+
+    if not confirm_action(
+        "Proceed with dispute? You will be blocked from all transactions until the triumvirate can intervene.",
+        decline=decline,
+        quiet=quiet,
+    ):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    with console.status(":satellite: Disputing coldkey swap on-chain..."):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="dispute_coldkey_swap",
+            call_params={},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            mev_protection=mev_protection,
+        )
+
+        if not success:
+            print_error(f"Failed to dispute coldkey swap: {err_msg}")
+            return False
+
+        print_success("[dark_sea_green3]Coldkey swap disputed.")
+        await print_extrinsic_id(ext_receipt)
+
+    console.print(
+        "\n[dim]Your coldkey is now frozen. The triumvirate will need to intervene to clear the dispute.[/dim]"
+    )
+    return True
+
+
 async def execute_coldkey_swap(
     wallet: Wallet,
     subtensor: SubtensorInterface,
