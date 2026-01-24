@@ -1891,6 +1891,34 @@ class SubtensorInterface:
             disputes.append((coldkey, int(data)))
         return disputes
 
+    async def get_coldkey_swap_dispute(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[int]:
+        """Fetch the disputed block for a given coldkey swap.
+
+        Args:
+            coldkey_ss58: Coldkey SS58 address.
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            int | None: Block number when disputed, or None if no dispute exists.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return None
+
+        return int(result)
 
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
