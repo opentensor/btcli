@@ -4114,7 +4114,7 @@ class CLIManager:
         self,
         action: str = typer.Argument(
             None,
-            help="Action to perform: 'announce' to announce intent, 'execute' to complete swap after delay.",
+            help="Action to perform: 'announce' to announce intent, 'execute' to complete swap after delay, 'dispute' to freeze the swap.",
         ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
@@ -4142,6 +4142,9 @@ class CLIManager:
 
         2. [bold]Execute[/bold]: After the delay (typically 5 days), complete the swap.
 
+        If you suspect compromise, you can [bold]Dispute[/bold] an active announcement to freeze
+        all activity for the coldkey until the triumvirate can intervene.
+
         EXAMPLES
 
         Step 1 - Announce your intent to swap:
@@ -4151,6 +4154,10 @@ class CLIManager:
         Step 2 - After the delay period, execute the swap:
 
         [green]$[/green] btcli wallet swap-coldkey execute --new-coldkey 5Dk...X3q
+
+        Dispute an active swap (freezes the swap process):
+
+        [green]$[/green] btcli wallet swap-coldkey dispute
 
         Check status of pending swaps:
 
@@ -4162,17 +4169,20 @@ class CLIManager:
             console.print(
                 "\n[bold][blue]Coldkey Swap Actions:[/blue][/bold]\n"
                 "  [dark_sea_green3]announce[/dark_sea_green3] - Start the swap process (pays fee, starts delay timer)\n"
-                "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n\n"
+                "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n"
+                "  [dark_sea_green3]dispute[/dark_sea_green3]  - Freeze the swap process if you suspect compromise\n\n"
                 "  [dim]You can check the current status of your swap with 'btcli wallet swap-check'.[/dim]\n"
             )
             action = Prompt.ask(
                 "Select action",
-                choices=["announce", "execute"],
+                choices=["announce", "execute", "dispute"],
                 default="announce",
             )
 
-        if action.lower() not in ("announce", "execute"):
-            print_error(f"Invalid action: {action}. Must be 'announce' or 'execute'.")
+        if action.lower() not in ("announce", "execute", "dispute"):
+            print_error(
+                f"Invalid action: {action}. Must be 'announce', 'execute', or 'dispute'."
+            )
             raise typer.Exit(1)
 
         if not wallet_name:
@@ -4191,26 +4201,28 @@ class CLIManager:
             f"\nWallet selected: [dark_sea_green3]{wallet}[/dark_sea_green3]\n"
         )
 
-        if not new_wallet_or_ss58:
-            new_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
-            )
+        new_wallet_coldkey_ss58 = None
+        if action != "dispute":
+            if not new_wallet_or_ss58:
+                new_wallet_or_ss58 = Prompt.ask(
+                    "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
+                )
 
-        if is_valid_ss58_address(new_wallet_or_ss58):
-            new_wallet_coldkey_ss58 = new_wallet_or_ss58
-        else:
-            new_wallet_name = new_wallet_or_ss58
-            new_wallet = self.wallet_ask(
-                new_wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[WO.NAME],
-                validate=WV.WALLET,
-            )
-            console.print(
-                f"\nNew coldkey wallet: [dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
-            )
-            new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+            if is_valid_ss58_address(new_wallet_or_ss58):
+                new_wallet_coldkey_ss58 = new_wallet_or_ss58
+            else:
+                new_wallet_name = new_wallet_or_ss58
+                new_wallet = self.wallet_ask(
+                    new_wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME],
+                    validate=WV.WALLET,
+                )
+                console.print(
+                    f"\nNew coldkey wallet: [dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
+                )
+                new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
 
         logger.debug(
             f"args:\n"
@@ -4225,6 +4237,16 @@ class CLIManager:
                     wallet=wallet,
                     subtensor=self.initialize_chain(network),
                     new_coldkey_ss58=new_wallet_coldkey_ss58,
+                    decline=decline,
+                    quiet=quiet,
+                    mev_protection=mev_protection,
+                )
+            )
+        elif action == "dispute":
+            return self._run_command(
+                wallets.dispute_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
                     decline=decline,
                     quiet=quiet,
                     mev_protection=mev_protection,
