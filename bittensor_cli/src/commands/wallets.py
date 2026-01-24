@@ -2292,12 +2292,12 @@ async def dispute_coldkey_swap(
     )
     info.add_row(
         "Warning",
-        "[red]Disputing freezes all transactions from this coldkey until the triumvirate can intervene.[/red]",
+        "[red]Disputing freezes the current swap process until the triumvirate can intervene.[/red]",
     )
     console.print(info)
 
     if not confirm_action(
-        "Proceed with dispute? You will be blocked from all transactions until the triumvirate can intervene.",
+        "Proceed with dispute? Your swap process will be frozen until the triumvirate can intervene.",
         decline=decline,
         quiet=quiet,
     ):
@@ -2531,7 +2531,9 @@ async def check_swap_status(
                 )
             return
 
-    dispute_map = {coldkey: block for coldkey, block in disputes if coldkey and block is not None}
+    dispute_map = {
+        coldkey: block for coldkey, block in disputes if coldkey and block is not None
+    }
 
     payload = {
         "success": True,
