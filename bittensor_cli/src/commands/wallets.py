@@ -2484,17 +2484,20 @@ async def execute_coldkey_swap(
 async def check_swap_status(
     subtensor: SubtensorInterface,
     origin_ss58: Optional[str] = None,
+    json_output: bool = False,
 ) -> None:
     """Retrieves and displays the status of coldkey swap announcements.
 
     Args:
         subtensor: Connection to the network.
         origin_ss58: The SS58 address of the coldkey to check. If None, shows all pending announcements.
+        json_output: If True, print JSON payload instead of rich table.
     """
     block_hash = await subtensor.substrate.get_chain_head()
     if origin_ss58:
-        announcement, current_block = await asyncio.gather(
+        announcement, dispute, current_block = await asyncio.gather(
             subtensor.get_coldkey_swap_announcement(origin_ss58, block_hash=block_hash),
+            subtensor.get_coldkey_swap_dispute(origin_ss58, block_hash=block_hash),
             subtensor.substrate.get_block_number(block_hash=block_hash),
         )
         if not announcement:
@@ -2504,17 +2507,37 @@ async def check_swap_status(
             )
             return
         announcements = [announcement]
+        disputes = [(origin_ss58, dispute)] if dispute is not None else []
 
     else:
-        announcements, current_block = await asyncio.gather(
+        announcements, disputes, current_block = await asyncio.gather(
             subtensor.get_coldkey_swap_announcements(block_hash=block_hash),
+            subtensor.get_coldkey_swap_disputes(block_hash=block_hash),
             subtensor.substrate.get_block_number(block_hash=block_hash),
         )
         if not announcements:
             console.print(
                 "[yellow]No pending coldkey swap announcements found.[/yellow]"
             )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "current_block": current_block,
+                            "announcements": [],
+                        }
+                    )
+                )
             return
+
+    dispute_map = {coldkey: block for coldkey, block in disputes if coldkey and block is not None}
+
+    payload = {
+        "success": True,
+        "current_block": current_block,
+        "announcements": [],
+    }
 
     table = Table(
         Column(
@@ -2539,13 +2562,20 @@ async def check_swap_status(
     )
 
     for announcement in announcements:
+        dispute_block = dispute_map.get(announcement.coldkey)
         remaining_blocks = announcement.execution_block - current_block
-        if remaining_blocks <= 0:
+        if dispute_block is not None:
+            status = "[red]Disputed[/red]"
+            time_str = f"Disputed @ {dispute_block}"
+            status_label = "disputed"
+        elif remaining_blocks <= 0:
             status = "Ready"
             time_str = "[green]Ready[/green]"
+            status_label = "ready"
         else:
             status = "Pending"
             time_str = blocks_to_duration(remaining_blocks)
+            status_label = "pending"
         hash_display = f"{announcement.new_coldkey_hash[:12]}...{announcement.new_coldkey_hash[-6:]}"
 
         table.add_row(
@@ -2555,6 +2585,21 @@ async def check_swap_status(
             time_str,
             status,
         )
+
+        payload["announcements"].append(
+            {
+                "coldkey": announcement.coldkey,
+                "new_coldkey_hash": announcement.new_coldkey_hash,
+                "execution_block": announcement.execution_block,
+                "status": status_label,
+                "time_remaining_blocks": max(0, remaining_blocks),
+                "disputed_block": dispute_block,
+            }
+        )
+
+    if json_output:
+        json_console.print(json.dumps(payload))
+        return
 
     console.print(table)
     console.print(
