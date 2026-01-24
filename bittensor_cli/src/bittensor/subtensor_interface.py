@@ -1864,6 +1864,34 @@ class SubtensorInterface:
 
         return ColdkeySwapAnnouncementInfo._fix_decoded(coldkey_ss58, result)
 
+    async def get_coldkey_swap_disputes(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[tuple[str, int]]:
+        """Fetch all coldkey swap disputes.
+
+        Args:
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            list[tuple[str, int]]: Tuples of `(coldkey_ss58, disputed_block)`.
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        disputes: list[tuple[str, int]] = []
+        async for ss58, data in result:
+            coldkey = decode_account_id(ss58)
+            disputes.append((coldkey, int(data)))
+        return disputes
+
+
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
     ) -> list[CrowdloanData]:
