@@ -85,7 +85,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network, use_disk_cache: bool = False):
+    def __init__(self, network, use_disk_cache: bool = True):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -117,7 +117,7 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
         substrate_class = (
             DiskCachedAsyncSubstrateInterface
-            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            if (use_disk_cache or os.getenv("DISK_CACHE", "1") == "1")
             else AsyncSubstrateInterface
         )
         logger.debug(f"Using substrate class {substrate_class.__name__}")

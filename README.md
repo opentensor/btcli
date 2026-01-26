@@ -138,7 +138,7 @@ The default location of the config file is: `~/.bittensor/config.yml`. An exampl
 network: local
 use_cache: true
 dashboard_path: null
-disk_cache: false
+disk_cache: true
 rate_tolerance: null
 safe_staking: true
 wallet_hotkey: default
