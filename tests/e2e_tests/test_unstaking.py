@@ -1,12 +1,13 @@
 import asyncio
 import json
 import re
-
+import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 
 from .utils import set_storage_extrinsic
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_unstaking(local_chain, wallet_setup):
     """
     Test various unstaking scenarios including partial unstake, unstake all alpha, and unstake all.
@@ -215,6 +216,32 @@ def test_unstaking(local_chain, wallet_setup):
         register_result.stdout
     )
 
+    # Add initial stake to enable V3
+    for netuid_ in [0, 2, 3]:
+        stake_to_enable_v3 = exec_command_bob(
+            command="stake",
+            sub_command="add",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_bob,
+                "--wallet-name",
+                wallet_bob.name,
+                "--hotkey",
+                wallet_bob.hotkey_str,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--amount",
+                "1",
+                "--unsafe",
+                "--no-prompt",
+                "--era",
+                "144",
+            ],
+        )
+        assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
+
     # Add stake to subnets
     for netuid in [0, 2, 3]:
         stake_result = exec_command_bob(
@@ -361,9 +388,7 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
 
-    assert (
-        "✅ Finalized: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
-    )
+    assert "✅ Included: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
     assert "Your extrinsic has been included" in unstake_alpha.stdout, (
         unstake_alpha.stdout
     )
@@ -416,6 +441,6 @@ def test_unstaking(local_chain, wallet_setup):
             "144",
         ],
     )
-    assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout
+    assert "✅ Included: Successfully unstaked all stakes from" in unstake_all.stdout
     assert "Your extrinsic has been included" in unstake_all.stdout, unstake_all.stdout
     print("Passed unstaking tests 🎉")

@@ -1,4 +1,126 @@
 # Changelog
+
+## 9.18.0 /2026-01-15
+
+## What's Changed
+* Standardize Success Message Printing with print.success by @leonace924 in https://github.com/opentensor/btcli/pull/786
+* Fix live display formatting on macOS Terminal.app by @calm329 in https://github.com/opentensor/btcli/pull/789
+* Update User Liquidity E2E test  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/794
+* updated proxy help text by @chideraao in https://github.com/opentensor/btcli/pull/788
+* Update DurationOfStartCall -> InitialStartCallDelay by @ibraheem-abe in https://github.com/opentensor/btcli/pull/797
+* Feat: Add protection warnings by @ibraheem-abe in https://github.com/opentensor/btcli/pull/799
+* feat: Add crowdloan contributors command and enhance create/view functionality by @circlecrystalin & @ibraheem-abe in https://github.com/opentensor/btcli/pull/776
+* Tests: Adds e2e tests for crowdloan functionality by @ibraheem-abe in https://github.com/opentensor/btcli/pull/806
+* Fix: Mech count indication + missing params by @ibraheem-abe in https://github.com/opentensor/btcli/pull/807
+
+## New Contributors
+* @circlecrystalin made their first contribution in https://github.com/opentensor/btcli/pull/776
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.17.0...v9.18.0
+
+## 9.17.0 /2025-12-22
+
+## What's Changed
+* feat: add cli for axon set and reset by @Mobile-Crest in https://github.com/opentensor/btcli/pull/726
+* json console and tests by @thewhaleking in https://github.com/opentensor/btcli/pull/744
+* Consolidates the `--coldkey-ss58` param into a predefined Option. by @thewhaleking in https://github.com/opentensor/btcli/pull/750
+* Testing: Disables non fast blocks for hyperparam by @ibraheem-abe in https://github.com/opentensor/btcli/pull/755
+* Feat: Improve Subnet Hyperparameters cmd #607 by @SmartDever02 in https://github.com/opentensor/btcli/pull/746
+* feat: show weights difference when setting root weights by @MkDev11 in https://github.com/opentensor/btcli/pull/747
+* Feat/Add `--no` flag to auto-decline confirmation prompts 194 by @MkDev11 in https://github.com/opentensor/btcli/pull/748
+* Improve subnets register command and error message by @Mobile-Crest in https://github.com/opentensor/btcli/pull/754
+* fix: resolve SQL syntax error in ProxyAnnouncements and improve event loop by @leonace924 in https://github.com/opentensor/btcli/pull/769
+* pr fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/768
+* Account for 0x-prepended call hashes by @thewhaleking in https://github.com/opentensor/btcli/pull/772
+* Unit test fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/775
+* fix: remove unused --hotkey option from wallet inspect command by @calm329 in https://github.com/opentensor/btcli/pull/770
+* Fix: update the err_console.print to print_error to make consistency in error printing with cross mark by @leonace924 in https://github.com/opentensor/btcli/pull/778
+* Feat: Safe staking in swap_stake by @ibraheem-abe in https://github.com/opentensor/btcli/pull/779
+* proxy execute improvements by @thewhaleking in https://github.com/opentensor/btcli/pull/774
+* Adds CONTRIBUTING guide by @thewhaleking in https://github.com/opentensor/btcli/pull/777
+
+## New Contributors
+* @Mobile-Crest made their first contribution in https://github.com/opentensor/btcli/pull/726
+* @SmartDever02 made their first contribution in https://github.com/opentensor/btcli/pull/746
+* @MkDev11 made their first contribution in https://github.com/opentensor/btcli/pull/747
+* @leonace924 made their first contribution in https://github.com/opentensor/btcli/pull/769
+* @calm329 made their first contribution in https://github.com/opentensor/btcli/pull/770
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.16.0...v9.17.0
+
+## 9.16.0 /2025-12-09
+
+## What's Changed
+* proxy help text by @chideraao in https://github.com/opentensor/btcli/pull/707
+* In `btcli st list`, display the total even with the `--verbose` flag by @thewhaleking in https://github.com/opentensor/btcli/pull/717
+* Make `btcli st wizard` by @OxLeOx in https://github.com/opentensor/btcli/pull/720
+* Feat/Root claim update for netuids by @ibraheem-abe in https://github.com/opentensor/btcli/pull/722
+* Improve e2e tests workflow by @basfroman in https://github.com/opentensor/btcli/pull/728
+* Feat: MeV protection in staking operations by @ibraheem-abe in https://github.com/opentensor/btcli/pull/724
+* proxy app by @thewhaleking in https://github.com/opentensor/btcli/pull/706
+* Fixes: updated mev shield by @thewhaleking in https://github.com/opentensor/btcli/pull/731
+
+## New Contributors
+* @chideraao made their first contribution in https://github.com/opentensor/btcli/pull/707
+* @OxLeOx made their first contribution in https://github.com/opentensor/btcli/pull/720
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.3...v9.16.0
+
+## 9.15.3 /2025-11-17
+
+## What's Changed
+* fix missing classifiers, migrate to flit by @branchvincent in https://github.com/opentensor/btcli/pull/698
+* Removes subvortex as the project is gone. by @thewhaleking in https://github.com/opentensor/btcli/pull/708
+* Small Bug Fixes by @thewhaleking in https://github.com/opentensor/btcli/pull/712:
+  * Ensures that net_claimable is always a Balance object in get_claimable_stakes_for_coldkey
+  * Checks that the HK owner isn't the genesis address
+  * Clearly show the totals in st list as representing staked vs total incl free
+  * Prevents a race condition which could freeze the console for extrinsic submission
+* docs: fix typos in some files by @Edge-Seven in https://github.com/opentensor/btcli/pull/711
+* Fix table width visual bug in stake move command by @BANADDA in https://github.com/opentensor/btcli/pull/709
+* Fix: Decode account id in `btcli swap-check` by @ibraheem-abe in https://github.com/opentensor/btcli/pull/714
+
+## New Contributors
+* @branchvincent made their first contribution in https://github.com/opentensor/btcli/pull/698
+* @Edge-Seven made their first contribution in https://github.com/opentensor/btcli/pull/711
+* @BANADDA made their first contribution in https://github.com/opentensor/btcli/pull/709
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.2...v9.15.3
+
+## 9.15.2 /2025-11-05
+
+## What's Changed
+* Update/btcli stake claim args by @ibraheem-abe in https://github.com/opentensor/btcli/pull/701
+* Update metagraph symbols thru subnet info by @ibraheem-abe in https://github.com/opentensor/btcli/pull/703
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.1...v9.15.2
+
+## 9.15.1 /2025-11-04
+
+* Update/Subnet list ema by @ibraheem-abe in https://github.com/opentensor/btcli/pull/699
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.15.0...v9.15.1
+
+## 9.15.0 /2025-11-04
+
+* Stop running e2e tests on changelog branches by @thewhaleking in https://github.com/opentensor/btcli/pull/691
+* Feat/root claim by @ibraheem-abe in https://github.com/opentensor/btcli/pull/692
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.3...v9.15.0
+
+## 9.14.3 /2025-10-30
+* Allows for installing on Py 3.14 by @thewhaleking in https://github.com/opentensor/btcli/pull/688
+  * corrects `--name` param in `wallet set-identity` and `subnets set-identity` which was a duplicate param alias of `--wallet-name`
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.2...v9.14.3
+
+## 9.14.2 /2025-10-28
+* `stake remove --all` fails when unsuccessful by @thewhaleking in https://github.com/opentensor/btcli/pull/679
+* check subnet logo url by @thewhaleking in https://github.com/opentensor/btcli/pull/681
+* `st transfer` extrinsic id fix by @thewhaleking in https://github.com/opentensor/btcli/pull/685
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.14.1...v9.14.2
+
 ## 9.14.1 /2025-10-23
 * Updates kappa to root sudo only in-line with devnet-ready by @thewhaleking in https://github.com/opentensor/btcli/pull/668
 * Adds additional warnings for move vs transfer by @thewhaleking in https://github.com/opentensor/btcli/pull/672

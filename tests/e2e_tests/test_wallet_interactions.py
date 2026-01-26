@@ -74,6 +74,7 @@ def test_wallet_overview_inspect(local_chain, wallet_setup):
             "--additional-info",
             "Test subnet",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -393,6 +394,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert f"✅ Registered subnetwork with netuid: {netuid}" in result.stdout
@@ -421,7 +423,7 @@ def test_wallet_identities(local_chain, wallet_setup):
             wallet_alice.name,
             "--wallet-hotkey",
             wallet_alice.hotkey_str,
-            "--name",
+            "--id-name",
             alice_identity["name"],
             "--web-url",
             alice_identity["url"],

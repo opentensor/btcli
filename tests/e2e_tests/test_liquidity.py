@@ -1,8 +1,8 @@
+import pytest
 import asyncio
 import json
-import re
+import time
 
-from bittensor_cli.src.bittensor.balances import Balance
 from .utils import turn_off_hyperparam_freeze_window
 
 """
@@ -15,26 +15,8 @@ Verify commands:
 """
 
 
+@pytest.mark.skip(reason="User liquidity currently disabled on chain")
 def test_liquidity(local_chain, wallet_setup):
-    def liquidity_list():
-        return exec_command_alice(
-            command="liquidity",
-            sub_command="list",
-            extra_args=[
-                "--wallet-path",
-                wallet_path_alice,
-                "--chain",
-                "ws://127.0.0.1:9945",
-                "--wallet-name",
-                wallet_alice.name,
-                "--wallet-hotkey",
-                wallet_alice.hotkey_str,
-                "--netuid",
-                netuid,
-                "--json-output",
-            ],
-        )
-
     wallet_path_alice = "//Alice"
     netuid = 2
 
@@ -80,6 +62,7 @@ def test_liquidity(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)
@@ -88,11 +71,28 @@ def test_liquidity(local_chain, wallet_setup):
     assert isinstance(result_output["extrinsic_identifier"], str)
 
     # verify no results for list thus far (subnet not yet started)
-    liquidity_list_result = liquidity_list()
+    liquidity_list_result = exec_command_alice(
+        command="liquidity",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
     result_output = json.loads(liquidity_list_result.stdout)
     assert result_output["success"] is False
     assert f"Subnet with netuid: {netuid} is not active" in result_output["err_msg"]
     assert result_output["positions"] == []
+    time.sleep(40)
 
     # start emissions schedule
     start_subnet_emissions = exec_command_alice(
@@ -118,10 +118,52 @@ def test_liquidity(local_chain, wallet_setup):
     ), start_subnet_emissions.stderr
     assert "Your extrinsic has been included " in start_subnet_emissions.stdout
 
-    liquidity_list_result = liquidity_list()
+    stake_to_enable_v3 = exec_command_alice(
+        command="stake",
+        sub_command="add",
+        extra_args=[
+            "--netuid",
+            "2",
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--hotkey",
+            wallet_alice.hotkey_str,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--amount",
+            "1",
+            "--unsafe",
+            "--no-prompt",
+            "--era",
+            "144",
+            "--no-mev-protection",
+        ],
+    )
+    assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
+    time.sleep(10)
+    liquidity_list_result = exec_command_alice(
+        command="liquidity",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    print(">>>", liquidity_list_result.stdout, liquidity_list_result.stderr)
     result_output = json.loads(liquidity_list_result.stdout)
-    assert result_output["success"] is True
-    assert result_output["err_msg"] == ""
+    assert result_output["success"] is False
+    assert result_output["err_msg"] == "No liquidity positions found."
     assert result_output["positions"] == []
 
     enable_user_liquidity = exec_command_alice(
@@ -179,13 +221,29 @@ def test_liquidity(local_chain, wallet_setup):
     assert add_liquidity_result["message"] == ""
     assert isinstance(add_liquidity_result["extrinsic_identifier"], str)
 
-    liquidity_list_result = liquidity_list()
+    liquidity_list_result = exec_command_alice(
+        command="liquidity",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    print(">>>", liquidity_list_result.stdout, liquidity_list_result.stderr)
     liquidity_list_result = json.loads(liquidity_list_result.stdout)
     assert liquidity_list_result["success"] is True
     assert len(liquidity_list_result["positions"]) == 1
     liquidity_position = liquidity_list_result["positions"][0]
     assert liquidity_position["liquidity"] == 1.0
-    assert liquidity_position["id"] == 2
     assert liquidity_position["fees_tao"] == 0.0
     assert liquidity_position["fees_alpha"] == 0.0
     assert liquidity_position["netuid"] == netuid
@@ -218,10 +276,27 @@ def test_liquidity(local_chain, wallet_setup):
     assert modify_liquidity_result["success"] is True
     assert isinstance(modify_liquidity_result["extrinsic_identifier"], str)
 
-    liquidity_list_result = json.loads(liquidity_list().stdout)
+    llr = exec_command_alice(
+        command="liquidity",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    print(">>>", llr.stdout, llr.stderr)
+    liquidity_list_result = json.loads(llr.stdout)
     assert len(liquidity_list_result["positions"]) == 1
     liquidity_position = liquidity_list_result["positions"][0]
-    assert liquidity_position["id"] == 2
     assert liquidity_position["liquidity"] == 21.0
 
     removal = exec_command_alice(
@@ -249,6 +324,25 @@ def test_liquidity(local_chain, wallet_setup):
         removal_result[str(liquidity_position["id"])]["extrinsic_identifier"], str
     )
 
-    liquidity_list_result = json.loads(liquidity_list().stdout)
-    assert liquidity_list_result["success"] is True
+    liquidity_list_result = exec_command_alice(
+        command="liquidity",
+        sub_command="list",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--chain",
+            "ws://127.0.0.1:9945",
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--netuid",
+            netuid,
+            "--json-output",
+        ],
+    )
+    print(">>>", liquidity_list_result.stdout, liquidity_list_result.stderr)
+    liquidity_list_result = json.loads(liquidity_list_result.stdout)
+    assert liquidity_list_result["success"] is False
+    assert result_output["err_msg"] == "No liquidity positions found."
     assert liquidity_list_result["positions"] == []

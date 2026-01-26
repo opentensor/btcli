@@ -1,8 +1,8 @@
 import asyncio
 import json
+from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 from rich.table import Column, Table, box
 
 from bittensor_cli.src import COLORS
@@ -10,6 +10,7 @@ from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_extrinsic_id,
@@ -21,10 +22,13 @@ from bittensor_cli.src.bittensor.utils import (
 async def dissolve_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Dissolve a non-finalized crowdloan after refunding contributors.
@@ -35,10 +39,12 @@ async def dissolve_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction.
         wallet: Wallet object containing the creator's coldkey.
+        proxy: Optional proxy to use for this extrinsic submission
         crowdloan_id: ID of the crowdloan to dissolve.
         wait_for_inclusion: Wait for transaction inclusion.
         wait_for_finalization: Wait for transaction finalization.
         prompt: Whether to prompt for confirmation.
+        json_output: Whether to output the results as JSON or human-readable.
 
     Returns:
         tuple[bool, str]: Success status and message.
@@ -133,9 +139,11 @@ async def dissolve_crowdloan(
     console.print("\n[bold cyan]Crowdloan Dissolution Summary[/bold cyan]")
     console.print(summary)
 
-    if prompt and not Confirm.ask(
+    if prompt and not confirm_action(
         f"\n[bold]Proceed with dissolving crowdloan #{crowdloan_id}?[/bold]",
         default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(
@@ -172,6 +180,7 @@ async def dissolve_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )

@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import inspect
 import os
@@ -5,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING, Optional, Protocol
 
 from bittensor_wallet import Keypair, Wallet
@@ -28,8 +30,8 @@ class ExecCommand(Protocol):
         self,
         command: str,
         sub_command: str,
-        extra_args: Optional[list[str]],
-        inputs: Optional[list[str]],
+        extra_args: Optional[list[str]] = None,
+        inputs: Optional[list[str]] = None,
     ) -> Result: ...
 
 
@@ -130,6 +132,34 @@ def extract_coldkey_balance(
     return {
         "free_balance": float(match.group(1).replace(",", "")),
     }
+
+
+def find_stake_entries(
+    stake_payload: dict, netuid: int, hotkey_ss58: Optional[str] = None
+) -> list[dict]:
+    """
+    Return stake entries matching a given netuid, optionally scoped to a specific hotkey.
+    Requires json payload using `--json-output` flag.
+
+    Args:
+        stake_payload: Parsed JSON payload containing `stake_info`.
+        netuid: The subnet identifier to filter on.
+        hotkey_ss58: Optional hotkey address to further narrow results.
+
+    Returns:
+        A list of stake dicts matching the criteria (may be empty).
+    """
+    stake_info = stake_payload.get("stake_info", {}) or {}
+    matching_stakes: list[dict] = []
+
+    for stake_hotkey, stakes in stake_info.items():
+        if hotkey_ss58 and stake_hotkey != hotkey_ss58:
+            continue
+        for stake in stakes or []:
+            if stake.get("netuid") == netuid:
+                matching_stakes.append(stake)
+
+    return matching_stakes
 
 
 def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> bool:
@@ -409,3 +439,15 @@ async def turn_off_hyperparam_freeze_window(
     )
 
     return await response.is_success, await response.error_message
+
+
+def execute_turn_off_hyperparam_freeze_window(
+    local_chain: "AsyncSubstrateInterface", wallet: Wallet
+):
+    try:
+        asyncio.run(turn_off_hyperparam_freeze_window(local_chain, wallet))
+        time.sleep(3)
+    except ValueError:
+        print(
+            "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
+        )

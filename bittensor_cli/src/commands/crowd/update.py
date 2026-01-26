@@ -1,9 +1,9 @@
 import asyncio
 import json
-from typing import Optional
+from typing import Optional, Union
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table, Column, box
 
 from bittensor_cli.src import COLORS
@@ -11,6 +11,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_error,
@@ -24,6 +25,7 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 async def update_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     min_contribution: Optional[Balance] = None,
     end: Optional[int] = None,
@@ -31,6 +33,8 @@ async def update_crowdloan(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Update parameters of a non-finalized crowdloan.
@@ -38,6 +42,7 @@ async def update_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction
         wallet: Wallet object containing coldkey (must be creator)
+        proxy: Optional proxy to use for this extrinsic submissions
         crowdloan_id: ID of the crowdloan to update
         min_contribution: New minimum contribution in TAO (None to prompt)
         end: New end block (None to prompt)
@@ -45,6 +50,7 @@ async def update_crowdloan(
         wait_for_inclusion: Wait for transaction inclusion
         wait_for_finalization: Wait for transaction finalization
         prompt: Whether to prompt for values
+        json_output: Whether to output JSON or human-readable
 
     Returns:
         tuple[bool, str]: Success status and message
@@ -213,7 +219,7 @@ async def update_crowdloan(
                 cap = candidate_cap
                 break
 
-    value: Optional[Balance | int] = None
+    value: Optional[Union[Balance, int]] = None
     call_function: Optional[str] = None
     param_name: Optional[str] = None
     update_type: Optional[str] = None
@@ -328,8 +334,11 @@ async def update_crowdloan(
 
     console.print(table)
 
-    if prompt and not Confirm.ask(
-        f"\n[bold]Proceed with updating {update_type}?[/bold]", default=False
+    if prompt and not confirm_action(
+        f"\n[bold]Proceed with updating {update_type}?[/bold]",
+        default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(
@@ -368,6 +377,7 @@ async def update_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )

@@ -1,15 +1,19 @@
 import ast
+import json
 from collections import namedtuple
 import math
 import os
 import sqlite3
+import sys
 import webbrowser
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
 from functools import partial
 import re
 
+import aiohttp
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet, Keypair
 from bittensor_wallet.utils import SS58_FORMAT
@@ -20,7 +24,8 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
+from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
@@ -36,11 +41,53 @@ if TYPE_CHECKING:
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
 GLOBAL_MAX_SUBNET_COUNT = 4096
+MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
-console = Console()
-json_console = Console()
-err_console = Console(stderr=True)
-verbose_console = Console(quiet=True)
+# Detect if we're in a test environment (pytest captures stdout, making it non-TTY)
+# or if NO_COLOR is set, disable colors
+# Also check for pytest environment variables
+_is_pytest = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None
+_no_color = os.getenv("NO_COLOR", "") != "" or not sys.stdout.isatty() or _is_pytest
+# Force no terminal detection when in pytest or when stdout is not a TTY
+_force_terminal = False if (_is_pytest or not sys.stdout.isatty()) else None
+console = Console(no_color=_no_color, force_terminal=_force_terminal)
+json_console = Console(
+    markup=False, highlight=False, force_terminal=False, no_color=True
+)
+err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_terminal)
+verbose_console = Console(
+    quiet=True, no_color=_no_color, force_terminal=_force_terminal
+)
+
+
+def confirm_action(
+    message: str,
+    default: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """
+    Ask for user confirmation with support for auto-decline via --no flag.
+
+    When decline=True (--no flag is set):
+    - Prints the prompt message (unless quiet=True / --quiet is specified)
+    - Automatically returns False (declines)
+
+    Args:
+        message: The confirmation message to display.
+        default: Default value if user just presses Enter (only used in interactive mode).
+        decline: If True, automatically decline without prompting.
+        quiet: If True, suppresses the prompt message when auto-declining.
+
+    Returns:
+        True if confirmed, False if declined.
+    """
+    if decline:
+        if not quiet:
+            console.print(f"{message} [Auto-declined via --no flag]")
+        return False
+    return Confirm.ask(message, default=default)
+
 
 jinja_env = Environment(
     loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
@@ -83,30 +130,77 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console_: Console):
-    console_.print(
-        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
-    )
+def print_console(message: str, colour: str, console_: Console, title: str = ""):
+    title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
+    console_.print(f"{title_part}[{colour}]{message}[/{colour}]\n")
 
 
 def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
         status.stop()
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
         status.start()
     else:
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
 
 
 def print_error(message: str, status=None):
     """Print error messages while temporarily pausing the status spinner."""
+    error_message = f":cross_mark: {message}"
     if status:
         status.stop()
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
         status.start()
     else:
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
+
+
+def print_success(message: str, status=None):
+    """Print success messages while temporarily pausing the status spinner."""
+    success_message = f":white_heavy_check_mark: {message}"
+    if status:
+        status.stop()
+        print_console(success_message, "green", console)
+        status.start()
+    else:
+        print_console(success_message, "green", console)
+
+
+def print_protection_warnings(
+    mev_protection: bool,
+    safe_staking: Optional[bool] = None,
+    command_name: str = "",
+) -> None:
+    """
+    Print warnings about missing MEV protection and/or limit price protection.
+
+    Args:
+        mev_protection: Whether MEV protection is enabled.
+        safe_staking: Whether safe staking (limit price protection) is enabled.
+                      None if limit price protection is not available for this command.
+        command_name: Name of the command (e.g., "stake add") for context.
+    """
+    warnings = []
+
+    if not mev_protection:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] MEV protection is disabled. "
+            "This transaction may be exposed to MEV attacks.[/dim]"
+        )
+
+    if safe_staking is not None and not safe_staking:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] Limit price protection (safe staking) is disabled. "
+            "This transaction may be subject to slippage.[/dim]"
+        )
+
+    if warnings:
+        if command_name:
+            console.print(f"\n[dim]Protection status for '{command_name}':[/dim]")
+        for warning in warnings:
+            console.print(warning)
+        console.print()
 
 
 RAO_PER_TAO = 1e9
@@ -401,6 +495,15 @@ def is_valid_ss58_address(address: str) -> bool:
         )  # Default substrate ss58 format (legacy)
     except IndexError:
         return False
+
+
+def is_valid_ss58_address_prompt(text: str) -> str:
+    valid = False
+    address = ""
+    while not valid:
+        address = Prompt.ask(text).strip()
+        valid = is_valid_ss58_address(address)
+    return address
 
 
 def is_valid_ed25519_pubkey(public_key: Union[str, bytes]) -> bool:
@@ -805,16 +908,312 @@ def normalize_hyperparameters(
     return normalized_values
 
 
+class TableDefinition:
+    """
+    Base class for address book table definitions/functions
+    """
+
+    name: str
+    cols: tuple[tuple[str, str], ...]
+
+    @staticmethod
+    @contextmanager
+    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
+        """
+        Helper function to get a DB connection
+        """
+        with DB() as (conn, cursor):
+            yield conn, cursor
+
+    @classmethod
+    def create_if_not_exists(cls, conn: sqlite3.Connection, _: sqlite3.Cursor) -> None:
+        """
+        Creates the table if it doesn't exist.
+        Args:
+            conn: sqlite3 connection
+            _: sqlite3 cursor
+        """
+        columns_ = ", ".join([" ".join(x) for x in cls.cols])
+        conn.execute(f"CREATE TABLE IF NOT EXISTS {cls.name} ({columns_})")
+        conn.commit()
+
+    @classmethod
+    def read_rows(
+        cls,
+        _: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        include_header: bool = True,
+    ) -> list[tuple[Union[str, int], ...]]:
+        """
+        Reads rows from a table.
+
+        Args:
+            _: sqlite3 connection
+            cursor: sqlite3 cursor
+            include_header: Whether to include the header row
+
+        Returns:
+            rows of the table, with column names as the header row if `include_header` is set
+
+        """
+        header = tuple(x[0] for x in cls.cols)
+        cols = ", ".join(header)
+        cursor.execute(f"SELECT {cols} FROM {cls.name}")
+        rows = cursor.fetchall()
+        if not include_header:
+            return rows
+        else:
+            return [header] + rows
+
+    @classmethod
+    def clear_table(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+    ):
+        """Truncates the table. Use with caution."""
+        cursor.execute(f"DELETE FROM {cls.name}")
+        conn.commit()
+
+    @classmethod
+    def update_entry(cls, *args, **kwargs):
+        """
+        Updates an existing entry in the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def add_entry(cls, *args, **kwargs):
+        """
+        Adds an entry to the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def delete_entry(cls, *args, **kwargs):
+        """
+        Deletes an entry from the table.
+        """
+        raise NotImplementedError()
+
+
+class AddressBook(TableDefinition):
+    name = "address_book"
+    cols = (("name", "TEXT"), ("ss58_address", "TEXT"), ("note", "TEXT"))
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, note) VALUES (?, ?, ?)",
+            (name, ss58_address, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        note: Optional[str] = None,
+    ):
+        cursor.execute(
+            f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()
+        ss58_address_ = ss58_address or row[0]
+        note_ = note or row[1]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, note = ? WHERE name = ?",
+            (ss58_address_, note_, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls, conn: sqlite3.Connection, cursor: sqlite3.Cursor, *, name: str
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAddressBook(TableDefinition):
+    name = "proxy_address_book"
+    cols = (
+        ("name", "TEXT"),
+        ("ss58_address", "TEXT"),
+        ("delay", "INTEGER"),
+        ("spawner", "TEXT"),
+        ("proxy_type", "TEXT"),
+        ("note", "TEXT"),
+    )
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        delay: Optional[int] = None,
+        spawner: Optional[str] = None,
+        proxy_type: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> None:
+        cursor.execute(
+            f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()
+        ss58_address_ = ss58_address or row[0]
+        spawner_ = spawner or row[1]
+        proxy_type_ = proxy_type or row[2]
+        delay = delay if delay is not None else row[3]
+        note_ = note or row[4]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
+            (ss58_address_, spawner_, proxy_type_, delay, note_, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        delay: int,
+        spawner: str,
+        proxy_type: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, delay, spawner, proxy_type, note) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, ss58_address, delay, spawner, proxy_type, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAnnouncements(TableDefinition):
+    name = "proxy_announcements"
+    cols = (
+        ("id", "INTEGER PRIMARY KEY"),
+        ("address", "TEXT"),
+        ("epoch_time", "INTEGER"),
+        ("block", "INTEGER"),
+        ("call_hash", "TEXT"),
+        ("call", "TEXT"),
+        ("call_serialized", "TEXT"),
+        ("executed", "INTEGER"),
+    )
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+        call: GenericCall,
+        executed: bool = False,
+    ) -> None:
+        call_hex = call.data.to_hex()
+        call_serialized = json.dumps(call.serialize())
+        executed_int = int(executed)
+        conn.execute(
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized, executed)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                address,
+                epoch_time,
+                block,
+                call_hash,
+                call_hex,
+                call_serialized,
+                executed_int,
+            ),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE call_hash = ? AND address = ? AND epoch_time = ? AND block = ?",
+            (call_hash, address, epoch_time, block),
+        )
+        conn.commit()
+
+    @classmethod
+    def mark_as_executed(cls, conn: sqlite3.Connection, _: sqlite3.Cursor, idx: int):
+        conn.execute(
+            f"UPDATE {cls.name} SET executed = ? WHERE id = ?",
+            (1, idx),
+        )
+        conn.commit()
+
+
 class DB:
     """
     For ease of interaction with the SQLite database used for --reuse-last and --html outputs of tables
+
+    Also for address book
     """
 
     def __init__(
         self,
-        db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
+        db_path: Optional[str] = None,
         row_factory=None,
     ):
+        if db_path is None:
+            if path_from_env := os.getenv("BTCLI_PROXIES_PATH"):
+                db_path = path_from_env
+            else:
+                db_path = os.path.join(
+                    os.path.expanduser(defaults.config.base_path), "bittensor.db"
+                )
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.row_factory = row_factory
@@ -829,9 +1228,14 @@ class DB:
             self.conn.close()
 
 
-def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> None:
+def create_and_populate_table(
+    title: str, columns: list[tuple[str, str]], rows: list[list]
+) -> None:
     """
     Creates and populates the rows of a table in the SQLite database.
+
+    Warning:
+        Will overwrite the existing table.
 
     :param title: title of the table
     :param columns: [(column name, column type), ...]
@@ -852,8 +1256,7 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         conn.commit()
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
-        conn.commit()
-        cursor.execute(creation_query)
+        conn.execute(creation_query)
         conn.commit()
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
         cursor.executemany(query, rows)
@@ -1025,6 +1428,17 @@ def render_tree(
         webbrowser.open(f"file://{output_file}")
 
 
+def ensure_address_book_tables_exist():
+    """
+    Creates address book tables if they don't exist.
+
+    Should be run at startup to ensure that the address book tables exist.
+    """
+    with DB() as (conn, cursor):
+        for table in (AddressBook, ProxyAddressBook, ProxyAnnouncements):
+            table.create_if_not_exists(conn, cursor)
+
+
 def group_subnets(registrations):
     if not registrations:
         return ""
@@ -1048,6 +1462,58 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def parse_subnet_range(input_str: str, total_subnets: int) -> list[int]:
+    """
+    Parse subnet range input like "1-24, 30-40, 5".
+
+    Args:
+        input_str: Comma-separated list of subnets and ranges
+                  Examples: "1-5", "1,2,3", "1-5, 10, 20-25"
+        total_subnets: Total number of subnets available
+
+    Returns:
+        Sorted list of unique subnet IDs
+
+    Raises:
+        ValueError: If input format is invalid
+
+    Examples:
+        >>> parse_subnet_range("1-5, 10")
+        [1, 2, 3, 4, 5, 10]
+        >>> parse_subnet_range("5, 3, 1")
+        [1, 3, 5]
+    """
+    subnets = set()
+    parts = [p.strip() for p in input_str.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            try:
+                start, end = part.split("-", 1)
+                start_num = int(start.strip())
+                end_num = int(end.strip())
+
+                if start_num > end_num:
+                    raise ValueError(f"Invalid range '{part}': start must be ≤ end")
+
+                if end_num - start_num > total_subnets:
+                    raise ValueError(
+                        f"Range '{part}' is not valid (total of {total_subnets} subnets)"
+                    )
+
+                subnets.update(range(start_num, end_num + 1))
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid range '{part}': must be 'start-end'")
+                raise
+        else:
+            try:
+                subnets.add(int(part))
+            except ValueError:
+                raise ValueError(f"Invalid subnet ID '{part}': must be a number")
+
+    return sorted(subnets)
 
 
 def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
@@ -1089,7 +1555,7 @@ def retry_prompt(
         if not rejection(var):
             return var
         else:
-            err_console.print(rejection_text)
+            print_error(rejection_text)
 
 
 def validate_netuid(value: int) -> int:
@@ -1405,13 +1871,13 @@ def unlock_key(
     except PasswordError:
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
             return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
         return UnlockStatus(False, err_msg)
 
 
@@ -1512,3 +1978,30 @@ async def print_extrinsic_id(
         f":white_heavy_check_mark: Your extrinsic has been included as {ext_id}"
     )
     return
+
+
+async def check_img_mimetype(img_url: str) -> tuple[bool, str, str]:
+    """
+    Checks to see if the given URL is an image, as defined by its mimetype.
+
+    Args:
+        img_url: the URL to check
+
+    Returns:
+        tuple:
+            bool: True if the URL has a MIME type indicating image (e.g. 'image/...'), False otherwise.
+            str: MIME type of the URL.
+            str: error message if the URL could not be retrieved
+
+    """
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(img_url) as response:
+                if response.status != 200:
+                    return False, "", "Could not fetch image"
+                elif "image/" not in response.content_type:
+                    return False, response.content_type, ""
+                else:
+                    return True, response.content_type, ""
+        except aiohttp.ClientError:
+            return False, "", "Could not fetch image"

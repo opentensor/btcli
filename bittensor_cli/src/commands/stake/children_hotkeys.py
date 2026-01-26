@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, IntPrompt, FloatPrompt
+from rich.prompt import IntPrompt, FloatPrompt
 from rich.table import Table
 from rich.text import Text
 from async_substrate_interface.errors import SubstrateRequestException
@@ -11,10 +11,12 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    print_error,
     float_to_u16,
     float_to_u64,
+    print_success,
     u16_to_float,
     u64_to_float,
     is_valid_ss58_address,
@@ -56,10 +58,13 @@ async def set_children_extrinsic(
     wallet: Wallet,
     hotkey: str,
     netuid: int,
+    proxy: Optional[str],
     children_with_proportions: list[tuple[float, str]],
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets children hotkeys with proportions assigned from the parent.
@@ -85,18 +90,22 @@ async def set_children_extrinsic(
     # Ask before moving on.
     if prompt:
         if all_revoked:
-            if not Confirm.ask(
-                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?"
+            if not confirm_action(
+                f"Do you want to revoke all children hotkeys for hotkey {hotkey} on netuid {netuid}?",
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
         else:
-            if not Confirm.ask(
+            if not confirm_action(
                 "Do you want to set children hotkeys:\n[bold white]{}[/bold white]?".format(
                     "\n".join(
                         f"  {child[1]}: {child[0]}"
                         for child in children_with_proportions
                     )
-                )
+                ),
+                decline=decline,
+                quiet=quiet,
             ):
                 return False, "Operation Cancelled", None
 
@@ -122,7 +131,7 @@ async def set_children_extrinsic(
             },
         )
         success, error_message, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet, wait_for_inclusion, wait_for_finalization
+            call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
         )
 
         if not wait_for_finalization and not wait_for_inclusion:
@@ -137,11 +146,11 @@ async def set_children_extrinsic(
             await print_extrinsic_id(ext_receipt)
             modifier = "included"
             if wait_for_finalization:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 modifier = "finalized"
             return True, f"{operation} successfully {modifier}.", ext_id
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+            print_error(f"Failed: {error_message}")
             return False, error_message, None
 
 
@@ -151,9 +160,12 @@ async def set_childkey_take_extrinsic(
     hotkey: str,
     netuid: int,
     take: float,
+    proxy: Optional[str] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> tuple[bool, str, Optional[str]]:
     """
     Sets childkey take.
@@ -163,6 +175,7 @@ async def set_childkey_take_extrinsic(
     :param: hotkey: Child hotkey.
     :param: take: Childkey Take value.
     :param: netuid: Unique identifier of for the subnet.
+    :param: proxy: Optional proxy to use to make this extrinsic submission.
     :param: wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
                                 `False` if the extrinsic fails to enter the block within the timeout.
     :param: wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `
@@ -174,8 +187,10 @@ async def set_childkey_take_extrinsic(
 
     # Ask before moving on.
     if prompt:
-        if not Confirm.ask(
-            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?"
+        if not confirm_action(
+            f"Do you want to set childkey take to: [bold white]{take * 100}%[/bold white]?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, "Operation Cancelled", None
 
@@ -206,7 +221,7 @@ async def set_childkey_take_extrinsic(
                 error_message,
                 ext_receipt,
             ) = await subtensor.sign_and_send_extrinsic(
-                call, wallet, wait_for_inclusion, wait_for_finalization
+                call, wallet, wait_for_inclusion, wait_for_finalization, proxy=proxy
             )
 
             if not wait_for_finalization and not wait_for_inclusion:
@@ -222,18 +237,10 @@ async def set_childkey_take_extrinsic(
                 modifier = "included"
                 if wait_for_finalization:
                     modifier = "finalized"
-                    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                # bittensor.logging.success(
-                #     prefix="Setting childkey take",
-                #     suffix="<green>Finalized: </green>" + str(success),
-                # )
+                    print_success("Finalized")
                 return True, f"Successfully {modifier} childkey take", ext_id
             else:
-                console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
-                # bittensor.logging.warning(
-                #     prefix="Setting childkey take",
-                #     suffix="<red>Failed: </red>" + str(error_message),
-                # )
+                print_error(f"Failed: {error_message}")
                 return False, error_message, None
 
         except SubstrateRequestException as e:
@@ -264,7 +271,7 @@ async def get_childkey_take(subtensor, hotkey: str, netuid: int) -> Optional[int
             return int(childkey_take_)
 
     except SubstrateRequestException as e:
-        err_console.print(f"Error querying ChildKeys: {format_error_message(e)}")
+        print_error(f"Error querying ChildKeys: {format_error_message(e)}")
         return None
 
 
@@ -482,7 +489,7 @@ async def get_children(
             if children:
                 netuid_children_tuples.append((netuid_, children))
             if not success:
-                err_console.print(
+                print_error(
                     f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
         await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
@@ -491,7 +498,7 @@ async def get_children(
             get_hotkey_pub_ss58(wallet), netuid
         )
         if not success:
-            err_console.print(f"Failed to get children from subtensor: {err_mg}")
+            print_error(f"Failed to get children from subtensor: {err_mg}")
         if children:
             netuid_children_tuples = [(netuid, children)]
             await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
@@ -509,17 +516,19 @@ async def set_children(
     wait_for_finalization: bool = True,
     prompt: bool = True,
     json_output: bool = False,
+    proxy: Optional[str] = None,
 ):
     """Set children hotkeys."""
+    # TODO holy shit I hate this. It needs to be rewritten.
     # Validate children SS58 addresses
     # TODO check to see if this should be allowed to be specified by user instead of pulling from wallet
     hotkey = get_hotkey_pub_ss58(wallet)
     for child in children:
         if not is_valid_ss58_address(child):
-            err_console.print(f":cross_mark:[red] Invalid SS58 address: {child}[/red]")
+            print_error(f"Invalid SS58 address: {child}")
             return
         if child == hotkey:
-            err_console.print(":cross_mark:[red] Cannot set yourself as a child.[/red]")
+            print_error("Cannot set yourself as a child.")
             return
 
     total_proposed = sum(proportions)
@@ -536,6 +545,7 @@ async def set_children(
             wallet=wallet,
             netuid=netuid,
             hotkey=hotkey,
+            proxy=proxy,
             children_with_proportions=children_with_proportions,
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
@@ -560,13 +570,9 @@ async def set_children(
                     f"Your childkey request has been submitted. It will be completed around block {completion_block}. "
                     f"The current block is {current_block}"
                 )
-            console.print(
-                ":white_heavy_check_mark: [green]Set children hotkeys.[/green]"
-            )
+            print_success("Set children hotkeys.")
         else:
-            console.print(
-                f":cross_mark:[red] Unable to set children hotkeys.[/red] {message}"
-            )
+            print_error(f"Unable to set children hotkeys. {message}")
     else:
         # set children on all subnets that parent is registered on
         netuids = await subtensor.get_all_subnet_netuids()
@@ -579,6 +585,7 @@ async def set_children(
                 wallet=wallet,
                 netuid=netuid_,
                 hotkey=hotkey,
+                proxy=proxy,
                 children_with_proportions=children_with_proportions,
                 prompt=prompt,
                 wait_for_inclusion=True,
@@ -598,9 +605,7 @@ async def set_children(
                 f"Your childkey request for netuid {netuid_} has been submitted. It will be completed around "
                 f"block {completion_block}. The current block is {current_block}."
             )
-        console.print(
-            ":white_heavy_check_mark: [green]Sent set children request for all subnets.[/green]"
-        )
+        print_success("Sent set children request for all subnets.")
     if json_output:
         json_console.print(json.dumps(successes))
 
@@ -609,6 +614,7 @@ async def revoke_children(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: Optional[int] = None,
+    proxy: Optional[str] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
@@ -625,6 +631,7 @@ async def revoke_children(
             netuid=netuid,
             hotkey=get_hotkey_pub_ss58(wallet),
             children_with_proportions=[],
+            proxy=proxy,
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
@@ -649,9 +656,7 @@ async def revoke_children(
                 f"It will be completed around block {completion_block}. The current block is {current_block}"
             )
         else:
-            console.print(
-                f":cross_mark:[red] Unable to revoke children hotkeys.[/red] {message}"
-            )
+            console.print(f"Unable to revoke children hotkeys. {message}")
     else:
         # revoke children from ALL netuids
         netuids = await subtensor.get_all_subnet_netuids()
@@ -665,6 +670,7 @@ async def revoke_children(
                 netuid=netuid,  # TODO should this be able to allow netuid = None ?
                 hotkey=get_hotkey_pub_ss58(wallet),
                 children_with_proportions=[],
+                proxy=proxy,
                 prompt=prompt,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
@@ -688,7 +694,7 @@ async def revoke_children(
                     f"is {current_block}"
                 )
             else:
-                err_console.print(
+                print_error(
                     f"Childkey revocation failed for netuid {netuid_}: {message}."
                 )
     if json_output:
@@ -701,9 +707,12 @@ async def childkey_take(
     take: Optional[float],
     hotkey: Optional[str] = None,
     netuid: Optional[int] = None,
+    proxy: Optional[str] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> list[tuple[Optional[int], bool, Optional[str]]]:
     """
     Get or Set childkey take.
@@ -714,9 +723,7 @@ async def childkey_take(
 
     def validate_take_value(take_value: float) -> bool:
         if not (0 <= take_value <= 0.18):
-            err_console.print(
-                f":cross_mark:[red] Invalid take value: {take_value}[/red]"
-            )
+            print_error(f"Invalid take value: {take_value}")
             return False
         return True
 
@@ -761,28 +768,27 @@ async def childkey_take(
         subnet: int, chk_take: float
     ) -> tuple[bool, Optional[str]]:
         """Set the childkey take for a single subnet"""
-        success, message, ext_id = await set_childkey_take_extrinsic(
+        success_, message, ext_id_ = await set_childkey_take_extrinsic(
             subtensor=subtensor,
             wallet=wallet,
             netuid=subnet,
             hotkey=get_hotkey_pub_ss58(wallet),
             take=chk_take,
+            proxy=proxy,
             prompt=prompt,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
         # Result
-        if success:
-            console.print(":white_heavy_check_mark: [green]Set childkey take.[/green]")
+        if success_:
+            print_success("Set childkey take.")
             console.print(
                 f"The childkey take for {get_hotkey_pub_ss58(wallet)} is now set to {take * 100:.2f}%."
             )
-            return True, ext_id
+            return True, ext_id_
         else:
-            console.print(
-                f":cross_mark:[red] Unable to set childkey take.[/red] {message}"
-            )
-            return False, ext_id
+            print_error(f"Unable to set childkey take. {message}")
+            return False, ext_id_
 
     # Print childkey take for other user and return (dont offer to change take rate)
     wallet_hk = get_hotkey_pub_ss58(wallet)
@@ -808,7 +814,9 @@ async def childkey_take(
 
     # Validate child SS58 addresses
     if not take:
-        if not Confirm.ask("Would you like to change the child take?"):
+        if not confirm_action(
+            "Would you like to change the child take?", decline=decline, quiet=quiet
+        ):
             return [(netuid, False, None)]
         new_take_value = -1.0
         while not validate_take_value(new_take_value):
@@ -847,12 +855,11 @@ async def childkey_take(
                     netuid=netuid_,
                     hotkey=wallet_hk,
                     take=take,
+                    proxy=proxy,
                     prompt=prompt,
                     wait_for_inclusion=True,
                     wait_for_finalization=False,
                 )
                 output_list.append((netuid_, result, ext_id))
-            console.print(
-                f":white_heavy_check_mark: [green]Sent childkey take of {take * 100:.2f}% to all subnets.[/green]"
-            )
+            print_success(f"Sent childkey take of {take * 100:.2f}% to all subnets.")
             return output_list

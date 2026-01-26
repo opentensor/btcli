@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Optional, Any, Union, TypedDict, Iterable
+from typing import Optional, Any, Union, TypedDict, Iterable, Literal
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from async_substrate_interface.async_substrate import (
@@ -35,16 +35,20 @@ from bittensor_cli.src.bittensor.chain_data import (
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import encrypt_extrinsic
 from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
-    err_console,
+    print_error,
     decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
-    U16_MAX,
+    MEV_SHIELD_PUBLIC_KEY_SIZE,
     get_hotkey_pub_ss58,
+    ProxyAnnouncements,
 )
+
+GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
 
 logger = logging.getLogger("btcli")
 
@@ -122,6 +126,7 @@ class SubtensorInterface:
             ss58_format=SS58_FORMAT,
             type_registry=TYPE_REGISTRY,
             chain_name="Bittensor",
+            ws_shutdown_timer=None,
         )
 
     def __str__(self):
@@ -135,8 +140,8 @@ class SubtensorInterface:
                 await self.substrate.initialize()
                 return self
             except TimeoutError:  # TODO verify
-                err_console.print(
-                    "\n[red]Error[/red]: Timeout occurred connecting to substrate. "
+                print_error(
+                    "\nError: Timeout occurred connecting to substrate. "
                     f"Verify your chain and network settings: {self}"
                 )
                 raise typer.Exit(code=1)
@@ -653,6 +658,26 @@ class SubtensorInterface:
         )
         return result
 
+    async def total_networks(
+        self, block_hash: Optional[str] = None, reuse_block: bool = False
+    ) -> int:
+        """
+        Returns the total number of subnets in the Bittensor network.
+
+        :param block_hash: The hash of the blockchain block number at which to check the subnet existence.
+        :param reuse_block: Whether to reuse the last-used block hash.
+
+        :return: The total number of subnets in the network.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="TotalNetworks",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return result
+
     async def get_subnet_state(
         self, netuid: int, block_hash: Optional[str] = None
     ) -> Optional["SubnetState"]:
@@ -1120,7 +1145,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        return_val = result != "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+        return_val = result != GENESIS_ADDRESS
         return return_val
 
     async def get_hotkey_owner(
@@ -1154,6 +1179,11 @@ class SubtensorInterface:
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         era: Optional[dict[str, int]] = None,
+        proxy: Optional[str] = None,
+        nonce: Optional[int] = None,
+        sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
+        announce_only: bool = False,
+        mev_protection: bool = False,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1163,18 +1193,74 @@ class SubtensorInterface:
         :param wait_for_inclusion: whether to wait until the extrinsic call is included on the chain
         :param wait_for_finalization: whether to wait until the extrinsic call is finalized on the chain
         :param era: The length (in blocks) for which a transaction should be valid.
+        :param proxy: The real account used to create the proxy. None if not using a proxy for this call.
+        :param nonce: The nonce used to submit this extrinsic call.
+        :param sign_with: Determine which of the wallet's keypairs to use to sign the extrinsic call.
+        :param announce_only: If set, makes the call as an announcement, rather than making the call. Cannot
+            be used with `mev_protection=True`.
+        :param mev_protection: If set, uses Mev Protection on the extrinsic, thus encrypting it. Cannot be
+            used with `announce_only=True`.
 
-        :return: (success, error message)
+        :return: (success, error message or inner extrinsic hash (if using mev_protection), extrinsic receipt | None)
         """
-        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int]]] = {
+
+        async def create_signed(call_to_sign, n):
+            kwargs = {
+                "call": call_to_sign,
+                "keypair": keypair,
+                "nonce": n,
+            }
+            if era is not None:
+                kwargs["era"] = era
+            return await self.substrate.create_signed_extrinsic(**kwargs)
+
+        if announce_only and mev_protection:
+            raise ValueError(
+                "Cannot use announce-only and mev-protection. Calls should be announced without mev protection,"
+                "and executed with them."
+            )
+        if proxy is not None:
+            if announce_only:
+                call_to_announce = call
+                call = await self.substrate.compose_call(
+                    "Proxy",
+                    "announce",
+                    {
+                        "real": proxy,
+                        "call_hash": f"0x{call_to_announce.call_hash.hex()}",
+                    },
+                )
+            else:
+                call = await self.substrate.compose_call(
+                    "Proxy",
+                    "proxy",
+                    {"real": proxy, "call": call, "force_proxy_type": None},
+                )
+        keypair = getattr(wallet, sign_with)
+        call_args: dict[str, Union[GenericCall, Keypair, dict[str, int], int]] = {
             "call": call,
-            "keypair": wallet.coldkey,
+            # sign with specified key
+            "keypair": keypair,
         }
         if era is not None:
             call_args["era"] = era
-        extrinsic = await self.substrate.create_signed_extrinsic(
-            **call_args
-        )  # sign with coldkey
+        if nonce is not None:
+            call_args["nonce"] = nonce
+        else:
+            call_args["nonce"] = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+        inner_hash = ""
+        if mev_protection:
+            next_nonce = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+            inner_extrinsic = await create_signed(call, next_nonce)
+            inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
+            shield_call = await encrypt_extrinsic(self, inner_extrinsic)
+            extrinsic = await create_signed(shield_call, nonce)
+        else:
+            extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
             response = await self.substrate.submit_extrinsic(
                 extrinsic,
@@ -1183,13 +1269,44 @@ class SubtensorInterface:
             )
             # We only wait here if we expect finalization.
             if not wait_for_finalization and not wait_for_inclusion:
-                return True, "", response
+                return True, inner_hash, response
             if await response.is_success:
-                return True, "", response
+                if announce_only:
+                    block = await self.substrate.get_block_number(response.block_hash)
+                    with ProxyAnnouncements.get_db() as (conn, cursor):
+                        ProxyAnnouncements.add_entry(
+                            conn,
+                            cursor,
+                            address=proxy,
+                            epoch_time=int(time.time()),
+                            block=block,
+                            call_hash=call_to_announce.call_hash.hex(),
+                            call=call_to_announce,
+                        )
+                    console.print(
+                        f"Added entry [green]{call_to_announce.call_hash.hex()}[/green] "
+                        f"at block {block} to your ProxyAnnouncements address book. You can execute this with\n"
+                        f"[blue]btcli proxy execute --call-hash {call_to_announce.call_hash.hex()}[/blue]"
+                    )
+                return True, inner_hash, response
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
-            return False, format_error_message(e), None
+            err_msg = format_error_message(e)
+            if proxy and "Invalid Transaction" in err_msg:
+                extrinsic_fee, signer_balance = await asyncio.gather(
+                    self.get_extrinsic_fee(
+                        call, keypair=wallet.coldkeypub, proxy=proxy
+                    ),
+                    self.get_balance(wallet.coldkeypub.ss58_address),
+                )
+                if extrinsic_fee > signer_balance:
+                    err_msg += (
+                        "\nAs this is a proxy transaction, the signing account needs to pay the extrinsic fee. "
+                        f"However, the balance of the signing account is {signer_balance}, and the extrinsic fee is "
+                        f"{extrinsic_fee}."
+                    )
+            return False, err_msg, None
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
@@ -1596,16 +1713,25 @@ class SubtensorInterface:
 
         return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
 
-    async def get_extrinsic_fee(self, call: GenericCall, keypair: Keypair) -> Balance:
+    async def get_extrinsic_fee(
+        self, call: GenericCall, keypair: Keypair, proxy: Optional[str] = None
+    ) -> Balance:
         """
         Determines the fee for the extrinsic call.
         Args:
             call: Created extrinsic call
             keypair: The keypair that would sign the extrinsic (usually you would just want to use the *pub for this)
+            proxy: Optional proxy for the extrinsic call
 
         Returns:
             Balance object representing the fee for this extrinsic.
         """
+        if proxy is not None:
+            call = await self.substrate.compose_call(
+                "Proxy",
+                "proxy",
+                {"real": proxy, "call": call, "force_proxy_type": None},
+            )
         fee_dict = await self.substrate.get_payment_info(call, keypair)
         return Balance.from_rao(fee_dict["partial_fee"])
 
@@ -1803,6 +1929,43 @@ class SubtensorInterface:
             return Balance.from_rao(contribution)
         return None
 
+    async def get_crowdloan_contributors(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+    ) -> dict[str, Balance]:
+        """Retrieves all contributors and their contributions for a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The ID of the crowdloan.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            dict[str, Balance]: A dictionary mapping contributor SS58 addresses to their
+                contribution amounts as Balance objects.
+
+        This function queries the Contributions storage map with the crowdloan_id as the first key
+        to retrieve all contributors and their contribution amounts.
+        """
+        contributors_data = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+            fully_exhaust=True,
+        )
+
+        contributor_contributions = {}
+        async for contributor_key, contribution_amount in contributors_data:
+            try:
+                contributor_address = decode_account_id(contributor_key[0])
+                contribution_balance = Balance.from_rao(contribution_amount.value)
+                contributor_contributions[contributor_address] = contribution_balance
+            except Exception:
+                continue
+
+        return contributor_contributions
+
     async def get_coldkey_swap_schedule_duration(
         self,
         block_hash: Optional[str] = None,
@@ -1828,6 +1991,386 @@ class SubtensorInterface:
 
         return result
 
+    async def get_coldkey_claim_type(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict:
+        """
+        Retrieves the root claim type for a specific coldkey.
+
+        Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
+        - "Swap": Future Root Alpha Emissions are swapped to TAO at claim time and added to your root stake
+        - "Keep": Future Root Alpha Emissions are kept as Alpha
+        - "KeepSubnets": Specific subnets kept as Alpha, rest swapped to TAO
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey to query.
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict: Claim type information in one of these formats:
+                - {"type": "Swap"}
+                - {"type": "Keep"}
+                - {"type": "KeepSubnets", "subnets": [1, 5, 10, ...]}
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimType",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return {"type": "Swap"}
+
+        claim_type_key = next(iter(result.keys()))
+
+        if claim_type_key == "KeepSubnets":
+            subnets_data = result["KeepSubnets"]["subnets"]
+            subnet_list = sorted([subnet for subnet in subnets_data[0]])
+            return {"type": "KeepSubnets", "subnets": subnet_list}
+        else:
+            return {"type": claim_type_key}
+
+    async def get_all_coldkeys_claim_type(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[str, dict]:
+        """
+        Retrieves all root claim types for all coldkeys in the network.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[str, dict]: Mapping of coldkey SS58 addresses to claim type dicts
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="RootClaimType",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        root_claim_types = {}
+        async for coldkey, claim_type_data in result:
+            coldkey_ss58 = decode_account_id(coldkey[0])
+
+            claim_type_key = next(iter(claim_type_data.value.keys()))
+
+            if claim_type_key == "KeepSubnets":
+                subnets_data = claim_type_data.value["KeepSubnets"]["subnets"]
+                subnet_list = sorted([subnet for subnet in subnets_data[0]])
+                root_claim_types[coldkey_ss58] = {
+                    "type": "KeepSubnets",
+                    "subnets": subnet_list,
+                }
+            else:
+                root_claim_types[coldkey_ss58] = {"type": claim_type_key}
+
+        return root_claim_types
+
+    async def get_staking_hotkeys(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[str]:
+        """Retrieves all hotkeys that a coldkey is staking to.
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey.
+            block_hash: The hash of the blockchain block for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            list[str]: A list of hotkey SS58 addresses that the coldkey has staked to.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="StakingHotkeys",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
+        return staked_hotkeys
+
+    async def get_claimed_amount(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in provided subnet.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: The number of Alpha stake claimed from the root validator.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[netuid, hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        return Balance.from_rao(query).set_unit(netuid=netuid)
+
+    async def get_claimed_amount_all_netuids(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, Balance]:
+        """Retrieves the root claimed Alpha shares for coldkey from hotkey in all subnets.
+
+        Args:
+            coldkey_ss58: The SS58 address of the staker.
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, Balance]: Dictionary mapping netuid to claimed stake.
+        """
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="RootClaimed",
+            params=[hotkey_ss58, coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        total_claimed = {}
+        async for netuid, claimed in query:
+            total_claimed[netuid] = Balance.from_rao(claimed.value).set_unit(
+                netuid=netuid
+            )
+        return total_claimed
+
+    async def get_claimable_rate_all_netuids(
+        self,
+        hotkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> dict[int, float]:
+        """Retrieves all root claimable rates from a given hotkey address for all subnets with this validator.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            dict[int, float]: Dictionary mapping netuid to claimable rate.
+        """
+        query = await self.query(
+            module="SubtensorModule",
+            storage_function="RootClaimable",
+            params=[hotkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if not query:
+            return {}
+
+        bits_list = next(iter(query))
+        return {bits[0]: fixed_to_float(bits[1], frac_bits=32) for bits in bits_list}
+
+    async def get_claimable_rate_netuid(
+        self,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> float:
+        """Retrieves the root claimable rate from a given hotkey address for provided netuid.
+
+        Args:
+            hotkey_ss58: The SS58 address of the root validator.
+            netuid: The unique identifier of the subnet to get the rate.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            float: The rate of claimable stake from validator's hotkey for provided subnet.
+        """
+        all_rates = await self.get_claimable_rate_all_netuids(
+            hotkey_ss58=hotkey_ss58,
+            block_hash=block_hash,
+            reuse_block=reuse_block,
+        )
+        return all_rates.get(netuid, 0.0)
+
+    async def get_claimable_stake_for_netuid(
+        self,
+        coldkey_ss58: str,
+        hotkey_ss58: str,
+        netuid: int,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the root claimable stake for a given coldkey address.
+
+        Args:
+            coldkey_ss58: Delegate's ColdKey SS58 address.
+            hotkey_ss58: The root validator hotkey SS58 address.
+            netuid: Delegate's netuid where stake will be claimed.
+            block_hash: The blockchain block hash for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            Balance: Available for claiming root stake.
+
+        Note:
+            After manual claim, claimable (available) stake will be added to subnet stake.
+        """
+        root_stake, root_claimable_rate, root_claimed = await asyncio.gather(
+            self.get_stake_for_coldkey_and_hotkey_on_netuid(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=0,
+                block_hash=block_hash,
+            ),
+            self.get_claimable_rate_netuid(
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
+            self.get_claimed_amount(
+                coldkey_ss58=coldkey_ss58,
+                hotkey_ss58=hotkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+                reuse_block=reuse_block,
+            ),
+        )
+
+        root_claimable_stake = (root_claimable_rate * root_stake).set_unit(
+            netuid=netuid
+        )
+        # Return the difference (what's left to claim)
+        return max(
+            root_claimable_stake - root_claimed,
+            Balance.from_rao(0).set_unit(netuid=netuid),
+        )
+
+    async def get_claimable_stakes_for_coldkey(
+        self,
+        coldkey_ss58: str,
+        stakes_info: list["StakeInfo"],
+        block_hash: Optional[str] = None,
+    ) -> dict[str, dict[int, "Balance"]]:
+        """Batch query claimable stakes for multiple hotkey-netuid pairs.
+
+        Args:
+            coldkey_ss58: The coldkey SS58 address.
+            stakes_info: List of StakeInfo objects containing stake data.
+            block_hash: Optional block hash for the query.
+
+        Returns:
+            dict[str, dict[int, Balance]]: Mapping of hotkey to netuid to claimable Balance.
+        """
+        if not stakes_info:
+            return {}
+
+        root_stakes: dict[str, Balance] = {}
+        for stake_info in stakes_info:
+            if stake_info.netuid == 0 and stake_info.stake.rao > 0:
+                root_stakes[stake_info.hotkey_ss58] = stake_info.stake
+
+        target_pairs = []
+        for s in stakes_info:
+            if s.netuid != 0 and s.stake.rao > 0 and s.hotkey_ss58 in root_stakes:
+                pair = (s.hotkey_ss58, s.netuid)
+                target_pairs.append(pair)
+
+        if not target_pairs:
+            return {}
+
+        unique_hotkeys = list(set(h for h, _ in target_pairs))
+        if not unique_hotkeys:
+            return {}
+
+        batch_claimable_calls = []
+        batch_claimed_calls = []
+
+        # Get the claimable rate
+        for hotkey in unique_hotkeys:
+            batch_claimable_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule", "RootClaimable", [hotkey], block_hash=block_hash
+                )
+            )
+
+        # Get already claimed
+        claimed_pairs = target_pairs
+        for hotkey, netuid in claimed_pairs:
+            batch_claimed_calls.append(
+                await self.substrate.create_storage_key(
+                    "SubtensorModule",
+                    "RootClaimed",
+                    [netuid, hotkey, coldkey_ss58],
+                    block_hash=block_hash,
+                )
+            )
+
+        batch_claimable, batch_claimed = await asyncio.gather(
+            self.substrate.query_multi(batch_claimable_calls, block_hash=block_hash),
+            self.substrate.query_multi(batch_claimed_calls, block_hash=block_hash),
+        )
+
+        claimable_rates: dict[str, dict[int, float]] = {}
+        claimed_amounts: dict[tuple[str, int], Balance] = {}
+        for idx, (_, result) in enumerate(batch_claimable):
+            hotkey = unique_hotkeys[idx]
+            if result:
+                for netuid, rate in result:
+                    if hotkey not in claimable_rates:
+                        claimable_rates[hotkey] = {}
+                    claimable_rates[hotkey][netuid] = fixed_to_float(rate, frac_bits=32)
+
+        for idx, (_, result) in enumerate(batch_claimed):
+            hotkey, netuid = claimed_pairs[idx]
+            value = result or 0
+            claimed_amounts[(hotkey, netuid)] = Balance.from_rao(value).set_unit(netuid)
+
+        # Calculate the claimable stake for each pair
+        results = {}
+        already_claimed: Balance
+        net_claimable: Balance
+        rate: float
+        root_stake: Balance
+        claimable_stake: Balance
+        for hotkey, netuid in target_pairs:
+            root_stake = root_stakes.get(hotkey, Balance(0))
+            rate = claimable_rates.get(hotkey, {}).get(netuid, 0.0)
+            claimable_stake = rate * root_stake
+            already_claimed = claimed_amounts.get((hotkey, netuid), Balance(0))
+            net_claimable = max(claimable_stake - already_claimed, Balance(0))
+            if hotkey not in results:
+                results[hotkey] = {}
+            results[hotkey][netuid] = net_claimable.set_unit(netuid)
+        return results
+
     async def get_subnet_price(
         self,
         netuid: int = None,
@@ -1841,6 +2384,7 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
+        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
         current_sqrt_price = await self.query(
             module="Swap",
             storage_function="AlphaSqrtPrice",
@@ -1878,6 +2422,156 @@ class SubtensorInterface:
 
         return map_
 
+    async def get_all_subnet_ema_tao_inflow(
+        self,
+        block_hash: Optional[str] = None,
+        page_size: int = 100,
+    ) -> dict[int, Balance]:
+        """
+        Query EMA TAO inflow for all subnets.
+
+        This represents the exponential moving average of TAO flowing
+        into or out of a subnet. Negative values indicate net outflow.
+
+        Args:
+            block_hash: Optional block hash to query at.
+            page_size: The page size for batch queries (default: 100).
+
+        Returns:
+            Dict mapping netuid -> Balance(EMA TAO inflow).
+        """
+        query = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="SubnetEmaTaoFlow",
+            page_size=page_size,
+            block_hash=block_hash,
+        )
+        ema_map = {}
+        async for netuid, value in query:
+            if not value:
+                ema_map[netuid] = Balance.from_rao(0)
+            else:
+                _, raw_ema_value = value
+                ema_value = int(fixed_to_float(raw_ema_value))
+                ema_map[netuid] = Balance.from_rao(ema_value)
+        return ema_map
+
+    async def get_subnet_ema_tao_inflow(
+        self,
+        netuid: int,
+        block_hash: Optional[str] = None,
+    ) -> Balance:
+        """
+        Query EMA TAO inflow for a specific subnet.
+
+        This represents the exponential moving average of TAO flowing
+        into or out of a subnet. Negative values indicate net outflow.
+
+        Args:
+            netuid: The unique identifier of the subnet.
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Balance(EMA TAO inflow).
+        """
+        value = await self.substrate.query(
+            module="SubtensorModule",
+            storage_function="SubnetEmaTaoFlow",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+        if not value:
+            return Balance.from_rao(0)
+        _, raw_ema_value = value
+        ema_value = int(fixed_to_float(raw_ema_value))
+        return Balance.from_rao(ema_value)
+
+    async def get_mev_shield_next_key(
+        self,
+        block_hash: Optional[str] = None,
+    ) -> bytes:
+        """
+        Get the next MEV Shield public key and epoch from chain storage.
+
+        Args:
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Tuple of (public_key_bytes, epoch) or None if not available.
+        """
+        result = await self.query(
+            module="MevShield",
+            storage_function="NextKey",
+            block_hash=block_hash,
+        )
+        public_key_bytes = bytes(next(iter(result)))
+
+        if len(public_key_bytes) != MEV_SHIELD_PUBLIC_KEY_SIZE:
+            raise ValueError(
+                f"Invalid ML-KEM-768 public key size: {len(public_key_bytes)} bytes. "
+                f"Expected exactly {MEV_SHIELD_PUBLIC_KEY_SIZE} bytes."
+            )
+
+        return public_key_bytes
+
+    async def get_mev_shield_current_key(
+        self,
+        block_hash: Optional[str] = None,
+    ) -> bytes:
+        """
+        Get the current MEV Shield public key and epoch from chain storage.
+
+        Args:
+            block_hash: Optional block hash to query at.
+
+        Returns:
+            Tuple of (public_key_bytes, epoch) or None if not available.
+        """
+        result = await self.query(
+            module="MevShield",
+            storage_function="CurrentKey",
+            block_hash=block_hash,
+        )
+        public_key_bytes = bytes(next(iter(result)))
+
+        if len(public_key_bytes) != MEV_SHIELD_PUBLIC_KEY_SIZE:
+            raise ValueError(
+                f"Invalid ML-KEM-768 public key size: {len(public_key_bytes)} bytes. "
+                f"Expected exactly {MEV_SHIELD_PUBLIC_KEY_SIZE} bytes."
+            )
+
+        return public_key_bytes
+
+    async def compose_custom_crowdloan_call(
+        self,
+        pallet_name: str,
+        method_name: str,
+        call_params: dict,
+        block_hash: Optional[str] = None,
+    ) -> tuple[Optional[GenericCall], Optional[str]]:
+        """
+        Compose a custom Substrate call.
+
+        Args:
+            pallet_name: Name of the pallet/module
+            method_name: Name of the method/function
+            call_params: Dictionary of call parameters
+            block_hash: Optional block hash for the query
+
+        Returns:
+            Tuple of (GenericCall or None, error_message or None)
+        """
+        try:
+            call = await self.substrate.compose_call(
+                call_module=pallet_name,
+                call_function=method_name,
+                call_params=call_params,
+                block_hash=block_hash,
+            )
+            return call, None
+        except Exception as e:
+            return None, f"Failed to compose call: {str(e)}"
+
 
 async def best_connection(networks: list[str]):
     """
@@ -1904,5 +2598,5 @@ async def best_connection(networks: list[str]):
                 t2 = time.monotonic()
             results[network] = [t2 - t1, latency, t2 - pt1]
         except Exception as e:
-            err_console.print(f"Error attempting network {network}: {e}")
+            print_error(f"Error attempting network {network}: {e}")
     return results
