@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import os
 import time
 from typing import Optional, Any, Union, TypedDict, Iterable, Literal
@@ -49,8 +48,6 @@ from bittensor_cli.src.bittensor.utils import (
 )
 
 GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
-
-logger = logging.getLogger("btcli")
 
 
 class ParamWithTypes(TypedDict):
@@ -120,7 +117,6 @@ class SubtensorInterface:
             if (use_disk_cache or os.getenv("DISK_CACHE", "1") == "1")
             else AsyncSubstrateInterface
         )
-        logger.debug(f"Using substrate class {substrate_class.__name__}")
         self.substrate = substrate_class(
             url=self.chain_endpoint,
             ss58_format=SS58_FORMAT,
