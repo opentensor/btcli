@@ -273,9 +273,9 @@ async def remove_proxy(
     If remove_all is True, removes all proxies for the account.
     Otherwise, removes a specific proxy identified by delegate, proxy_type, and delay.
     """
-    if remove_all:
-        # Remove all proxies
-        if prompt:
+    # Handle confirmation prompt
+    if prompt:
+        if remove_all:
             confirmation = Prompt.ask(
                 "[red]WARNING:[/red] This will remove ALL proxies associated with this account.\n"
                 "[red]All proxy relationships will be permanently lost.[/red]\n"
@@ -284,26 +284,7 @@ async def remove_proxy(
             if confirmation != "REMOVE":
                 print_error("Invalid input. Operation cancelled.")
                 return None
-        if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
-            if not json_output:
-                print_error(ulw.message)
-            else:
-                json_console.print_json(
-                    data={
-                        "success": ulw.success,
-                        "message": ulw.message,
-                        "extrinsic_identifier": None,
-                    }
-                )
-            return None
-        call = await subtensor.substrate.compose_call(
-            call_module="Proxy",
-            call_function="remove_proxies",
-            call_params={},
-        )
-    else:
-        # Remove single proxy
-        if prompt:
+        else:
             if not confirm_action(
                 f"This will remove a proxy of type {proxy_type.value} for delegate {delegate}. "
                 f"Do you want to proceed?",
@@ -311,18 +292,29 @@ async def remove_proxy(
                 quiet=quiet,
             ):
                 return None
-        if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
-            if not json_output:
-                print_error(ulw.message)
-            else:
-                json_console.print_json(
-                    data={
-                        "success": ulw.success,
-                        "message": ulw.message,
-                        "extrinsic_identifier": None,
-                    }
-                )
-            return None
+
+    # Unlock wallet
+    if not (ulw := unlock_key(wallet, print_out=not json_output)).success:
+        if not json_output:
+            print_error(ulw.message)
+        else:
+            json_console.print_json(
+                data={
+                    "success": ulw.success,
+                    "message": ulw.message,
+                    "extrinsic_identifier": None,
+                }
+            )
+        return None
+
+    # Compose the appropriate call
+    if remove_all:
+        call = await subtensor.substrate.compose_call(
+            call_module="Proxy",
+            call_function="remove_proxies",
+            call_params={},
+        )
+    else:
         call = await subtensor.substrate.compose_call(
             call_module="Proxy",
             call_function="remove_proxy",
@@ -332,6 +324,7 @@ async def remove_proxy(
                 "delegate": delegate,
             },
         )
+
     return await submit_proxy(
         subtensor=subtensor,
         wallet=wallet,
