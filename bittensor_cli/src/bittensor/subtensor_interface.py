@@ -1888,7 +1888,7 @@ class SubtensorInterface:
         disputes: list[tuple[str, int]] = []
         async for ss58, data in result:
             coldkey = decode_account_id(ss58)
-            disputes.append((coldkey, int(data)))
+            disputes.append((coldkey, data.value))
         return disputes
 
     async def get_coldkey_swap_dispute(
