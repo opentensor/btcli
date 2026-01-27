@@ -2447,7 +2447,14 @@ async def execute_coldkey_swap(
         )
 
         if not success:
-            print_error(f"Failed to execute coldkey swap: {err_msg}")
+            if "Custom error: 21" in err_msg:
+                print_error(
+                    "Failed to execute coldkey swap: The swap has been disputed.\n"
+                    "The account is frozen until the triumvirate resolves the dispute.\n",
+                    status=status,
+                )
+            else:
+                print_error(f"Failed to execute coldkey swap: {err_msg}", status=status)
             return False
 
         if mev_protection:
