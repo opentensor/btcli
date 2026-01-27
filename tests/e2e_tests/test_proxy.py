@@ -1031,7 +1031,6 @@ def test_remove_proxy(local_chain, wallet_setup):
             balance_result_output["balances"]["default"]["coldkey"]
             == wallet_alice.coldkeypub.ss58_address
         )
-        alice_init_balance = balance_result_output["balances"]["default"]["free"]
 
         # Use the proxy to transfer from Alice to Bob
         amount_to_transfer_proxy = 100
