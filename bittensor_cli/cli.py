@@ -797,7 +797,7 @@ class CLIManager:
             "wallet_hotkey": None,
             "network": None,
             "use_cache": True,
-            "disk_cache": False,
+            "disk_cache": True,
             "rate_tolerance": None,
             "safe_staking": True,
             "allow_partial_stake": False,
@@ -1431,7 +1431,7 @@ class CLIManager:
                 "Verify this is intended.",
             )
             if not self.subtensor:
-                use_disk_cache = self.config.get("disk_cache", False)
+                use_disk_cache = self.config.get("disk_cache", True)
                 if network:
                     network_ = None
                     for item in network:

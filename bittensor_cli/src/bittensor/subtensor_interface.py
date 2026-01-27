@@ -82,7 +82,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network, use_disk_cache: bool = False):
+    def __init__(self, network, use_disk_cache: bool = True):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -114,7 +114,7 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
         substrate_class = (
             DiskCachedAsyncSubstrateInterface
-            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            if (use_disk_cache or os.getenv("DISK_CACHE", "1") == "1")
             else AsyncSubstrateInterface
         )
         self.substrate = substrate_class(
@@ -443,11 +443,11 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes = await self.get_stake_for_coldkeys(
-            list(ss58_addresses), block_hash=block_hash
+        sub_stakes, dynamic_info = await asyncio.gather(
+            self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
+            # Token pricing info
+            self.all_subnets(block_hash=block_hash),
         )
-        # Token pricing info
-        dynamic_info = await self.all_subnets()
 
         results = {}
         for ss58, stake_info_list in sub_stakes.items():
