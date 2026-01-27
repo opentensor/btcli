@@ -875,12 +875,41 @@ def test_proxy_remove_requires_delegate_or_all_json(mock_json_console):
     assert call_args["extrinsic_identifier"] is None
 
 
-@patch("bittensor_cli.cli.console")
-@patch("bittensor_cli.cli.proxy_commands")
-def test_proxy_remove_with_all_flag(mock_proxy_commands, mock_console):
-    """Test that proxy_remove with --all flag calls remove_proxies"""
+@patch("bittensor_cli.cli.print_error")
+def test_proxy_remove_with_all_and_delegate_errors(mock_print_error):
+    """Test that proxy_remove with both --all and --delegate flags returns an error"""
     cli_manager = CLIManager()
     valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    cli_manager.proxy_remove(
+        delegate=valid_ss58,
+        all=True,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=False,
+    )
+
+    # Should show error that --delegate cannot be used with --all
+    mock_print_error.assert_called_once_with(
+        "--delegate cannot be used together with --all flag."
+    )
+
+
+@patch("bittensor_cli.cli.proxy_commands")
+def test_proxy_remove_with_all_flag(mock_proxy_commands):
+    """Test that proxy_remove with --all flag calls remove_proxy with remove_all=True"""
+    cli_manager = CLIManager()
     mock_wallet = Mock()
     mock_subtensor = Mock()
 
@@ -891,7 +920,7 @@ def test_proxy_remove_with_all_flag(mock_proxy_commands, mock_console):
         patch.object(cli_manager, "_run_command") as mock_run_command,
     ):
         cli_manager.proxy_remove(
-            delegate=valid_ss58,  # Should be ignored when --all is True
+            delegate=None,
             all=True,
             network=None,
             proxy_type="Transfer",
@@ -909,15 +938,13 @@ def test_proxy_remove_with_all_flag(mock_proxy_commands, mock_console):
             json_output=False,
         )
 
-        # Should show warning that delegate is ignored
-        mock_console.print.assert_called_once_with(
-            "[yellow]Warning: --delegate is ignored when --all flag is used.[/yellow]"
-        )
-
-        # Should call remove_proxies (not remove_proxy)
-        mock_proxy_commands.remove_proxies.assert_called_once_with(
+        # Should call remove_proxy with remove_all=True
+        mock_proxy_commands.remove_proxy.assert_called_once_with(
             subtensor=mock_subtensor,
             wallet=mock_wallet,
+            delegate=None,
+            proxy_type="Transfer",
+            delay=0,
             prompt=False,
             decline=False,
             quiet=True,
@@ -925,6 +952,7 @@ def test_proxy_remove_with_all_flag(mock_proxy_commands, mock_console):
             wait_for_finalization=False,
             period=100,
             json_output=False,
+            remove_all=True,
         )
 
         # Should call _run_command with the result
@@ -978,6 +1006,7 @@ def test_proxy_remove_with_delegate_calls_remove_proxy(mock_proxy_commands):
             wait_for_finalization=True,
             period=100,
             json_output=False,
+            remove_all=False,
         )
 
         # Should call _run_command with the result
