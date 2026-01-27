@@ -9761,7 +9761,7 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"era: {period}\n"
         )
-        # Validate that either delegate is provided or --all is used
+        # Validate that either delegate is provided or --all is used, but not both
         if not all and not delegate:
             if not json_output:
                 print_error(
@@ -9777,73 +9777,46 @@ class CLIManager:
                 )
             return
 
-        # If --all is used, delegate and proxy_type/delay should not be required
-        if all:
-            if delegate:
-                if not json_output:
-                    console.print(
-                        "[yellow]Warning: --delegate is ignored when --all flag is used.[/yellow]"
-                    )
-            self.verbosity_handler(quiet, verbose, json_output, prompt)
-            wallet = self.wallet_ask(
-                wallet_name=wallet_name,
-                wallet_path=wallet_path,
-                wallet_hotkey=wallet_hotkey,
-                ask_for=[WO.NAME, WO.PATH],
-                validate=WV.WALLET,
-            )
-            return self._run_command(
-                proxy_commands.remove_proxies(
-                    subtensor=self.initialize_chain(network),
-                    wallet=wallet,
-                    prompt=prompt,
-                    decline=decline,
-                    quiet=quiet,
-                    wait_for_inclusion=wait_for_inclusion,
-                    wait_for_finalization=wait_for_finalization,
-                    period=period,
-                    json_output=json_output,
+        if all and delegate:
+            if not json_output:
+                print_error(
+                    "--delegate cannot be used together with --all flag."
                 )
-            )
-        else:
-            # Single proxy removal - delegate is required
-            if not delegate:
-                if not json_output:
-                    print_error("--delegate is required when --all flag is not used.")
-                else:
-                    json_console.print_json(
-                        data={
-                            "success": False,
-                            "message": "--delegate is required when --all flag is not used.",
-                            "extrinsic_identifier": None,
-                        }
-                    )
-                return
+            else:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": "--delegate cannot be used together with --all flag.",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return
 
-            self.verbosity_handler(quiet, verbose, json_output, prompt)
-            wallet = self.wallet_ask(
-                wallet_name=wallet_name,
-                wallet_path=wallet_path,
-                wallet_hotkey=wallet_hotkey,
-                ask_for=[WO.NAME, WO.PATH],
-                validate=WV.WALLET,
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        wallet = self.wallet_ask(
+            wallet_name=wallet_name,
+            wallet_path=wallet_path,
+            wallet_hotkey=wallet_hotkey,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.WALLET,
+        )
+        return self._run_command(
+            proxy_commands.remove_proxy(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                delegate=delegate,
+                proxy_type=proxy_type,
+                delay=delay,
+                prompt=prompt,
+                decline=decline,
+                quiet=quiet,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                period=period,
+                json_output=json_output,
+                remove_all=all,
             )
-            return self._run_command(
-                proxy_commands.remove_proxy(
-                    subtensor=self.initialize_chain(network),
-                    wallet=wallet,
-                    delegate=delegate,
-                    proxy_type=proxy_type,
-                    delay=delay,
-                    prompt=prompt,
-                    decline=decline,
-                    quiet=quiet,
-                    wait_for_inclusion=wait_for_inclusion,
-                    wait_for_finalization=wait_for_finalization,
-                    period=period,
-                    json_output=json_output,
-                )
-            )
+        )
 
     def proxy_kill(
         self,
