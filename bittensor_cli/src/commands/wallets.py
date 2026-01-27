@@ -2239,6 +2239,7 @@ async def dispute_coldkey_swap(
     subtensor: SubtensorInterface,
     decline: bool = False,
     quiet: bool = False,
+    prompt: bool = True,
     mev_protection: bool = False,
 ) -> bool:
     """Dispute a pending coldkey swap for the calling coldkey.
@@ -2297,7 +2298,7 @@ async def dispute_coldkey_swap(
     )
     console.print(info)
 
-    if not confirm_action(
+    if prompt and not confirm_action(
         "Proceed with dispute? Your swap process will be frozen until the triumvirate can intervene.",
         decline=decline,
         quiet=quiet,
@@ -2340,6 +2341,7 @@ async def execute_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
+    prompt: bool = True,
     mev_protection: bool = True,
 ) -> bool:
     """Executes a previously announced coldkey swap.
@@ -2420,7 +2422,7 @@ async def execute_coldkey_swap(
         "\n[bold red]WARNING:[/bold red] This action is irreversible. All assets will be transferred.\n"
     )
 
-    if not confirm_action(
+    if prompt and not confirm_action(
         "Are you sure you want to continue?", decline=decline, quiet=quiet
     ):
         return False
