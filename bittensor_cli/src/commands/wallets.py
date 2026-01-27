@@ -702,7 +702,6 @@ async def wallet_balance(
         str(total_free_balance + total_staked_balance),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
-    await subtensor.substrate.close()
     if json_output:
         output_balances = {
             key: {
@@ -2188,7 +2187,10 @@ async def find_coldkey_swap_extrinsic(
     ):
         console.print("Querying archive node for coldkey swap events...")
         await subtensor.substrate.close()
-        subtensor = SubtensorInterface("archive")
+        subtensor.substrate.chain_endpoint = Constants.archive_entrypoint
+        subtensor.substrate.url = Constants.archive_entrypoint
+        subtensor.substrate.initialized = False
+        await subtensor.substrate.initialize()
 
     block_hashes = await asyncio.gather(
         *[
