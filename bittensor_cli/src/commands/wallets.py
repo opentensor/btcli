@@ -2035,6 +2035,7 @@ async def announce_coldkey_swap(
     new_coldkey_ss58: str,
     decline: bool = False,
     quiet: bool = False,
+    prompt: bool = True,
     mev_protection: bool = False,
 ) -> bool:
     """Announces intent to swap a coldkey to a new address.
@@ -2106,7 +2107,7 @@ async def announce_coldkey_swap(
                 "\n[yellow]You already have an announcement for this coldkey.[/yellow] "
                 "You can execute the existing swap without reannouncing."
             )
-            if not confirm_action(
+            if prompt and not confirm_action(
                 "Do you still want to reannounce the same hash (the period to wait before executing the swap will be reset)?",
                 decline=decline,
                 quiet=quiet,
@@ -2117,7 +2118,7 @@ async def announce_coldkey_swap(
                 f"\n[dim]Reannouncing with a different coldkey will reset the waiting period "
                 f"to {blocks_to_duration(announce_delay)} from now.[/dim]"
             )
-            if not confirm_action(
+            if prompt and not confirm_action(
                 "Proceed with reannouncement and reset the waiting period?",
                 decline=decline,
                 quiet=quiet,
@@ -2146,7 +2147,7 @@ async def announce_coldkey_swap(
     )
     console.print(table)
 
-    if not confirm_action(
+    if prompt and not confirm_action(
         "Are you sure you want to continue?", decline=decline, quiet=quiet
     ):
         return False
