@@ -4132,6 +4132,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         decline: bool = Options.decline,
+        prompt: bool = Options.prompt,
     ):
         """
         Swap your coldkey to a new address using a two-step announcement process.
@@ -4239,6 +4240,7 @@ class CLIManager:
                     new_coldkey_ss58=new_wallet_coldkey_ss58,
                     decline=decline,
                     quiet=quiet,
+                    prompt=prompt,
                     mev_protection=mev_protection,
                 )
             )
@@ -4249,6 +4251,7 @@ class CLIManager:
                     subtensor=self.initialize_chain(network),
                     decline=decline,
                     quiet=quiet,
+                    prompt=prompt,
                     mev_protection=mev_protection,
                 )
             )
@@ -4260,6 +4263,7 @@ class CLIManager:
                     new_coldkey_ss58=new_wallet_coldkey_ss58,
                     decline=decline,
                     quiet=quiet,
+                    prompt=prompt,
                     mev_protection=mev_protection,
                 )
             )
