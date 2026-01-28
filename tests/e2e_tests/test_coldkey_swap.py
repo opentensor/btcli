@@ -402,7 +402,6 @@ def test_coldkey_swap_dispute(local_chain, wallet_setup):
             "--new-coldkey",
             wallet_new.coldkeypub.ss58_address,
             "--no-prompt",
-            "--no-mev-protection",
         ],
     )
     assert "The account is frozen" in execute.stderr, execute.stderr
