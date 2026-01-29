@@ -2510,6 +2510,7 @@ class SubtensorInterface:
             results[hotkey][netuid] = net_claimable.set_unit(netuid)
         return results
 
+
     async def get_subnet_price(
         self,
         netuid: int = None,
@@ -2523,17 +2524,16 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
-        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
-        current_sqrt_price = await self.query(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            params=[netuid],
+        if netuid == 0:
+            return Balance.from_tao(1.0)
+
+        current_price = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price",
+            params={"netuid": netuid},
             block_hash=block_hash,
         )
-
-        current_sqrt_price = fixed_to_float(current_sqrt_price)
-        current_price = current_sqrt_price * current_sqrt_price
-        return Balance.from_rao(int(current_price * 1e9))
+        return Balance.from_rao(current_price)
 
     async def get_subnet_prices(
         self, block_hash: Optional[str] = None, page_size: int = 100
