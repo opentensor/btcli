@@ -2546,20 +2546,28 @@ class SubtensorInterface:
 
         :return: A dictionary mapping netuid to the current Alpha price in TAO units.
         """
-        query = await self.substrate.query_map(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            page_size=page_size,
-            block_hash=block_hash,
-        )
+        all_netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
 
-        map_ = {}
-        async for netuid_, current_sqrt_price in query:
-            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
-            current_price = current_sqrt_price_**2
-            map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
+        price_tasks = [
+            self.query_runtime_api(
+                "SwapRuntimeApi",
+                "current_alpha_price",
+                params={"netuid": netuid},
+                block_hash=block_hash,
+            )
+            for netuid in all_netuids
+            if netuid != 0
+        ]
 
-        return map_
+        prices = await asyncio.gather(*price_tasks, return_exceptions=True)
+
+        result = {0: Balance.from_tao(1.0)}
+        netuids_to_query = [netuid for netuid in all_netuids if netuid != 0]
+        for netuid, current_price in zip(netuids_to_query, prices):
+            if not isinstance(current_price, Exception):
+                result[netuid] = Balance.from_rao(current_price)
+
+        return result
 
     async def get_all_subnet_ema_tao_inflow(
         self,
