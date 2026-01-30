@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, Literal
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
@@ -801,7 +801,6 @@ class DynamicInfo(InfoBase):
         return Balance.from_tao(alpha.tao * self.price.tao)
 
 
-
 @dataclass
 class ColdkeySwapAnnouncementInfo(InfoBase):
     """
@@ -1146,6 +1145,43 @@ class SimSwapResult:
             tao_fee=Balance.from_rao(d["tao_fee"]).set_unit(0),
             alpha_fee=Balance.from_rao(d["alpha_fee"]).set_unit(netuid),
         )
+
+    def tao_to_alpha_slippage(
+        self,
+        tao_amount: Balance,
+        current_price: float,
+        netuid: int,
+    ) -> tuple[Balance, Balance, float]:
+        """
+        Calculate slippage for a TAO -> Alpha swap.
+
+        Args:
+            tao_amount: Amount of TAO provided as input.
+            current_price: Current alpha price in TAO (TAO per 1 alpha).
+            netuid: Target subnet netuid (used for unit tagging).
+
+        Returns:
+            A tuple of:
+                received_alpha (Balance): Simulated alpha received.
+                slippage_alpha (Balance): Shortfall vs ideal at current_price.
+                slippage_pct_float (float): Slippage percentage (0 - 100).
+        """
+        if current_price <= 0:
+            zero = Balance.from_tao(0).set_unit(netuid)
+            return zero, zero, 0.0
+
+        ideal_amount = Balance.from_tao(tao_amount.tao / current_price).set_unit(netuid)
+        received_amount = self.alpha_amount
+
+        if ideal_amount.tao == 0:
+            zero = Balance.from_tao(0).set_unit(netuid)
+            return received_amount, zero, 0.0
+
+        slippage_amount = max(ideal_amount.tao - received_amount.tao, 0)
+        slippage_amount_balance = Balance.from_tao(slippage_amount).set_unit(netuid)
+        slippage_pct = 100 * slippage_amount / ideal_amount.tao
+
+        return received_amount, slippage_amount_balance, slippage_pct
 
 
 @dataclass
