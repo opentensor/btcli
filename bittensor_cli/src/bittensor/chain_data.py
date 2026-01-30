@@ -1183,6 +1183,41 @@ class SimSwapResult:
 
         return received_amount, slippage_amount_balance, slippage_pct
 
+    def alpha_to_tao_slippage(
+        self,
+        alpha_amount: Balance,
+        current_price: float,
+    ) -> tuple[Balance, Balance, float]:
+        """
+        Calculate slippage for an Alpha -> TAO swap.
+
+        Args:
+            alpha_amount: Amount of Alpha provided as input.
+            current_price: Current alpha price in TAO (TAO per 1 alpha).
+
+        Returns:
+            A tuple of:
+                received_tao (Balance): Simulated TAO received.
+                slippage_tao (Balance): Shortfall vs ideal at current_price.
+                slippage_pct_float (float): Slippage percentage (0 - 100).
+        """
+        if current_price <= 0:
+            zero = Balance.from_tao(0).set_unit(0)
+            return zero, zero, 0.0
+
+        ideal_amount = Balance.from_tao(alpha_amount.tao * current_price).set_unit(0)
+        received_amount = self.tao_amount
+
+        if ideal_amount.tao == 0:
+            zero = Balance.from_tao(0).set_unit(0)
+            return received_amount, zero, 0.0
+
+        slippage_amount = max(ideal_amount.tao - received_amount.tao, 0)
+        slippage_amount_balance = Balance.from_tao(slippage_amount).set_unit(0)
+        slippage_pct = 100 * slippage_amount / ideal_amount.tao
+
+        return received_amount, slippage_amount_balance, slippage_pct
+
 
 @dataclass
 class CrowdloanData(InfoBase):
