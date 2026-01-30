@@ -1654,7 +1654,7 @@ class SubtensorInterface:
                 "get_all_dynamic_info",
                 block_hash=block_hash,
             ),
-            self.get_subnet_prices(block_hash=block_hash, page_size=129),
+            self.get_subnet_prices(block_hash=block_hash),
         )
         sns: list[DynamicInfo] = DynamicInfo.list_from_any(result)
         for sn in sns:
@@ -2510,7 +2510,6 @@ class SubtensorInterface:
             results[hotkey][netuid] = net_claimable.set_unit(netuid)
         return results
 
-
     async def get_subnet_price(
         self,
         netuid: int = None,
@@ -2536,36 +2535,32 @@ class SubtensorInterface:
         return Balance.from_rao(current_price)
 
     async def get_subnet_prices(
-        self, block_hash: Optional[str] = None, page_size: int = 100
+        self, block_hash: Optional[str] = None
     ) -> dict[int, Balance]:
         """
         Gets the current Alpha prices in TAO for all subnets.
 
         :param block_hash: The hash of the block to retrieve prices from.
-        :param page_size: The page size for batch queries (default: 100).
 
         :return: A dictionary mapping netuid to the current Alpha price in TAO units.
         """
         all_netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
 
-        price_tasks = [
-            self.query_runtime_api(
-                "SwapRuntimeApi",
-                "current_alpha_price",
-                params={"netuid": netuid},
-                block_hash=block_hash,
-            )
-            for netuid in all_netuids
-            if netuid != 0
-        ]
-
-        prices = await asyncio.gather(*price_tasks, return_exceptions=True)
-
         result = {0: Balance.from_tao(1.0)}
         netuids_to_query = [netuid for netuid in all_netuids if netuid != 0]
+        prices = await asyncio.gather(
+            *[
+                self.query_runtime_api(
+                    "SwapRuntimeApi",
+                    "current_alpha_price",
+                    params={"netuid": netuid},
+                    block_hash=block_hash,
+                )
+                for netuid in netuids_to_query
+            ],
+        )
         for netuid, current_price in zip(netuids_to_query, prices):
-            if not isinstance(current_price, Exception):
-                result[netuid] = Balance.from_rao(current_price)
+            result[netuid] = Balance.from_rao(current_price)
 
         return result
 
