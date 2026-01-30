@@ -19,6 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     group_subnets,
     get_subnet_name,
+    print_success,
     unlock_key,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
@@ -722,12 +723,10 @@ async def move_stake(
                 return False, ""
         await print_extrinsic_id(response)
         if not prompt:
-            console.print(":white_heavy_check_mark: [green]Sent[/green]")
+            print_success("Sent")
             return True, ext_id
         else:
-            console.print(
-                ":white_heavy_check_mark: [dark_sea_green3]Stake moved.[/dark_sea_green3]"
-            )
+            print_success("[dark_sea_green3]Stake moved.[/dark_sea_green3]")
             block_hash = await subtensor.substrate.get_chain_head()
             (
                 new_origin_stake_balance,
@@ -945,7 +944,7 @@ async def transfer_stake(
             await print_extrinsic_id(response)
             ext_id = await response.get_extrinsic_identifier()
             if not prompt:
-                console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                print_success("Sent")
                 return True, ext_id
             else:
                 # Get and display new stake balances
@@ -1184,7 +1183,7 @@ async def swap_stake(
                     return False, ""
             await print_extrinsic_id(response)
             if not prompt:
-                console.print(":white_heavy_check_mark: [green]Sent[/green]")
+                print_success("Sent")
                 return True, await response.get_extrinsic_identifier()
             else:
                 # Get and display new stake balances

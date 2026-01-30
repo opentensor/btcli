@@ -37,7 +37,6 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     convert_blocks_to_time,
-    err_console,
     json_console,
     print_error,
     print_verbose,
@@ -137,9 +136,7 @@ async def associate_hotkey(
         )
 
         if not success:
-            console.print(
-                f"[red]:cross_mark: Failed to associate hotkey: {err_msg}[/red]"
-            )
+            print_error(f"Failed to associate hotkey: {err_msg}")
             return False
 
         console.print(
@@ -705,7 +702,6 @@ async def wallet_balance(
         str(total_free_balance + total_staked_balance),
     )
     console.print(Padding(table, (0, 0, 0, 4)))
-    await subtensor.substrate.close()
     if json_output:
         output_balances = {
             key: {
@@ -2191,7 +2187,10 @@ async def find_coldkey_swap_extrinsic(
     ):
         console.print("Querying archive node for coldkey swap events...")
         await subtensor.substrate.close()
-        subtensor = SubtensorInterface("archive")
+        subtensor.substrate.chain_endpoint = Constants.archive_entrypoint
+        subtensor.substrate.url = Constants.archive_entrypoint
+        subtensor.substrate.initialized = False
+        await subtensor.substrate.initialize()
 
     block_hashes = await asyncio.gather(
         *[

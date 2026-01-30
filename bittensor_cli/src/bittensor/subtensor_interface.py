@@ -82,7 +82,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network, use_disk_cache: bool = False):
+    def __init__(self, network, use_disk_cache: bool = True):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -114,7 +114,7 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
         substrate_class = (
             DiskCachedAsyncSubstrateInterface
-            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            if (use_disk_cache or os.getenv("DISK_CACHE", "1") == "1")
             else AsyncSubstrateInterface
         )
         self.substrate = substrate_class(
@@ -443,11 +443,11 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes = await self.get_stake_for_coldkeys(
-            list(ss58_addresses), block_hash=block_hash
+        sub_stakes, dynamic_info = await asyncio.gather(
+            self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
+            # Token pricing info
+            self.all_subnets(block_hash=block_hash),
         )
-        # Token pricing info
-        dynamic_info = await self.all_subnets()
 
         results = {}
         for ss58, stake_info_list in sub_stakes.items():
@@ -1925,6 +1925,43 @@ class SubtensorInterface:
             return Balance.from_rao(contribution)
         return None
 
+    async def get_crowdloan_contributors(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+    ) -> dict[str, Balance]:
+        """Retrieves all contributors and their contributions for a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The ID of the crowdloan.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            dict[str, Balance]: A dictionary mapping contributor SS58 addresses to their
+                contribution amounts as Balance objects.
+
+        This function queries the Contributions storage map with the crowdloan_id as the first key
+        to retrieve all contributors and their contribution amounts.
+        """
+        contributors_data = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+            fully_exhaust=True,
+        )
+
+        contributor_contributions = {}
+        async for contributor_key, contribution_amount in contributors_data:
+            try:
+                contributor_address = decode_account_id(contributor_key[0])
+                contribution_balance = Balance.from_rao(contribution_amount.value)
+                contributor_contributions[contributor_address] = contribution_balance
+            except Exception:
+                continue
+
+        return contributor_contributions
+
     async def get_coldkey_swap_schedule_duration(
         self,
         block_hash: Optional[str] = None,
@@ -2500,6 +2537,36 @@ class SubtensorInterface:
             )
 
         return public_key_bytes
+
+    async def compose_custom_crowdloan_call(
+        self,
+        pallet_name: str,
+        method_name: str,
+        call_params: dict,
+        block_hash: Optional[str] = None,
+    ) -> tuple[Optional[GenericCall], Optional[str]]:
+        """
+        Compose a custom Substrate call.
+
+        Args:
+            pallet_name: Name of the pallet/module
+            method_name: Name of the method/function
+            call_params: Dictionary of call parameters
+            block_hash: Optional block hash for the query
+
+        Returns:
+            Tuple of (GenericCall or None, error_message or None)
+        """
+        try:
+            call = await self.substrate.compose_call(
+                call_module=pallet_name,
+                call_function=method_name,
+                call_params=call_params,
+                block_hash=block_hash,
+            )
+            return call, None
+        except Exception as e:
+            return None, f"Failed to compose call: {str(e)}"
 
 
 async def best_connection(networks: list[str]):

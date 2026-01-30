@@ -6,18 +6,21 @@ from bittensor_wallet import Wallet
 from rich.prompt import IntPrompt, Prompt, FloatPrompt
 from rich.table import Table, Column, box
 from scalecodec import GenericCall
-
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.commands.crowd.utils import get_constant
+from bittensor_cli.src.commands.crowd.utils import (
+    get_constant,
+    prompt_custom_call_params,
+)
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
     confirm_action,
     console,
     json_console,
     print_error,
+    print_success,
     is_valid_ss58_address,
     unlock_key,
     print_extrinsic_id,
@@ -36,6 +39,9 @@ async def create_crowdloan(
     subnet_lease: Optional[bool],
     emissions_share: Optional[int],
     lease_end_block: Optional[int],
+    custom_call_pallet: Optional[str],
+    custom_call_method: Optional[str],
+    custom_call_args: Optional[str],
     wait_for_inclusion: bool,
     wait_for_finalization: bool,
     prompt: bool,
@@ -58,17 +64,53 @@ async def create_crowdloan(
             print_error(f"[red]{unlock_status.message}[/red]")
         return False, unlock_status.message
 
+    # Determine crowdloan type and validate
     crowdloan_type: str
     if subnet_lease is not None:
+        if custom_call_pallet or custom_call_method or custom_call_args:
+            error_msg = "--custom-call-* cannot be used with --subnet-lease."
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
         crowdloan_type = "subnet" if subnet_lease else "fundraising"
+    elif custom_call_pallet or custom_call_method or custom_call_args:
+        if not (custom_call_pallet and custom_call_method):
+            error_msg = (
+                "Both --custom-call-pallet and --custom-call-method must be provided."
+            )
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg
+        crowdloan_type = "custom"
     elif prompt:
         type_choice = IntPrompt.ask(
             "\n[bold cyan]What type of crowdloan would you like to create?[/bold cyan]\n"
             "[cyan][1][/cyan] General Fundraising (funds go to address)\n"
-            "[cyan][2][/cyan] Subnet Leasing (create new subnet)",
-            choices=["1", "2"],
+            "[cyan][2][/cyan] Subnet Leasing (create new subnet)\n"
+            "[cyan][3][/cyan] Custom Call (attach custom Substrate call)",
+            choices=["1", "2", "3"],
         )
-        crowdloan_type = "subnet" if type_choice == 2 else "fundraising"
+
+        if type_choice == 2:
+            crowdloan_type = "subnet"
+        elif type_choice == 3:
+            crowdloan_type = "custom"
+            success, pallet, method, args, error_msg = await prompt_custom_call_params(
+                subtensor=subtensor, json_output=json_output
+            )
+            if not success:
+                return False, error_msg or "Failed to get custom call parameters."
+            custom_call_pallet, custom_call_method, custom_call_args = (
+                pallet,
+                method,
+                args,
+            )
+        else:
+            crowdloan_type = "fundraising"
 
         if crowdloan_type == "subnet":
             current_burn_cost = await subtensor.burn_cost()
@@ -78,6 +120,12 @@ async def create_crowdloan(
                 "  • Contributors will receive emissions as dividends\n"
                 "  • You will become the subnet operator\n"
                 f"  • [yellow]Note: Ensure cap covers subnet registration cost (currently {current_burn_cost.tao:,.2f} TAO)[/yellow]\n"
+            )
+        elif crowdloan_type == "custom":
+            console.print(
+                "\n[yellow]Custom Call Crowdloan Selected[/yellow]\n"
+                "  • A custom Substrate call will be executed when the crowdloan is finalized\n"
+                "  • Ensure the call parameters are correct before proceeding\n"
             )
         else:
             console.print(
@@ -186,11 +234,11 @@ async def create_crowdloan(
         if cap <= deposit:
             if prompt:
                 print_error(
-                    f"[red]Cap must be greater than the deposit ({deposit.tao:,.4f} TAO).[/red]"
+                    f"Cap must be greater than the deposit ({deposit.tao:,.4f} TAO)."
                 )
                 cap_value = None
                 continue
-            print_error("[red]Cap must be greater than the initial deposit.[/red]")
+            print_error("Cap must be greater than the initial deposit.")
             return False, "Cap must be greater than the initial deposit."
         break
 
@@ -204,12 +252,12 @@ async def create_crowdloan(
         if duration_value < min_duration or duration_value > max_duration:
             if prompt:
                 print_error(
-                    f"[red]Duration must be between {min_duration} and "
-                    f"{max_duration} blocks.[/red]"
+                    f"Duration must be between {min_duration} and "
+                    f"{max_duration} blocks."
                 )
                 duration_value = None
                 continue
-            print_error("[red]Crowdloan duration is outside the allowed range.[/red]")
+            print_error("Crowdloan duration is outside the allowed range.")
             return False, "Crowdloan duration is outside the allowed range."
         duration = duration_value
         break
@@ -217,7 +265,30 @@ async def create_crowdloan(
     current_block = await subtensor.substrate.get_block_number(None)
     call_to_attach: Optional[GenericCall]
     lease_perpetual = None
-    if crowdloan_type == "subnet":
+    custom_call_info: Optional[dict] = None
+
+    if crowdloan_type == "custom":
+        call_params = json.loads(custom_call_args or "{}")
+        call_to_attach, error_msg = await subtensor.compose_custom_crowdloan_call(
+            pallet_name=custom_call_pallet,
+            method_name=custom_call_method,
+            call_params=call_params,
+        )
+
+        if call_to_attach is None:
+            if json_output:
+                json_console.print(json.dumps({"success": False, "error": error_msg}))
+            else:
+                print_error(f"[red]{error_msg}[/red]")
+            return False, error_msg or "Failed to compose custom call."
+
+        custom_call_info = {
+            "pallet": custom_call_pallet,
+            "method": custom_call_method,
+            "args": call_params,
+        }
+        target_address = None  # Custom calls don't use target_address
+    elif crowdloan_type == "subnet":
         target_address = None
 
         if emissions_share is None:
@@ -227,7 +298,7 @@ async def create_crowdloan(
 
         if not 0 <= emissions_share <= 100:
             print_error(
-                f"[red]Emissions share must be between 0 and 100, got {emissions_share}[/red]"
+                f"Emissions share must be between 0 and 100, got {emissions_share}"
             )
             return False, "Invalid emissions share percentage."
 
@@ -255,9 +326,7 @@ async def create_crowdloan(
         if target_address:
             target_address = target_address.strip()
             if not is_valid_ss58_address(target_address):
-                print_error(
-                    f"[red]Invalid target SS58 address provided: {target_address}[/red]"
-                )
+                print_error(f"Invalid target SS58 address provided: {target_address}")
                 return False, "Invalid target SS58 address provided."
         elif prompt:
             target_input = Prompt.ask(
@@ -266,9 +335,7 @@ async def create_crowdloan(
             target_address = target_input.strip() or None
 
         if not is_valid_ss58_address(target_address):
-            print_error(
-                f"[red]Invalid target SS58 address provided: {target_address}[/red]"
-            )
+            print_error(f"Invalid target SS58 address provided: {target_address}")
             return False, "Invalid target SS58 address provided."
 
         call_to_attach = None
@@ -278,8 +345,8 @@ async def create_crowdloan(
     )
     if deposit > creator_balance:
         print_error(
-            f"[red]Insufficient balance to cover the deposit. "
-            f"Available: {creator_balance}, required: {deposit}[/red]"
+            f"Insufficient balance to cover the deposit. "
+            f"Available: {creator_balance}, required: {deposit}"
         )
         return False, "Insufficient balance to cover the deposit."
 
@@ -328,6 +395,16 @@ async def create_crowdloan(
                 table.add_row("Lease Ends", f"Block {lease_end_block}")
             else:
                 table.add_row("Lease Duration", "[green]Perpetual[/green]")
+        elif crowdloan_type == "custom":
+            table.add_row("Type", "[yellow]Custom Call[/yellow]")
+            table.add_row("Pallet", f"[cyan]{custom_call_info['pallet']}[/cyan]")
+            table.add_row("Method", f"[cyan]{custom_call_info['method']}[/cyan]")
+            args_str = (
+                json.dumps(custom_call_info["args"], indent=2)
+                if custom_call_info["args"]
+                else "{}"
+            )
+            table.add_row("Call Arguments", f"[dim]{args_str}[/dim]")
         else:
             table.add_row("Type", "[cyan]General Fundraising[/cyan]")
             target_text = (
@@ -383,7 +460,7 @@ async def create_crowdloan(
                 )
             )
         else:
-            print_error(f"[red]{error_message or 'Failed to create crowdloan.'}[/red]")
+            print_error(f"{error_message or 'Failed to create crowdloan.'}")
         return False, error_message or "Failed to create crowdloan."
 
     if json_output:
@@ -406,6 +483,8 @@ async def create_crowdloan(
             output_dict["data"]["emissions_share"] = emissions_share
             output_dict["data"]["lease_end_block"] = lease_end_block
             output_dict["data"]["perpetual_lease"] = lease_end_block is None
+        elif crowdloan_type == "custom":
+            output_dict["data"]["custom_call"] = custom_call_info
         else:
             output_dict["data"]["target_address"] = target_address
 
@@ -414,8 +493,8 @@ async def create_crowdloan(
     else:
         if crowdloan_type == "subnet":
             message = "Subnet lease crowdloan created successfully."
+            print_success(message)
             console.print(
-                f"\n:white_check_mark: [green]{message}[/green]\n"
                 f"  Type: [magenta]Subnet Leasing[/magenta]\n"
                 f"  Emissions Share: [cyan]{emissions_share}%[/cyan]\n"
                 f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
@@ -427,10 +506,25 @@ async def create_crowdloan(
                 console.print(f"  Lease ends at block: [bold]{lease_end_block}[/bold]")
             else:
                 console.print("  Lease: [green]Perpetual[/green]")
-        else:
-            message = "Fundraising crowdloan created successfully."
+        elif crowdloan_type == "custom":
+            message = "Custom call crowdloan created successfully."
             console.print(
                 f"\n:white_check_mark: [green]{message}[/green]\n"
+                f"  Type: [yellow]Custom Call[/yellow]\n"
+                f"  Pallet: [cyan]{custom_call_info['pallet']}[/cyan]\n"
+                f"  Method: [cyan]{custom_call_info['method']}[/cyan]\n"
+                f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
+                f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
+                f"  Cap: [{COLORS.P.TAO}]{cap}[/{COLORS.P.TAO}]\n"
+                f"  Ends at block: [bold]{end_block}[/bold]"
+            )
+            if custom_call_info["args"]:
+                args_str = json.dumps(custom_call_info["args"], indent=2)
+                console.print(f"  Call Arguments:\n{args_str}")
+        else:
+            message = "Fundraising crowdloan created successfully."
+            print_success(message)
+            console.print(
                 f"  Type: [cyan]General Fundraising[/cyan]\n"
                 f"  Deposit: [{COLORS.P.TAO}]{deposit}[/{COLORS.P.TAO}]\n"
                 f"  Min contribution: [{COLORS.P.TAO}]{min_contribution}[/{COLORS.P.TAO}]\n"
@@ -489,7 +583,7 @@ async def finalize_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, error_msg
 
     if wallet.coldkeypub.ss58_address != crowdloan.creator:
@@ -499,7 +593,7 @@ async def finalize_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Only the creator can finalize a crowdloan."
 
     if crowdloan.finalized:
@@ -507,7 +601,7 @@ async def finalize_crowdloan(
         if json_output:
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
-            print_error(f"[red]{error_msg}[/red]")
+            print_error(error_msg)
         return False, "Crowdloan is already finalized."
 
     if crowdloan.raised < crowdloan.cap:
@@ -520,9 +614,9 @@ async def finalize_crowdloan(
             json_console.print(json.dumps({"success": False, "error": error_msg}))
         else:
             print_error(
-                f"[red]Crowdloan #{crowdloan_id} has not reached its cap.\n"
+                f"Crowdloan #{crowdloan_id} has not reached its cap.\n"
                 f"Raised: {crowdloan.raised}, Cap: {crowdloan.cap}\n"
-                f"Still needed: {still_needed.tao}[/red]"
+                f"Still needed: {still_needed.tao}"
             )
         return False, "Crowdloan has not reached its cap."
 

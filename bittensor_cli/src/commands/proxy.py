@@ -13,6 +13,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     console,
     print_error,
+    print_success,
     unlock_key,
     ProxyAddressBook,
     is_valid_ss58_address_prompt,
@@ -95,7 +96,7 @@ async def submit_proxy(
             )
         else:
             await print_extrinsic_id(receipt)
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
     else:
         if json_output:
             json_console.print_json(
@@ -627,7 +628,7 @@ async def execute_announced(
             )
             inner_call.process()
         except StateDiscardedError:
-            err_console.print(
+            print_error(
                 "The state has already been discarded for this block "
                 "(you are likely not using an archive node endpoint)"
             )
@@ -645,8 +646,8 @@ async def execute_announced(
                 )
                 inner_call.process()
             except Exception as e:
-                err_console.print(
-                    f":cross_mark:[red]Failure[/red]Unable to regenerate the call data using the latest runtime: {e}\n"
+                print_error(
+                    f"Failure: Unable to regenerate the call data using the latest runtime: {e}\n"
                     "You should rerun this command on an archive node endpoint."
                 )
                 if json_output:
@@ -687,7 +688,7 @@ async def execute_announced(
                 }
             )
         else:
-            console.print(":white_check_mark:[green]Success![/green]")
+            print_success("Success!")
             await print_extrinsic_id(receipt)
     else:
         if json_output:

@@ -32,6 +32,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     print_error,
+    print_success,
     u16_normalized_float,
     print_verbose,
     format_error_message,
@@ -343,9 +344,7 @@ async def root_register_extrinsic(
         subtensor, netuid=0, hotkey_ss58=get_hotkey_pub_ss58(wallet)
     )
     if is_registered:
-        console.print(
-            ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
-        )
+        print_success("Already registered on root network.")
         return True, "Already registered on root network", None
 
     with console.status(":satellite: Registering to root network...", spinner="earth"):
@@ -377,9 +376,7 @@ async def root_register_extrinsic(
                 params=[0, get_hotkey_pub_ss58(wallet)],
             )
             if uid is not None:
-                console.print(
-                    f":white_heavy_check_mark: [green]Registered with UID {uid}[/green]"
-                )
+                print_success(f"Registered with UID {uid}")
                 return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again
@@ -540,7 +537,7 @@ async def set_root_weights_extrinsic(
                 return True
 
             if success is True:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 return True
             else:
                 fmt_err = format_error_message(error_message)
