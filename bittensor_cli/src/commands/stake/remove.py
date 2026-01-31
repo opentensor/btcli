@@ -250,6 +250,13 @@ async def unstake(
                 received_amount = sim_swap.tao_amount
                 if not proxy:
                     received_amount -= extrinsic_fee
+
+                _, _, slippage_pct_float = sim_swap.alpha_to_tao_slippage(
+                    alpha_amount=amount_to_unstake_as_balance,
+                    current_price=current_price,
+                )
+                slippage_pct = f"{slippage_pct_float:.4f} %"
+                max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -275,7 +282,7 @@ async def unstake(
                 str(sim_swap.alpha_fee),  # Fee
                 str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
-                # slippage_pct,  # Slippage Percent
+                slippage_pct,  # Slippage Percent
             ]
 
             # Additional fields for safe unstaking
@@ -444,6 +451,7 @@ async def unstake_all(
             return
 
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+        max_float_slippage = 0.0
 
         # Create table for unstaking all
         table_title = (
@@ -488,11 +496,11 @@ async def unstake_all(
             justify="center",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         )
-        # table.add_column(
-        #     "Slippage",
-        #     justify="center",
-        #     style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
-        # )
+        table.add_column(
+            "Slippage",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+        )
 
         # Calculate total received
         total_received_value = Balance(0)
@@ -524,6 +532,13 @@ async def unstake_all(
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
                     continue
+
+                _, _, slippage_pct_float = sim_swap.alpha_to_tao_slippage(
+                    alpha_amount=stake_amount,
+                    current_price=current_price,
+                )
+                slippage_pct = f"{slippage_pct_float:.4f} %"
+                max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except (AttributeError, ValueError):
                 continue
 
@@ -538,8 +553,9 @@ async def unstake_all(
                 str(sim_swap.alpha_fee),
                 str(extrinsic_fee),
                 str(received_amount),
+                slippage_pct,
             )
-    console.print(table)
+    _print_table_and_slippage(table, max_float_slippage, False)
 
     console.print(
         f"Total expected return: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
@@ -1350,9 +1366,9 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         footer=str(total_received_amount),
     )
-    # table.add_column(
-    #     "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
-    # )
+    table.add_column(
+        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+    )
     if safe_staking:
         table.add_column(
             f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
