@@ -444,40 +444,52 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes, dynamic_info = await asyncio.gather(
+        sub_stakes, price_map = await asyncio.gather(
             self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
-            # Token pricing info
-            self.all_subnets(block_hash=block_hash),
+            self.get_subnet_prices(block_hash=block_hash),
         )
 
-        results = {}
+        results: dict[str, tuple[Balance, Balance]] = {}
+        dynamic_stakes: list[tuple[str, "StakeInfo"]] = []
+
         for ss58, stake_info_list in sub_stakes.items():
-            total_tao_value = Balance(0)
-            total_swapped_tao_value = Balance(0)
+            total_tao_value, total_swapped_tao_value = Balance(0), Balance(0)
             for sub_stake in stake_info_list:
                 if sub_stake.stake.rao == 0:
                     continue
+
                 netuid = sub_stake.netuid
-                pool = dynamic_info[netuid]
-
-                alpha_value = Balance.from_rao(int(sub_stake.stake.rao)).set_unit(
-                    netuid
+                price = price_map[netuid]
+                ideal_tao = Balance.from_tao(sub_stake.stake.tao * price.tao).set_unit(
+                    0
                 )
+                total_tao_value += ideal_tao
 
-                # Without slippage
-                tao_value = pool.alpha_to_tao(alpha_value)
-                total_tao_value += tao_value
-
-                # With slippage
                 if netuid == 0:
-                    swapped_tao_value = tao_value
+                    total_swapped_tao_value += ideal_tao
                 else:
-                    swapped_tao_value, _, _ = pool.alpha_to_tao_with_slippage(
-                        sub_stake.stake
-                    )
-                total_swapped_tao_value += swapped_tao_value
+                    dynamic_stakes.append((ss58, sub_stake))
 
             results[ss58] = (total_tao_value, total_swapped_tao_value)
+
+        if dynamic_stakes:
+            sim_results = await asyncio.gather(
+                *[
+                    self.sim_swap(
+                        origin_netuid=sub_stake.netuid,
+                        destination_netuid=0,
+                        amount=sub_stake.stake.rao,
+                        block_hash=block_hash,
+                    )
+                    for _, sub_stake in dynamic_stakes
+                ]
+            )
+
+            for (ss58, sub_stake), sim_result in zip(dynamic_stakes, sim_results):
+                total_tao_value, total_swapped_tao_value = results[ss58]
+                total_swapped_tao_value += sim_result.tao_amount
+                results[ss58] = (total_tao_value, total_swapped_tao_value)
+
         return results
 
     async def get_total_stake_for_hotkey(
