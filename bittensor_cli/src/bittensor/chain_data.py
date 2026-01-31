@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Any, Union, Literal
+from typing import Optional, Any, Union
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
