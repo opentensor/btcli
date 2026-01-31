@@ -8557,6 +8557,9 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """Add liquidity to the swap (as a combination of TAO + Alpha)."""
+        console.print_error("User liquidity is currently disabled on Bittensor.")
+        raise typer.Exit()
+
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if not netuid:
@@ -8634,6 +8637,9 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """Displays liquidity positions in given subnet."""
+        console.print_error("User liquidity is currently disabled on Bittensor.")
+        raise typer.Exit()
+
         self.verbosity_handler(quiet, verbose, json_output, prompt=False)
         if not netuid:
             netuid = IntPrompt.ask(
@@ -8687,6 +8693,8 @@ class CLIManager:
     ):
         """Remove liquidity from the swap (as a combination of TAO + Alpha)."""
 
+        console.print_error("User liquidity is currently disabled on Bittensor.")
+        raise typer.Exit()
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if all_liquidity_ids and position_id:
@@ -8763,6 +8771,8 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """Modifies the liquidity position for the given subnet."""
+        console.print_error("User liquidity is currently disabled on Bittensor.")
+        raise typer.Exit()
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
         if not netuid:
