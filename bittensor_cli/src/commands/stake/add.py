@@ -741,4 +741,3 @@ The columns are as follows:
     - [bold white]Partial staking[/bold white]: If True, allows staking up to the rate tolerance limit. If False, the entire transaction will fail if rate tolerance is exceeded.\n"""
 
     console.print(base_description + (safe_staking_description if safe_staking else ""))
-
