@@ -800,88 +800,6 @@ class DynamicInfo(InfoBase):
     def alpha_to_tao(self, alpha: Balance) -> Balance:
         return Balance.from_tao(alpha.tao * self.price.tao)
 
-    def tao_to_alpha_with_slippage(
-        self, tao: Balance
-    ) -> tuple[Balance, Balance, float]:
-        """
-        Returns an estimate of how much Alpha a staker would receive if they stake their tao using the current pool
-            state.
-
-        Args:
-            tao: Amount of TAO to stake.
-        Returns:
-            Tuple of balances where the first part is the amount of Alpha received, and the
-            second part (slippage) is the difference between the estimated amount and ideal
-            amount as if there was no slippage
-        """
-        if self.is_dynamic:
-            new_tao_in = self.tao_in + tao
-            if new_tao_in == 0:
-                return tao, Balance.from_rao(0)
-            new_alpha_in = self.k / new_tao_in
-
-            # Amount of alpha given to the staker
-            alpha_returned = Balance.from_rao(
-                self.alpha_in.rao - new_alpha_in.rao
-            ).set_unit(self.netuid)
-
-            # Ideal conversion as if there is no slippage, just price
-            alpha_ideal = self.tao_to_alpha(tao)
-
-            if alpha_ideal.tao > alpha_returned.tao:
-                slippage = Balance.from_tao(
-                    alpha_ideal.tao - alpha_returned.tao
-                ).set_unit(self.netuid)
-            else:
-                slippage = Balance.from_tao(0)
-        else:
-            alpha_returned = tao.set_unit(self.netuid)
-            slippage = Balance.from_tao(0)
-
-        slippage_pct_float = (
-            100 * float(slippage) / float(slippage + alpha_returned)
-            if slippage + alpha_returned != 0
-            else 0
-        )
-        return alpha_returned, slippage, slippage_pct_float
-
-    def alpha_to_tao_with_slippage(
-        self, alpha: Balance
-    ) -> tuple[Balance, Balance, float]:
-        """
-        Returns an estimate of how much TAO a staker would receive if they unstake their alpha using the current pool
-            state.
-
-        Args:
-            alpha: Amount of Alpha to stake.
-        Returns:
-            Tuple of balances where the first part is the amount of TAO received, and the
-            second part (slippage) is the difference between the estimated amount and ideal
-            amount as if there was no slippage
-        """
-        if self.is_dynamic:
-            new_alpha_in = self.alpha_in + alpha
-            new_tao_reserve = self.k / new_alpha_in
-            # Amount of TAO given to the unstaker
-            tao_returned = Balance.from_rao(self.tao_in - new_tao_reserve)
-
-            # Ideal conversion as if there is no slippage, just price
-            tao_ideal = self.alpha_to_tao(alpha)
-
-            if tao_ideal > tao_returned:
-                slippage = Balance.from_tao(tao_ideal.tao - tao_returned.tao)
-            else:
-                slippage = Balance.from_tao(0)
-        else:
-            tao_returned = alpha.set_unit(0)
-            slippage = Balance.from_tao(0)
-        slippage_pct_float = (
-            100 * float(slippage) / float(slippage + tao_returned)
-            if slippage + tao_returned != 0
-            else 0
-        )
-        return tao_returned, slippage, slippage_pct_float
-
 
 @dataclass
 class ColdkeySwapAnnouncementInfo(InfoBase):
@@ -1227,6 +1145,78 @@ class SimSwapResult:
             tao_fee=Balance.from_rao(d["tao_fee"]).set_unit(0),
             alpha_fee=Balance.from_rao(d["alpha_fee"]).set_unit(netuid),
         )
+
+    def tao_to_alpha_slippage(
+        self,
+        tao_amount: Balance,
+        current_price: float,
+        netuid: int,
+    ) -> tuple[Balance, Balance, float]:
+        """
+        Calculate slippage for a TAO -> Alpha swap.
+
+        Args:
+            tao_amount: Amount of TAO provided as input.
+            current_price: Current alpha price in TAO (TAO per 1 alpha).
+            netuid: Target subnet netuid (used for unit tagging).
+
+        Returns:
+            A tuple of:
+                received_alpha (Balance): Simulated alpha received.
+                slippage_alpha (Balance): Shortfall vs ideal at current_price.
+                slippage_pct_float (float): Slippage percentage (0 - 100).
+        """
+        if current_price <= 0:
+            zero = Balance.from_tao(0).set_unit(netuid)
+            return zero, zero, 0.0
+
+        ideal_amount = Balance.from_tao(tao_amount.tao / current_price).set_unit(netuid)
+        received_amount = self.alpha_amount
+
+        if ideal_amount.tao == 0:
+            zero = Balance.from_tao(0).set_unit(netuid)
+            return received_amount, zero, 0.0
+
+        slippage_amount = max(ideal_amount.tao - received_amount.tao, 0)
+        slippage_amount_balance = Balance.from_tao(slippage_amount).set_unit(netuid)
+        slippage_pct = 100 * slippage_amount / ideal_amount.tao
+
+        return received_amount, slippage_amount_balance, slippage_pct
+
+    def alpha_to_tao_slippage(
+        self,
+        alpha_amount: Balance,
+        current_price: float,
+    ) -> tuple[Balance, Balance, float]:
+        """
+        Calculate slippage for an Alpha -> TAO swap.
+
+        Args:
+            alpha_amount: Amount of Alpha provided as input.
+            current_price: Current alpha price in TAO (TAO per 1 alpha).
+
+        Returns:
+            A tuple of:
+                received_tao (Balance): Simulated TAO received.
+                slippage_tao (Balance): Shortfall vs ideal at current_price.
+                slippage_pct_float (float): Slippage percentage (0 - 100).
+        """
+        if current_price <= 0:
+            zero = Balance.from_tao(0).set_unit(0)
+            return zero, zero, 0.0
+
+        ideal_amount = Balance.from_tao(alpha_amount.tao * current_price).set_unit(0)
+        received_amount = self.tao_amount
+
+        if ideal_amount.tao == 0:
+            zero = Balance.from_tao(0).set_unit(0)
+            return received_amount, zero, 0.0
+
+        slippage_amount = max(ideal_amount.tao - received_amount.tao, 0)
+        slippage_amount_balance = Balance.from_tao(slippage_amount).set_unit(0)
+        slippage_pct = 100 * slippage_amount / ideal_amount.tao
+
+        return received_amount, slippage_amount_balance, slippage_pct
 
 
 @dataclass
