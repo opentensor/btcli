@@ -31,7 +31,10 @@ async def display_network_dashboard(
     try:
         with console.status("[dark_sea_green3]Fetching data...", spinner="earth"):
             _subnet_data = await fetch_subnet_data(wallet, subtensor)
-            subnet_data = process_subnet_data(_subnet_data)
+            # Add block_hash to raw_data for RPC calls
+            if "block_hash" not in _subnet_data:
+                _subnet_data["block_hash"] = await subtensor.substrate.get_chain_head()
+            subnet_data = await process_subnet_data(_subnet_data, subtensor)
             html_content = generate_full_page(subnet_data)
 
         if use_wry:
@@ -154,10 +157,13 @@ async def fetch_subnet_data(
         "old_identities": old_identities,
         "wallet": wallet,
         "block_number": block_number,
+        "block_hash": block_hash,
     }
 
 
-def process_subnet_data(raw_data: dict[str, Any]) -> dict[str, Any]:
+async def process_subnet_data(
+    raw_data: dict[str, Any], subtensor: "SubtensorInterface"
+) -> dict[str, Any]:
     """
     Process and prepare subnet data.
     """
@@ -169,20 +175,74 @@ def process_subnet_data(raw_data: dict[str, Any]) -> dict[str, Any]:
     old_identities = raw_data["old_identities"]
     wallet = raw_data["wallet"]
     block_number = raw_data["block_number"]
+    block_hash = raw_data.get("block_hash")
 
     pool_info = {info.netuid: info for info in subnets_info}
 
     total_ideal_stake_value = Balance.from_tao(0)
     total_slippage_value = Balance.from_tao(0)
 
-    # Process stake
-    stake_dict: dict[int, list[dict[str, Any]]] = {}
+    # Batch calculate slippage using RPC for accurate Balancer calculations
+    slippage_tasks = []
+    stake_list = []
     for stake in stake_info:
         if stake.stake.tao > 0:
-            slippage_value, _, slippage_percentage = pool_info[
-                stake.netuid
-            ].alpha_to_tao_with_slippage(stake.stake)
-            ideal_value = pool_info[stake.netuid].alpha_to_tao(stake.stake)
+            if stake.netuid == 0:
+                # Root subnet - no slippage, skip RPC call
+                stake_list.append((stake, None))
+            else:
+                slippage_tasks.append(
+                    subtensor.sim_swap(
+                        origin_netuid=stake.netuid,
+                        destination_netuid=0,
+                        amount=stake.stake.rao,
+                        block_hash=block_hash,
+                    )
+                )
+                stake_list.append((stake, len(slippage_tasks) - 1))
+
+    slippage_results = (
+        await asyncio.gather(*slippage_tasks, return_exceptions=True)
+        if slippage_tasks
+        else []
+    )
+
+    # Process stake
+    stake_dict: dict[int, list[dict[str, Any]]] = {}
+    for stake, slippage_idx in stake_list:
+        if stake.stake.tao > 0:
+            if stake.netuid == 0:
+                # Root subnet - no slippage
+                slippage_value = stake.stake.set_unit(0)
+                slippage_percentage = 0.0
+                current_price = 1.0
+            else:
+                if slippage_idx is not None and slippage_idx < len(slippage_results):
+                    slippage_result = slippage_results[slippage_idx]
+                    if isinstance(slippage_result, Exception):
+                        # On RPC error, skip slippage calculation for this stake
+                        console.print(
+                            f"[yellow]Warning:[/yellow] Could not calculate slippage "
+                            f"for stake on netuid {stake.netuid}. Skipping slippage display."
+                        )
+                        slippage_value = Balance.from_rao(0).set_unit(0)
+                        slippage_percentage = 0.0
+                    else:
+                        current_price = pool_info[stake.netuid].price.tao
+                        slippage_value, _, slippage_percentage = (
+                            slippage_result.alpha_to_tao_slippage(
+                                alpha_amount=stake.stake, current_price=current_price
+                            )
+                        )
+                else:
+                    # This should not happen, but handle gracefully
+                    slippage_value = Balance.from_rao(0).set_unit(0)
+                    slippage_percentage = 0.0
+            # Ideal TAO value at current price (runtime price)
+            current_price = (
+                pool_info[stake.netuid].price.tao if stake.netuid in pool_info else 0.0
+            )
+            ideal_value = Balance.from_tao(stake.stake.tao * current_price).set_unit(0)
             total_ideal_stake_value += ideal_value
             total_slippage_value += slippage_value
             stake_dict.setdefault(stake.netuid, []).append(
