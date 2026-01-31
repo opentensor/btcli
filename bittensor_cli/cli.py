@@ -866,7 +866,7 @@ class CLIManager:
         self.subnet_mechanisms_app = typer.Typer(epilog=_epilog)
         self.weights_app = typer.Typer(epilog=_epilog)
         self.view_app = typer.Typer(epilog=_epilog)
-        self.liquidity_app = typer.Typer(epilog=_epilog)
+        self.liquidity_app = typer.Typer(epilog=_epilog, hidden=True)
         self.crowd_app = typer.Typer(epilog=_epilog)
         self.utils_app = typer.Typer(epilog=_epilog)
         self.axon_app = typer.Typer(epilog=_epilog)
