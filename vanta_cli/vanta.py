@@ -216,7 +216,7 @@ class VantaCLIManager(CLIManager):
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        assets = ["crypto", "forex"]
+        assets = ["crypto", "forex", "equities"]
 
         for idx, asset in enumerate(assets, start=1):
             console.print(f"{idx}. {asset}")

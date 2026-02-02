@@ -114,10 +114,12 @@ async def deposit(
       # Check if source_stake is empty to avoid index error
     if not source_stake:
         console.print("[red]❌ No source stake found for this coldkey[/red]")
+        manager.subtensor_api.close()
         return None
 
     if not matching_stake:
         console.print(f"[red]❌ No stake found for hotkey {hotkey} on netuid {netuid}[/red]")
+        manager.subtensor_api.close()
         return None
 
     if verbose:
@@ -142,6 +144,9 @@ async def deposit(
 
     encoded = manager.encode_extrinsic(extrinsic)
     decoded = manager.decode_extrinsic(encoded)
+
+    # Close the subtensor connection to prevent CLI from hanging
+    manager.subtensor_api.close()
 
     if verbose:
       console.print("[cyan]Encoded extrinsic:[/cyan]")
