@@ -806,9 +806,7 @@ async def _safe_unstake_extrinsic(
             status=status,
         )
     else:
-        err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-        )
+        err_out(f"\n{failure_prelude} with error: {err_msg}")
     return False, None
 
 
