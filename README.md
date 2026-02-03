@@ -179,6 +179,12 @@ calls (such as block number to block hash mapping), which can speed up subsequen
 ---
 
 ## Debugging
+If a command is failing with an odd error, you can usually rerun the command with `--verbose` for a more detailed output
+of any errors/exceptions that occur. This should be done prior to reporting the issue, as it helps us substantially in 
+determining the root cause of issues. 
+
+Additionally, you can pull a debug log.
+
 BTCLI will store a debug log for every command run. This file is overwritten for each new command run. The default location
 of this file is `~/.bittensor/debug.txt` and can be set with the `BTCLI_DEBUG_FILE` env var (see above section).
 
@@ -190,6 +196,12 @@ If you encounter an issue, and would like to save the file somewhere it won't be
 and set the save file location. We recommend doing this first before anything, and then starting your debugging with
 us on our [Discord](https://discord.gg/bittensor), or by opening an issue on [GitHub](https://github.com/opentensor/btcli/issues/new) 
 (where you can also upload your debug file).
+
+
+Steps:
+1. Re-run the command with `--verbose` at the end, e.g. `btcli st remove --verbose`
+2. Run `btcli --debug` to save the debug log
+3. Report the issue on GitHub or Discord
 
 ---
 
