@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import itertools
 import json
 import os
@@ -15,12 +16,16 @@ from rich.align import Align
 from rich.table import Column, Table
 from rich.tree import Tree
 from rich.padding import Padding
-from bittensor_cli.src import COLOR_PALETTE, COLORS, Constants
+from bittensor_cli.src import COLOR_PALETTE, COLORS
 from bittensor_cli.src.bittensor import utils
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.chain_data import (
     DelegateInfo,
     NeuronInfoLite,
+)
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    extract_mev_shield_id,
+    wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
     run_faucet_extrinsic,
@@ -28,18 +33,15 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.subtensor_interface import (
-    SubtensorInterface,
-    GENESIS_ADDRESS,
-)
+from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     confirm_action,
     console,
-    convert_blocks_to_time,
     json_console,
     print_error,
     print_verbose,
+    print_success,
     get_all_wallets_for_path,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
@@ -49,7 +51,6 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     WalletLike,
     blocks_to_duration,
-    decode_account_id,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
@@ -374,7 +375,7 @@ async def new_hotkey(
         if uri:
             try:
                 keypair = Keypair.create_from_uri(uri)
-            except Exception as e:
+            except TypeError as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
                 return
             wallet.set_hotkey(keypair=keypair, encrypt=use_password)
@@ -425,7 +426,7 @@ async def new_coldkey(
         if uri:
             try:
                 keypair = Keypair.create_from_uri(uri)
-            except Exception as e:
+            except TypeError as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
             wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
@@ -498,7 +499,7 @@ async def wallet_create(
                 "hotkey_ss58": wallet.hotkeypub.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
-        except Exception as e:
+        except (ValueError, TypeError, KeyFileError) as e:
             err = f"Failed to create keypair from URI: {str(e)}"
             print_error(err)
             output_dict["error"] = err
@@ -1766,11 +1767,16 @@ async def swap_hotkey(
     return result
 
 
-def create_identity_table(title: str = None):
-    if not title:
-        title = "On-Chain Identity"
+def create_key_value_table(title: str = "Details") -> Table:
+    """Creates a key-value table for displaying information for various cmds.
 
-    table = Table(
+    Args:
+        title: The title shown above the table.
+
+    Returns:
+        A Rich Table for key-value display.
+    """
+    return Table(
         Column(
             "Item",
             justify="right",
@@ -1788,7 +1794,6 @@ def create_identity_table(title: str = None):
         show_lines=False,
         pad_edge=True,
     )
-    return table
 
 
 async def set_id(
@@ -1845,7 +1850,7 @@ async def set_id(
             output_dict["success"] = True
             identity = await subtensor.query_identity(wallet.coldkeypub.ss58_address)
 
-    table = create_identity_table(title="New on-chain Identity")
+    table = create_key_value_table(title="New on-chain Identity\n")
     table.add_row("Address", wallet.coldkeypub.ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
@@ -1879,7 +1884,7 @@ async def get_id(
             json_console.print("{}")
         return {}
 
-    table = create_identity_table(title)
+    table = create_key_value_table(title)
     table.add_row("Address", ss58_address)
     for key, value in identity.items():
         table.add_row(key, str(value) if value else "~")
@@ -1888,43 +1893,6 @@ async def get_id(
     if json_output:
         json_console.print(json.dumps(identity))
     return identity
-
-
-async def check_coldkey_swap(wallet: Wallet, subtensor: SubtensorInterface):
-    arbitration_check = len(  # TODO verify this works
-        (
-            await subtensor.query(
-                module="SubtensorModule",
-                storage_function="ColdkeySwapDestinations",
-                params=[wallet.coldkeypub.ss58_address],
-            )
-        )
-    )
-    if arbitration_check == 0:
-        console.print(
-            "[green]There has been no previous key swap initiated for your coldkey.[/green]"
-        )
-    elif arbitration_check == 1:
-        arbitration_block = await subtensor.query(
-            module="SubtensorModule",
-            storage_function="ColdkeyArbitrationBlock",
-            params=[wallet.coldkeypub.ss58_address],
-        )
-        arbitration_remaining = (
-            arbitration_block.value - await subtensor.substrate.get_block_number(None)
-        )
-
-        hours, minutes, seconds = convert_blocks_to_time(arbitration_remaining)
-        console.print(
-            "[yellow]There has been 1 swap request made for this coldkey already."
-            " By adding another swap request, the key will enter arbitration."
-            f" Your key swap is scheduled for {hours} hours, {minutes} minutes, {seconds} seconds"
-            " from now.[/yellow]"
-        )
-    elif arbitration_check > 1:
-        console.print(
-            f"[red]This coldkey is currently in arbitration with a total swaps of {arbitration_check}.[/red]"
-        )
 
 
 async def sign(
@@ -2040,146 +2008,281 @@ async def verify(
     return is_valid
 
 
-async def schedule_coldkey_swap(
+def compute_coldkey_hash(ss58_address: str) -> str:
+    """
+    Compute Blake2b-256 hash of a coldkey AccountId.
+
+    Args:
+        ss58_address: SS58 address of the coldkey.
+
+    Returns:
+        str: 0x-prefixed hex hash.
+
+    Notes:
+        Hashes AccountId bytes (not the SS58). Used by coldkey-swap announcements.
+    """
+    keypair = Keypair(ss58_address=ss58_address)
+    public_key_bytes = keypair.public_key
+
+    hash_result = hashlib.blake2b(public_key_bytes, digest_size=32)
+    return "0x" + hash_result.hexdigest()
+
+
+async def announce_coldkey_swap(
     wallet: Wallet,
     subtensor: SubtensorInterface,
     new_coldkey_ss58: str,
-    force_swap: bool = False,
     decline: bool = False,
     quiet: bool = False,
-    proxy: Optional[str] = None,
+    prompt: bool = True,
+    mev_protection: bool = False,
 ) -> bool:
-    """Schedules a coldkey swap operation to be executed at a future block.
+    """Announces intent to swap a coldkey to a new address.
+
+    This is the first step of a two-step coldkey swap process. After announcing,
+    the user must wait for the announcement delay period to pass before executing
+    the swap with execute_coldkey_swap.
 
     Args:
-        wallet (Wallet): The wallet initiating the coldkey swap
-        subtensor (SubtensorInterface): Connection to the Bittensor network
-        new_coldkey_ss58 (str): SS58 address of the new coldkey
-        force_swap (bool, optional): Whether to force the swap even if the new coldkey is already scheduled for a swap. Defaults to False.
+        wallet: The wallet initiating the coldkey swap.
+        subtensor: Connection to the Bittensor network.
+        new_coldkey_ss58: SS58 address of the new coldkey.
+        decline: If True, skip confirmation prompt and decline.
+        quiet: If True, skip confirmation prompt and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
+
     Returns:
-        bool: True if the swap was scheduled successfully, False otherwise
+        True if the announcement was successful, False otherwise.
     """
     if not is_valid_ss58_address(new_coldkey_ss58):
         print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
         return False
 
-    scheduled_coldkey_swap = await subtensor.get_scheduled_coldkey_swap()
-    if wallet.coldkeypub.ss58_address in scheduled_coldkey_swap:
-        print_error(
-            f"Coldkey {wallet.coldkeypub.ss58_address} is already scheduled for a swap."
+    # Check for existing announcement
+    block_hash = await subtensor.substrate.get_chain_head()
+    new_coldkey_hash = compute_coldkey_hash(new_coldkey_ss58)
+
+    existing = await subtensor.get_coldkey_swap_announcement(
+        wallet.coldkeypub.ss58_address,
+        block_hash=block_hash,
+    )
+    if existing:
+        current_block, reannounce_delay, announce_delay = await asyncio.gather(
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_coldkey_swap_reannouncement_delay(block_hash=block_hash),
+            subtensor.get_coldkey_swap_announcement_delay(block_hash=block_hash),
         )
-        console.print("[dim]Use the force_swap (--force) flag to override this.[/dim]")
-        if not force_swap:
+        remaining = existing.execution_block - current_block
+        reannounce_block = existing.execution_block + reannounce_delay
+        same_hash = new_coldkey_hash.lower() == str(existing.new_coldkey_hash).lower()
+
+        # Show existing announcement info
+        table = create_key_value_table("Existing Coldkey Swap Announcement")
+        table.add_row("Execution Block", str(existing.execution_block))
+        if remaining > 0:
+            table.add_row(
+                "Time Remaining", f"[yellow]{blocks_to_duration(remaining)}[/yellow]"
+            )
+            table.add_row("Status", "[yellow]Pending[/yellow]")
+        else:
+            table.add_row("Status", "[green]Ready to Execute[/green]")
+        table.add_row("Announced Hash", f"[dim]{existing.new_coldkey_hash}[/dim]")
+        table.add_row("Requested Hash", f"[dim]{new_coldkey_hash}[/dim]")
+        table.add_row("Match", "[green]Yes[/green]" if same_hash else "[red]No[/red]")
+        console.print(table)
+
+        # Check if reannouncement allowed
+        if current_block < reannounce_block:
+            time_until_reannounce = blocks_to_duration(reannounce_block - current_block)
+            console.print(
+                f"\n[dim]You can reannounce after block {reannounce_block} ({time_until_reannounce} from now).[/dim]",
+                f"Current block: {current_block}",
+            )
             return False
+
+        # Reannouncement allowed
+        if same_hash:
+            console.print(
+                "\n[yellow]You already have an announcement for this coldkey.[/yellow] "
+                "You can execute the existing swap without reannouncing."
+            )
+            if prompt and not confirm_action(
+                "Do you still want to reannounce the same hash (the period to wait before executing the swap will be reset)?",
+                decline=decline,
+                quiet=quiet,
+            ):
+                return False
         else:
             console.print(
-                "[yellow]Continuing with the swap due to force_swap flag.[/yellow]\n"
+                f"\n[dim]Reannouncing with a different coldkey will reset the waiting period "
+                f"to {blocks_to_duration(announce_delay)} from now.[/dim]"
             )
+            if prompt and not confirm_action(
+                "Proceed with reannouncement and reset the waiting period?",
+                decline=decline,
+                quiet=quiet,
+            ):
+                return False
 
-    prompt_msg = (
-        "You are [red]swapping[/red] your [blue]coldkey[/blue] to a new address.\n"
-        f"Current ss58: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]\n"
-        f"New ss58: [{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]\n"
-        "Are you sure you want to continue?"
+    # Proceed with the announcement
+    swap_cost, delay = await asyncio.gather(
+        subtensor.get_coldkey_swap_cost(block_hash=block_hash),
+        subtensor.get_coldkey_swap_announcement_delay(block_hash=block_hash),
     )
-    if not confirm_action(prompt_msg, decline=decline, quiet=quiet):
+
+    table = create_key_value_table("Announcing Coldkey Swap\n")
+    table.add_row(
+        "Current Coldkey",
+        f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]",
+    )
+    table.add_row("New Coldkey", f"[{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]")
+    table.add_row(
+        "New Coldkey Hash",
+        f"[dim]{new_coldkey_hash}[/dim]",
+    )
+    table.add_row("Swap Cost", f"[green]{swap_cost}[/green]")
+    table.add_row(
+        "Delay Before Execution", f"[yellow]{blocks_to_duration(delay)}[/yellow]"
+    )
+    console.print(table)
+
+    if prompt and not confirm_action(
+        "Are you sure you want to continue?", decline=decline, quiet=quiet
+    ):
         return False
 
     if not unlock_key(wallet).success:
         return False
 
-    block_pre_call, call = await asyncio.gather(
-        subtensor.substrate.get_block_number(),
-        subtensor.substrate.compose_call(
+    with console.status(":satellite: Announcing coldkey swap on-chain...") as status:
+        call = await subtensor.substrate.compose_call(
             call_module="SubtensorModule",
-            call_function="schedule_swap_coldkey",
+            call_function="announce_coldkey_swap",
             call_params={
-                "new_coldkey": new_coldkey_ss58,
+                "new_coldkey_hash": new_coldkey_hash,
             },
-        ),
-    )
-    swap_info = None
-    with console.status(":satellite: Scheduling coldkey swap on-chain..."):
+        )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
             wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
-            proxy=proxy,
+            mev_protection=mev_protection,
         )
-        block_post_call = await subtensor.substrate.get_block_number()
 
         if not success:
-            print_error(f"Failed to schedule coldkey swap: {err_msg}")
+            print_error(f"Failed to announce coldkey swap: {err_msg}")
             return False
 
-        console.print(
-            ":white_heavy_check_mark: [green]Successfully scheduled coldkey swap"
-        )
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                print_error(
+                    f"Failed to announce coldkey swap: {mev_error}", status=status
+                )
+                return False
+
+        print_success("[dark_sea_green3]Successfully announced coldkey swap")
         await print_extrinsic_id(ext_receipt)
-        for event in await ext_receipt.triggered_events:
-            if (
-                event.get("event", {}).get("module_id") == "SubtensorModule"
-                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
-            ):
-                attributes = event["event"].get("attributes", {})
-                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
 
-                if old_coldkey == wallet.coldkeypub.ss58_address:
-                    swap_info = {
-                        "block_num": block_pre_call,
-                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
-                        "execution_block": attributes["execution_block"],
-                    }
-
-    if not swap_info:
-        swap_info = await find_coldkey_swap_extrinsic(
-            subtensor=subtensor,
-            start_block=block_pre_call,
-            end_block=block_post_call,
-            wallet_ss58=wallet.coldkeypub.ss58_address,
-        )
-
-    if not swap_info:
-        console.print(
-            "[yellow]Warning: Could not find the swap extrinsic in recent blocks"
-        )
-        return True
-
-    console.print(
-        "\n[green]Coldkey swap details:[/green]"
-        f"\nBlock number: {swap_info['block_num']}"
-        f"\nOriginal address: [{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
-        f"\nDestination address: [{COLORS.G.CK}]{swap_info['dest_coldkey']}[/{COLORS.G.CK}]"
-        f"\nThe swap will be completed at block: [green]{swap_info['execution_block']}[/green]"
-        f"\n[dim]You can provide the block number to `btcli wallet swap-check`[/dim]"
+    # Post-success information
+    new_block_hash = await subtensor.substrate.get_chain_head()
+    announcement = await subtensor.get_coldkey_swap_announcement(
+        wallet.coldkeypub.ss58_address,
+        block_hash=new_block_hash,
     )
+    if announcement:
+        current_block = await subtensor.substrate.get_block_number(
+            block_hash=new_block_hash
+        )
+        remaining = announcement.execution_block - current_block
+
+        details_table = create_key_value_table("Coldkey Swap Announced\n")
+        details_table.add_row(
+            "Original Coldkey",
+            f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]",
+        )
+        details_table.add_row(
+            "New Coldkey", f"[{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]"
+        )
+        details_table.add_row(
+            "New Coldkey Hash",
+            f"[dim]{new_coldkey_hash}[/dim]",
+        )
+        details_table.add_row(
+            "Execution Block", f"[green]{announcement.execution_block}[/green]"
+        )
+        details_table.add_row(
+            "Time Until Executable", f"[yellow]{blocks_to_duration(remaining)}[/yellow]"
+        )
+
+        console.print(details_table)
+        console.print(
+            f"\n[dim]After the delay, run:"
+            f"\n[green]btcli wallet swap-coldkey execute --new-coldkey {new_coldkey_ss58}[/green]"
+        )
+
+    return True
 
 
-async def find_coldkey_swap_extrinsic(
+async def dispute_coldkey_swap(
+    wallet: Wallet,
     subtensor: SubtensorInterface,
-    start_block: int,
-    end_block: int,
-    wallet_ss58: str,
-) -> dict:
-    """Search for a coldkey swap event in a range of blocks.
+    decline: bool = False,
+    quiet: bool = False,
+    prompt: bool = True,
+    mev_protection: bool = False,
+) -> bool:
+    """Dispute a pending coldkey swap for the calling coldkey.
+
+    Disputing freezes the current swap process until the triumvirate can intervene.
 
     Args:
-        subtensor: SubtensorInterface for chain queries
-        start_block: Starting block number to search
-        end_block: Ending block number to search (inclusive)
-        wallet_ss58: SS58 address of the signing wallet
+        wallet: Wallet initiating the dispute (must be the announcing coldkey).
+        subtensor: Connection to the Bittensor network.
+        decline: If True, default to declining at confirmation prompt.
+        quiet: If True, skip confirmation prompts and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
 
     Returns:
-        dict: Contains the following keys if found:
-            - block_num: Block number where swap was scheduled
-            - dest_coldkey: SS58 address of destination coldkey
-            - execution_block: Block number when swap will execute
-        Empty dict if not found
+        bool: True if the dispute extrinsic was included successfully, else False.
     """
+    block_hash = await subtensor.substrate.get_chain_head()
+    announcement, dispute = await asyncio.gather(
+        subtensor.get_coldkey_swap_announcement(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+        subtensor.get_coldkey_swap_dispute(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+    )
 
-    current_block, genesis_block = await asyncio.gather(
-        subtensor.substrate.get_block_number(), subtensor.substrate.get_block_hash(0)
+    if not announcement:
+        print_error(
+            f"No coldkey swap announcement found for {wallet.coldkeypub.ss58_address}.\n"
+            "You can only dispute an active announcement."
+        )
+        return False
+
+    if dispute is not None:
+        console.print(
+            f"[yellow]Swap already disputed at block {dispute}.[/yellow] "
+            "Account remains frozen until a root reset."
+        )
+        return False
+
+    current_block = await subtensor.substrate.get_block_number(block_hash=block_hash)
+    info = create_key_value_table("Dispute Coldkey Swap\n")
+    info.add_row(
+        "Coldkey", f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
     )
     if (
         current_block - start_block > 300
@@ -2197,115 +2300,336 @@ async def find_coldkey_swap_extrinsic(
             subtensor.substrate.get_block_hash(block_num)
             for block_num in range(start_block, end_block + 1)
         ]
+    info.add_row("Execution Block", str(announcement.execution_block))
+    info.add_row(
+        "Status",
+        "[yellow]Pending[/yellow]"
+        if current_block < announcement.execution_block
+        else "[green]Ready[/green]",
     )
-    block_events = await asyncio.gather(
-        *[
-            subtensor.substrate.get_events(block_hash=block_hash)
-            for block_hash in block_hashes
-        ]
+    info.add_row(
+        "Warning",
+        "[red]Disputing freezes the current swap process until the triumvirate can intervene.[/red]",
+    )
+    console.print(info)
+
+    if prompt and not confirm_action(
+        "Proceed with dispute? Your swap process will be frozen until the triumvirate can intervene.",
+        decline=decline,
+        quiet=quiet,
+    ):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    with console.status(":satellite: Disputing coldkey swap on-chain..."):
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="dispute_coldkey_swap",
+            call_params={},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            mev_protection=mev_protection,
+        )
+
+        if not success:
+            print_error(f"Failed to dispute coldkey swap: {err_msg}")
+            return False
+
+        print_success("[dark_sea_green3]Coldkey swap disputed.")
+        await print_extrinsic_id(ext_receipt)
+
+    console.print(
+        "\n[dim]Your coldkey is now frozen. The triumvirate will need to intervene to clear the dispute.[/dim]"
+    )
+    return True
+
+
+async def execute_coldkey_swap(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    new_coldkey_ss58: str,
+    decline: bool = False,
+    quiet: bool = False,
+    prompt: bool = True,
+    mev_protection: bool = True,
+) -> bool:
+    """Executes a previously announced coldkey swap.
+
+    This is the second step of a two-step coldkey swap process. You must have
+    previously called announce_coldkey_swap and waited for the delay period.
+
+    Args:
+        wallet: The wallet executing the coldkey swap.
+        subtensor: Connection to the Bittensor network.
+        new_coldkey_ss58: SS58 address of the new coldkey (must match announcement).
+        decline: If True, skip confirmation prompt and decline.
+        quiet: If True, skip confirmation prompt and proceed.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
+
+    Returns:
+        True if the swap was executed successfully, False otherwise.
+    """
+    if not is_valid_ss58_address(new_coldkey_ss58):
+        print_error(f"Invalid SS58 address format: {new_coldkey_ss58}")
+        return False
+
+    if not mev_protection:
+        console.print(
+            "[yellow]WARNING: MEV protection is disabled.\n"
+            "This transaction is not protected & will expose the new coldkey.[/yellow]"
+        )
+
+    block_hash = await subtensor.substrate.get_chain_head()
+    announcement = await subtensor.get_coldkey_swap_announcement(
+        wallet.coldkeypub.ss58_address,
+        block_hash=block_hash,
+    )
+    if not announcement:
+        print_error(
+            f"No pending coldkey swap announcement found for {wallet.coldkeypub.ss58_address}.\n"
+            "You must first announce your swap with 'btcli wallet swap-coldkey announce'."
+        )
+        return False
+
+    expected_hash = compute_coldkey_hash(new_coldkey_ss58)
+    if announcement.new_coldkey_hash != expected_hash:
+        table = create_key_value_table("Coldkey Hash Mismatch\n")
+        table.add_row("Announced Hash", f"[dim]{announcement.new_coldkey_hash}[/dim]")
+        table.add_row("Provided Hash", f"[dim]{expected_hash}[/dim]")
+        console.print(table)
+        print_error(
+            "The provided coldkey does not match the announced hash.\n"
+            "Make sure you're using the same coldkey you announced."
+        )
+        return False
+
+    current_block = await subtensor.substrate.get_block_number(block_hash=block_hash)
+    if current_block < announcement.execution_block:
+        remaining = announcement.execution_block - current_block
+        table = create_key_value_table("Coldkey Swap Not Ready")
+        table.add_row("Current Block", str(current_block))
+        table.add_row("Execution Block", str(announcement.execution_block))
+        table.add_row(
+            "Time Remaining", f"[yellow]{blocks_to_duration(remaining)}[/yellow]"
+        )
+        console.print(table)
+        print_error(
+            "Coldkey swap cannot be executed yet. Please wait for the delay period."
+        )
+        return False
+
+    # Display confirmation table
+    table = create_key_value_table("Executing Coldkey Swap\n")
+    table.add_row(
+        "Current Coldkey",
+        f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]",
+    )
+    table.add_row("New Coldkey", f"[{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]")
+
+    console.print(table)
+    console.print(
+        "\n[bold red]WARNING:[/bold red] This action is irreversible. All assets will be transferred.\n"
     )
 
-    for block_num, events in zip(range(start_block, end_block + 1), block_events):
-        for event in events:
-            if (
-                event.get("event", {}).get("module_id") == "SubtensorModule"
-                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
-            ):
-                attributes = event["event"].get("attributes", {})
-                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
+    if prompt and not confirm_action(
+        "Are you sure you want to continue?", decline=decline, quiet=quiet
+    ):
+        return False
 
-                if old_coldkey == wallet_ss58:
-                    return {
-                        "block_num": block_num,
-                        "dest_coldkey": decode_account_id(attributes["new_coldkey"][0]),
-                        "execution_block": attributes["execution_block"],
-                    }
+    if not unlock_key(wallet).success:
+        return False
 
-    return {}
+    with console.status(":satellite: Executing coldkey swap on-chain...") as status:
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="swap_coldkey_announced",
+            call_params={
+                "new_coldkey": new_coldkey_ss58,
+            },
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            mev_protection=mev_protection,
+        )
+
+        if not success:
+            if "Custom error: 21" in err_msg:
+                print_error(
+                    "Failed to execute coldkey swap: The swap has been disputed.\n"
+                    "The account is frozen until the triumvirate resolves the dispute.\n",
+                    status=status,
+                )
+            else:
+                print_error(f"Failed to execute coldkey swap: {err_msg}", status=status)
+            return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                print_error(
+                    f"Failed to execute coldkey swap: {mev_error}", status=status
+                )
+                return False
+
+        print_success("[dark_sea_green3]Successfully executed coldkey swap!")
+        await print_extrinsic_id(ext_receipt)
+
+    # Success details table
+    success_table = create_key_value_table("Coldkey Swap Completed\n")
+    success_table.add_row(
+        "Old Coldkey",
+        f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]",
+    )
+    success_table.add_row(
+        "New Coldkey", f"[{COLORS.G.CK}]{new_coldkey_ss58}[/{COLORS.G.CK}]"
+    )
+    console.print(success_table)
+    console.print("\n[dim]All assets have been transferred to the new coldkey.[/dim]")
+
+    return True
 
 
 async def check_swap_status(
     subtensor: SubtensorInterface,
     origin_ss58: Optional[str] = None,
-    expected_block_number: Optional[int] = None,
+    json_output: bool = False,
 ) -> None:
-    """
-    Check the status of a coldkey swap.
+    """Retrieves and displays the status of coldkey swap announcements.
 
     Args:
-        subtensor: Connection to the network
-        origin_ss58: The SS58 address of the original coldkey
-        expected_block_number: Optional block number where the swap was scheduled
-
+        subtensor: Connection to the network.
+        origin_ss58: The SS58 address of the coldkey to check. If None, shows all pending announcements.
+        json_output: If True, print JSON payload instead of rich table.
     """
+    block_hash = await subtensor.substrate.get_chain_head()
+    if origin_ss58:
+        announcement, dispute, current_block = await asyncio.gather(
+            subtensor.get_coldkey_swap_announcement(origin_ss58, block_hash=block_hash),
+            subtensor.get_coldkey_swap_dispute(origin_ss58, block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
+        if not announcement:
+            console.print(
+                f"[yellow]No pending swap announcement found for coldkey:[/yellow] "
+                f"[{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+            )
+            return
+        announcements = [announcement]
+        disputes = [(origin_ss58, dispute)] if dispute is not None else []
 
-    if not origin_ss58:
-        scheduled_swaps = await subtensor.get_scheduled_coldkey_swap()
-        if not scheduled_swaps:
-            console.print("[yellow]No pending coldkey swaps found.[/yellow]")
+    else:
+        announcements, disputes, current_block = await asyncio.gather(
+            subtensor.get_coldkey_swap_announcements(block_hash=block_hash),
+            subtensor.get_coldkey_swap_disputes(block_hash=block_hash),
+            subtensor.substrate.get_block_number(block_hash=block_hash),
+        )
+        if not announcements:
+            console.print(
+                "[yellow]No pending coldkey swap announcements found.[/yellow]"
+            )
+            if json_output:
+                json_console.print(
+                    json.dumps(
+                        {
+                            "success": True,
+                            "current_block": current_block,
+                            "announcements": [],
+                        }
+                    )
+                )
             return
 
-        table = Table(
-            Column(
-                "Original Coldkey",
-                justify="Left",
-                style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
-                no_wrap=True,
-            ),
-            Column("Status", style="dark_sea_green3"),
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swaps\n",
-            show_header=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
-        )
+    dispute_map = {
+        coldkey: block for coldkey, block in disputes if coldkey and block is not None
+    }
 
-        for coldkey in scheduled_swaps:
-            table.add_row(coldkey, "Pending")
+    payload = {
+        "success": True,
+        "current_block": current_block,
+        "announcements": [],
+    }
 
-        console.print(table)
-        console.print(
-            "\n[dim]Tip: Check specific swap details by providing the original coldkey "
-            "SS58 address and the block number.[/dim]"
-        )
-        return
-    chain_reported_completion_block, destination_address = await subtensor.query(
-        "SubtensorModule", "ColdkeySwapScheduled", [origin_ss58]
-    )
-    destination_address = decode_account_id(destination_address[0])
-    if chain_reported_completion_block != 0 and destination_address != GENESIS_ADDRESS:
-        is_pending = True
-    else:
-        is_pending = False
-
-    if not is_pending:
-        console.print(
-            f"[red]No pending swap found for coldkey:[/red] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        )
-        return
-
-    console.print(
-        f"[green]Found pending swap for coldkey:[/green] [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
+    table = Table(
+        Column(
+            "Coldkey",
+            justify="left",
+            style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
+            no_wrap=True,
+        ),
+        Column("New Coldkey Hash", justify="left", style="dim", no_wrap=True),
+        Column("Execution Block", justify="right", style="dark_sea_green3"),
+        Column("Time Remaining", justify="right", style="yellow"),
+        Column("Status", justify="center", style="green"),
+        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swap Announcements\nCurrent Block: {current_block}\n",
+        show_header=True,
+        show_edge=False,
+        header_style="bold white",
+        border_style="bright_black",
+        style="bold",
+        title_justify="center",
+        show_lines=False,
+        pad_edge=True,
     )
 
-    if expected_block_number is None:
-        expected_block_number = chain_reported_completion_block
+    for announcement in announcements:
+        dispute_block = dispute_map.get(announcement.coldkey)
+        remaining_blocks = announcement.execution_block - current_block
+        if dispute_block is not None:
+            status = "[red]Disputed[/red]"
+            time_str = f"Disputed @ {dispute_block}"
+            status_label = "disputed"
+        elif remaining_blocks <= 0:
+            status = "Ready"
+            time_str = "[green]Ready[/green]"
+            status_label = "ready"
+        else:
+            status = "Pending"
+            time_str = blocks_to_duration(remaining_blocks)
+            status_label = "pending"
+        hash_display = f"{announcement.new_coldkey_hash[:12]}...{announcement.new_coldkey_hash[-6:]}"
 
-    current_block = await subtensor.substrate.get_block_number()
-    remaining_blocks = expected_block_number - current_block
+        table.add_row(
+            announcement.coldkey,
+            hash_display,
+            str(announcement.execution_block),
+            time_str,
+            status,
+        )
 
-    if remaining_blocks <= 0:
-        console.print("[green]Swap period has completed![/green]")
+        payload["announcements"].append(
+            {
+                "coldkey": announcement.coldkey,
+                "new_coldkey_hash": announcement.new_coldkey_hash,
+                "execution_block": announcement.execution_block,
+                "status": status_label,
+                "time_remaining_blocks": max(0, remaining_blocks),
+                "disputed_block": dispute_block,
+            }
+        )
+
+    if json_output:
+        json_console.print(json.dumps(payload))
         return
 
+    console.print(table)
     console.print(
-        "\n[green]Coldkey swap details:[/green]"
-        f"\nOriginal address: [{COLORS.G.CK}]{origin_ss58}[/{COLORS.G.CK}]"
-        f"\nDestination address: [{COLORS.G.CK}]{destination_address}[/{COLORS.G.CK}]"
-        f"\nCompletion block: {chain_reported_completion_block}"
-        f"\nTime remaining: {blocks_to_duration(remaining_blocks)}"
+        "\n[dim]To execute a ready swap:[/dim] "
+        "[green]btcli wallet swap-coldkey execute[/green]"
     )

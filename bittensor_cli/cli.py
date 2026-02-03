@@ -3542,62 +3542,63 @@ class CLIManager:
         wallet_ss58_address: Optional[str] = Options.wallet_ss58_address,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        scheduled_block: Optional[int] = typer.Option(
-            None,
-            "--block",
-            help="Block number where the swap was scheduled",
-        ),
         show_all: bool = typer.Option(
             False,
             "--all",
             "-a",
-            help="Show all pending coldkey swaps",
+            help="Show all pending coldkey swap announcements",
         ),
         network: Optional[list[str]] = Options.network,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
     ):
         """
-        Check the status of scheduled coldkey swaps.
+        Check the status of pending coldkey swap announcements.
+
+        Coldkey swaps use a two-step announcement system. Use this command
+        to check if you have any pending announcements and when they become executable.
 
         USAGE
 
-        This command can be used in three ways:
-        1. Show all pending swaps (--all)
-        2. Check status of a specific wallet's swap or SS58 address
-        3. Check detailed swap status with block number (--block)
+        This command can be used in two ways:
+
+        1. Show all pending announcements (--all)
+
+        2. Check status of a specific wallet or SS58 address
 
         EXAMPLES
 
-        Show all pending swaps:
+        1. Show all pending swap announcements:
+
         [green]$[/green] btcli wallet swap-check --all
 
-        Check specific wallet's swap:
+        2. Check specific wallet's announcement:
+
         [green]$[/green] btcli wallet swap-check --wallet-name my_wallet
 
-        Check swap using SS58 address:
-        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
+        3. Check announcement using SS58 address:
 
-        Check swap details with block number:
-        [green]$[/green] btcli wallet swap-check --wallet-name my_wallet --block 12345
+        [green]$[/green] btcli wallet swap-check --ss58 5DkQ4...
         """
-        # TODO add json_output if this ever gets used again (doubtful)
-        self.verbosity_handler(quiet, verbose, json_output=False, prompt=False)
+        self.verbosity_handler(quiet, verbose, json_output=json_output, prompt=False)
         self.initialize_chain(network)
 
         if show_all:
             return self._run_command(
-                wallets.check_swap_status(self.subtensor, None, None)
+                wallets.check_swap_status(self.subtensor, None, json_output=json_output)
             )
 
         if not wallet_ss58_address:
             wallet_ss58_address = Prompt.ask(
                 "Enter [blue]wallet name[/blue] or [blue]SS58 address[/blue] [dim]"
-                "(leave blank to show all pending swaps)[/dim]"
+                "(leave blank to show all pending announcements)[/dim]"
             )
             if not wallet_ss58_address:
                 return self._run_command(
-                    wallets.check_swap_status(self.subtensor, None, None)
+                    wallets.check_swap_status(
+                        self.subtensor, None, json_output=json_output
+                    )
                 )
 
         if is_valid_ss58_address(wallet_ss58_address):
@@ -3612,26 +3613,11 @@ class CLIManager:
             )
             ss58_address = wallet.coldkeypub.ss58_address
 
-        if not scheduled_block:
-            block_input = Prompt.ask(
-                "[blue]Enter the block number[/blue] where the swap was scheduled "
-                "[dim](optional, press enter to skip)[/dim]",
-                default="",
-            )
-            if block_input:
-                try:
-                    scheduled_block = int(block_input)
-                except ValueError:
-                    print_error("Invalid block number")
-                    raise typer.Exit()
-        logger.debug(
-            "args:\n"
-            f"scheduled_block {scheduled_block}\n"
-            f"ss58_address {ss58_address}\n"
-            f"network {network}\n"
-        )
+        logger.debug(f"args:\nss58_address {ss58_address}\nnetwork {network}\n")
         return self._run_command(
-            wallets.check_swap_status(self.subtensor, ss58_address, scheduled_block)
+            wallets.check_swap_status(
+                self.subtensor, ss58_address, json_output=json_output
+            )
         )
 
     def wallet_create_wallet(
@@ -3841,8 +3827,10 @@ class CLIManager:
         #     if self.config.get("network") != "finney":
         #         console.print(no_use_config_str)
 
-        # For Rao games
-        print_error("This command is disabled on the 'rao' network.")
+        print_error(
+            "This command is currently disabled as it used external APIs which are no longer "
+            "feasible; meanwhile a chain native data fetching solution is being investigated."
+        )
         raise typer.Exit()
 
         self.verbosity_handler(quiet, verbose, False, False)
@@ -4149,6 +4137,10 @@ class CLIManager:
 
     def wallet_swap_coldkey(
         self,
+        action: str = typer.Argument(
+            None,
+            help="Action to perform: 'announce' to announce intent, 'execute' to complete swap after delay, 'dispute' to freeze the swap.",
+        ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
         wallet_hotkey: Optional[str] = Options.wallet_hotkey,
@@ -4158,39 +4150,70 @@ class CLIManager:
             "--new-coldkey-ss58",
             "--new-wallet",
             "--new",
-            help="SS58 address of the new coldkey that will replace the current one.",
+            help="SS58 address or wallet name of the new coldkey.",
         ),
+        mev_protection: bool = Options.mev_protection,
         network: Optional[list[str]] = Options.network,
-        proxy: Optional[str] = Options.proxy,
-        announce_only: bool = Options.announce_only,
-        decline: bool = Options.decline,
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
-        force_swap: bool = typer.Option(
-            False,
-            "--force",
-            "-f",
-            "--force-swap",
-            help="Force the swap even if the new coldkey is already scheduled for a swap.",
-        ),
+        decline: bool = Options.decline,
+        prompt: bool = Options.prompt,
     ):
         """
-        Schedule a coldkey swap for a wallet.
+        Swap your coldkey to a new address using a two-step announcement process.
 
-        This command allows you to schedule a coldkey swap for a wallet. You can either provide a new wallet name, or SS58 address.
+        Coldkey swaps require two steps for security:
+
+        1. [bold]Announce[/bold]: Declare your intent to swap. This pays the swap fee and starts a delay period.
+
+        2. [bold]Execute[/bold]: After the delay (typically 5 days), complete the swap.
+
+        If you suspect compromise, you can [bold]Dispute[/bold] an active announcement to freeze
+        all activity for the coldkey until the triumvirate can intervene.
 
         EXAMPLES
 
-        [green]$[/green] btcli wallet schedule-coldkey-swap --new-wallet my_new_wallet
+        Step 1 - Announce your intent to swap:
 
-        [green]$[/green] btcli wallet schedule-coldkey-swap --new-coldkey-ss58 5Dk...X3q
+        [green]$[/green] btcli wallet swap-coldkey announce --new-coldkey 5Dk...X3q
+
+        Step 2 - After the delay period, execute the swap:
+
+        [green]$[/green] btcli wallet swap-coldkey execute --new-coldkey 5Dk...X3q
+
+        Dispute an active swap (freezes the swap process):
+
+        [green]$[/green] btcli wallet swap-coldkey dispute
+
+        Check status of pending swaps:
+
+        [green]$[/green] btcli wallet swap-check
         """
         self.verbosity_handler(quiet, verbose, prompt=False, json_output=False)
-        proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+
+        if not action:
+            console.print(
+                "\n[bold][blue]Coldkey Swap Actions:[/blue][/bold]\n"
+                "  [dark_sea_green3]announce[/dark_sea_green3] - Start the swap process (pays fee, starts delay timer)\n"
+                "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n"
+                "  [dark_sea_green3]dispute[/dark_sea_green3]  - Freeze the swap process if you suspect compromise\n\n"
+                "  [dim]You can check the current status of your swap with 'btcli wallet swap-check'.[/dim]\n"
+            )
+            action = Prompt.ask(
+                "Select action",
+                choices=["announce", "execute", "dispute"],
+                default="announce",
+            )
+
+        if action.lower() not in ("announce", "execute", "dispute"):
+            print_error(
+                f"Invalid action: {action}. Must be 'announce', 'execute', or 'dispute'."
+            )
+            raise typer.Exit(1)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
-                "Enter the [blue]wallet name[/blue] which you want to swap the coldkey for",
+                "Enter the [blue]wallet name[/blue] of the coldkey to swap",
                 default=self.config.get("wallet_name") or defaults.wallet.name,
             )
         wallet = self.wallet_ask(
@@ -4201,48 +4224,74 @@ class CLIManager:
             validate=WV.WALLET,
         )
         console.print(
-            f"\nWallet selected to swap the [blue]coldkey[/blue] from: \n"
-            f"[dark_sea_green3]{wallet}[/dark_sea_green3]\n"
+            f"\nWallet selected: [dark_sea_green3]{wallet}[/dark_sea_green3]\n"
         )
 
-        if not new_wallet_or_ss58:
-            new_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
-            )
+        new_wallet_coldkey_ss58 = None
+        if action != "dispute":
+            if not new_wallet_or_ss58:
+                new_wallet_or_ss58 = Prompt.ask(
+                    "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
+                )
 
-        if is_valid_ss58_address(new_wallet_or_ss58):
-            new_wallet_coldkey_ss58 = new_wallet_or_ss58
-        else:
-            new_wallet_name = new_wallet_or_ss58
-            new_wallet = self.wallet_ask(
-                new_wallet_name,
-                wallet_path,
-                wallet_hotkey,
-                ask_for=[WO.NAME],
-                validate=WV.WALLET,
-            )
-            console.print(
-                f"\nNew wallet to swap the [blue]coldkey[/blue] to: \n"
-                f"[dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
-            )
-            new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+            if is_valid_ss58_address(new_wallet_or_ss58):
+                new_wallet_coldkey_ss58 = new_wallet_or_ss58
+            else:
+                new_wallet_name = new_wallet_or_ss58
+                new_wallet = self.wallet_ask(
+                    new_wallet_name,
+                    wallet_path,
+                    wallet_hotkey,
+                    ask_for=[WO.NAME],
+                    validate=WV.WALLET,
+                )
+                console.print(
+                    f"\nNew coldkey wallet: [dark_sea_green3]{new_wallet}[/dark_sea_green3]\n"
+                )
+                new_wallet_coldkey_ss58 = new_wallet.coldkeypub.ss58_address
+
         logger.debug(
-            "args:\n"
-            f"network {network}\n"
-            f"new_coldkey_ss58 {new_wallet_coldkey_ss58}\n"
-            f"force_swap {force_swap}"
+            f"args:\n"
+            f"action: {action}\n"
+            f"network: {network}\n"
+            f"new_coldkey_ss58: {new_wallet_coldkey_ss58}"
         )
-        return self._run_command(
-            wallets.schedule_coldkey_swap(
-                wallet=wallet,
-                subtensor=self.initialize_chain(network),
-                new_coldkey_ss58=new_wallet_coldkey_ss58,
-                force_swap=force_swap,
-                decline=decline,
-                quiet=quiet,
-                proxy=proxy,
+
+        if action == "announce":
+            return self._run_command(
+                wallets.announce_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    new_coldkey_ss58=new_wallet_coldkey_ss58,
+                    decline=decline,
+                    quiet=quiet,
+                    prompt=prompt,
+                    mev_protection=mev_protection,
+                )
             )
-        )
+        elif action == "dispute":
+            return self._run_command(
+                wallets.dispute_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    decline=decline,
+                    quiet=quiet,
+                    prompt=prompt,
+                    mev_protection=mev_protection,
+                )
+            )
+        else:
+            return self._run_command(
+                wallets.execute_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    new_coldkey_ss58=new_wallet_coldkey_ss58,
+                    decline=decline,
+                    quiet=quiet,
+                    prompt=prompt,
+                    mev_protection=mev_protection,
+                )
+            )
 
     def axon_reset(
         self,

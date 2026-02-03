@@ -884,20 +884,34 @@ class DynamicInfo(InfoBase):
 
 
 @dataclass
-class ScheduledColdkeySwapInfo(InfoBase):
-    """Dataclass for scheduled coldkey swap information."""
+class ColdkeySwapAnnouncementInfo(InfoBase):
+    """
+    Information about a coldkey swap announcement.
 
-    old_coldkey: str
-    new_coldkey: str
-    arbitration_block: int
+    Contains information about a pending coldkey swap announcement when a coldkey
+    wants to declare its intent to swap to a new coldkey address.
+    The announcement is made before the actual swap can be executed,
+    allowing time for verification and security checks.
+
+    The destination coldkey address is stored as a hash.
+    This is to prevent the actual coldkey address from being exposed
+    to the network. The hash is computed using the BlakeTwo256 hashing algorithm.
+    """
+
+    coldkey: str
+    execution_block: int
+    new_coldkey_hash: str
 
     @classmethod
-    def _fix_decoded(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
-        """Fixes the decoded values."""
+    def _fix_decoded(
+        cls, coldkey: str, decoded: tuple
+    ) -> "ColdkeySwapAnnouncementInfo":
+        execution_block, new_coldkey_hash = decoded
+        hash_str = "0x" + bytes(new_coldkey_hash[0]).hex()
         return cls(
-            old_coldkey=decode_account_id(decoded.get("old_coldkey")),
-            new_coldkey=decode_account_id(decoded.get("new_coldkey")),
-            arbitration_block=decoded.get("arbitration_block"),
+            coldkey=coldkey,
+            execution_block=int(execution_block),
+            new_coldkey_hash=hash_str,
         )
 
 
