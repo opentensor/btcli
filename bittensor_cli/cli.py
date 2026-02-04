@@ -7467,7 +7467,7 @@ class CLIManager:
             raise typer.Exit()
 
         self._run_command(
-            sudo.buyback(
+            sudo.subnet_buyback(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 netuid=netuid,

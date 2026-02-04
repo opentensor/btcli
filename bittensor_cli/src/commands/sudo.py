@@ -100,7 +100,7 @@ def string_to_bool(val) -> Union[bool, Type[ValueError]]:
         return ValueError
 
 
-async def buyback(
+async def subnet_buyback(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: int,
