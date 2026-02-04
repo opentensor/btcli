@@ -35,7 +35,7 @@ def test_coldkey_swap_with_stake(local_chain, wallet_setup):
     _, wallet_bob, path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
     _, wallet_new, path_new, _ = wallet_setup(wallet_path_new)
     netuid = 2
-    time.sleep(5)
+    time.sleep(12)
     # Create a new subnet by Bob
     create_sn = exec_command_bob(
         command="subnets",
@@ -240,7 +240,7 @@ def test_coldkey_swap_dispute(local_chain, wallet_setup):
     _, wallet_bob, path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
     _, wallet_new, _, _ = wallet_setup(wallet_path_new)
 
-    time.sleep(5)
+    time.sleep(12)
     # Create subnet, start, and stake on it
     create_sn = exec_command_bob(
         command="subnets",
