@@ -1164,6 +1164,9 @@ class CLIManager:
         self.sudo_app.command("trim", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_trim
         )
+        self.sudo_app.command("buyback", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
+            self.sudo_buyback
+        )
 
         # subnets commands
         self.subnets_app.command(
@@ -7379,6 +7382,98 @@ class CLIManager:
                 prompt=prompt,
                 decline=decline,
                 quiet=quiet,
+            )
+        )
+
+    def sudo_buyback(
+        self,
+        network: Optional[list[str]] = Options.network,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        netuid: int = Options.netuid,
+        amount: float = typer.Option(
+            None,
+            "--amount",
+            "-a",
+            help="Amount of TAO to buyback",
+        ),
+        proxy: Optional[str] = Options.proxy,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        mev_protection: bool = Options.mev_protection,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+        prompt: bool = Options.prompt,
+        decline: bool = Options.decline,
+        period: int = Options.period,
+    ):
+        """
+        Allows subnet owners to buy back alpha on their subnet by staking TAO and immediately burning the acquired alpha.
+
+        [bold]Examples:[/bold]
+        1. Buyback 10 TAO on subnet 14:
+            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10
+        2. Buyback 10 TAO on subnet 14 with safe staking and 5% rate tolerance:
+            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10 --tolerance 0.05
+        3. Buyback 10 TAO on subnet 14 with a specific hotkey:
+            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10 --wallet-hotkey <HOTKEY_SS58>
+        """
+        self.verbosity_handler(quiet, verbose, json_output, prompt)
+        proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only=False)
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+
+        print_protection_warnings(
+            mev_protection=mev_protection,
+            safe_staking=safe_staking,
+            command_name="sudo buyback",
+        )
+
+        if not wallet_hotkey:
+            wallet_hotkey = Prompt.ask(
+                "Enter the [blue]hotkey[/blue] name or "
+                "[blue]hotkey ss58 address[/blue] [dim](to use for the buyback)[/dim]",
+                default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
+            )
+
+        if wallet_hotkey and is_valid_ss58_address(wallet_hotkey):
+            hotkey_ss58 = wallet_hotkey
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                None,
+                ask_for=[WO.NAME, WO.PATH],
+                validate=WV.WALLET,
+            )
+        else:
+            wallet = self.wallet_ask(
+                wallet_name,
+                wallet_path,
+                wallet_hotkey,
+                ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
+                validate=WV.WALLET_AND_HOTKEY,
+            )
+            hotkey_ss58 = get_hotkey_pub_ss58(wallet)
+
+        self._run_command(
+            sudo.buyback(
+                subtensor=self.initialize_chain(network),
+                wallet=wallet,
+                netuid=netuid,
+                amount=amount,
+                hotkey_ss58=hotkey_ss58,
+                safe_staking=safe_staking,
+                proxy=proxy,
+                rate_tolerance=rate_tolerance,
+                mev_protection=mev_protection,
+                json_output=json_output,
+                prompt=prompt,
+                decline=decline,
+                quiet=quiet,
+                period=period,
             )
         )
 
