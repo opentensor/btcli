@@ -852,6 +852,7 @@ class CLIManager:
             callback=self.main_callback,
             epilog=_epilog,
             no_args_is_help=True,
+            context_settings={"help_option_names": ["-h", "--help"]},
         )
         self.config_app = typer.Typer(
             epilog=_epilog,
