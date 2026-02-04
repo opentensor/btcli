@@ -118,3 +118,46 @@ def test_subnet_buyback(local_chain, wallet_setup):
     )
     buyback_ok_out = json.loads(buyback_result.stdout)
     assert buyback_ok_out["success"] is True, buyback_result.stdout
+
+    # Balance after buyback
+    _balance_after = exec_command_alice(
+        "wallet",
+        "balance",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--network",
+            "ws://127.0.0.1:9945",
+        ],
+    )
+    balance_after = extract_coldkey_balance(
+        _balance_after.stdout, wallet_alice.name, wallet_alice.coldkey.ss58_address
+    )["free_balance"]
+    assert balance_after < balance_before, (balance_before, balance_after)
+
+    # Should fail due to rate limit
+    buyback_ratelimited_result = exec_command_alice(
+        "sudo",
+        "buyback",
+        extra_args=[
+            "--wallet-path",
+            wallet_path_alice,
+            "--wallet-name",
+            wallet_alice.name,
+            "--wallet-hotkey",
+            wallet_alice.hotkey_str,
+            "--network",
+            "ws://127.0.0.1:9945",
+            "--netuid",
+            str(netuid),
+            "--amount",
+            str(amount_tao),
+            "--no-prompt",
+            "--json-output",
+        ],
+    )
+    buyback_ratelimited = json.loads(buyback_ratelimited_result.stdout)
+    assert buyback_ratelimited["success"] is False, buyback_ratelimited_result.stdout
+    assert "SubnetBuybackRateLimitExceeded" in buyback_ratelimited["message"]
