@@ -244,11 +244,12 @@ async def process_pending_claims(
 ) -> tuple[bool, str, Optional[str]]:
     """Claims root network emissions for the coldkey across specified subnets"""
 
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     with console.status(":satellite: Discovering claimable emissions..."):
         block_hash = await subtensor.substrate.get_chain_head()
         all_stakes, identities = await asyncio.gather(
             subtensor.get_stake_for_coldkey(
-                coldkey_ss58=wallet.coldkeypub.ss58_address, block_hash=block_hash
+                coldkey_ss58=coldkey_ss58, block_hash=block_hash
             ),
             subtensor.query_all_identities(block_hash=block_hash),
         )
@@ -272,7 +273,7 @@ async def process_pending_claims(
             (stake.hotkey_ss58, stake.netuid): stake for stake in all_stakes
         }
         claimable_by_hotkey = await subtensor.get_claimable_stakes_for_coldkey(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             stakes_info=all_stakes,
             block_hash=block_hash,
         )
@@ -344,7 +345,7 @@ async def process_pending_claims(
     )
     console.print(
         f"\n[dim]Estimated extrinsic fee: {extrinsic_fee.tao:.9f} τ"
-        + (" (paid by real account)" if proxy else "")
+        + (" (paid by signer account)" if proxy else "")
     )
 
     if prompt:
