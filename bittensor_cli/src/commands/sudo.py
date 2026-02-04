@@ -144,7 +144,75 @@ async def buyback(
     buyback_amount = Balance.from_tao(amount)
     rate_tolerance = rate_tolerance if rate_tolerance is not None else 0.0
 
-    
+    price_limit: Optional[Balance] = None
+    if safe_staking:
+        price_limit = Balance.from_tao(subnet_info.price.tao * (1 + rate_tolerance))
+
+    call_params = {
+        "hotkey": hotkey_ss58,
+        "netuid": netuid,
+        "amount": buyback_amount.rao,
+        "limit": price_limit.rao if price_limit else None,
+    }
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="subnet_buyback",
+        call_params=call_params,
+    )
+
+    if not json_output:
+        extrinsic_fee = await subtensor.get_extrinsic_fee(
+            call, wallet.coldkeypub, proxy=proxy
+        )
+        amount_minus_fee = buyback_amount - extrinsic_fee
+        sim_swap = await subtensor.sim_swap(
+            origin_netuid=0,
+            destination_netuid=netuid,
+            amount=amount_minus_fee.rao,
+        )
+        received_amount = sim_swap.alpha_amount
+
+        current_price_float = float(subnet_info.price.tao)
+        rate = 1.0 / current_price_float
+
+        table = _define_buyback_table(
+            wallet=wallet,
+            subtensor=subtensor,
+            safe_staking=safe_staking,
+            rate_tolerance=rate_tolerance,
+        )
+        row = [
+            str(netuid),
+            hotkey_ss58,
+            str(buyback_amount),
+            str(rate) + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+            str(received_amount.set_unit(netuid)),
+            str(sim_swap.tao_fee),
+            str(extrinsic_fee),
+        ]
+        if safe_staking:
+            price_with_tolerance = current_price_float * (1 + rate_tolerance)
+            rate_with_tolerance = 1.0 / price_with_tolerance
+            rate_with_tolerance_str = (
+                f"{rate_with_tolerance:.4f} "
+                f"{Balance.get_unit(netuid)}/{Balance.get_unit(0)} "
+            )
+            row.append(rate_with_tolerance_str)
+
+        table.add_row(*row)
+        console.print(table)
+
+        if prompt and not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
+            print_error("User aborted.")
+            return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+
 
 
 def _define_buyback_table(
