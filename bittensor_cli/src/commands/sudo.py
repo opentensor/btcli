@@ -212,7 +212,71 @@ async def buyback(
     if not unlock_key(wallet).success:
         return False
 
+    with console.status(
+        f":satellite: Performing subnet buyback on [bold]{netuid}[/bold]...",
+        spinner="earth",
+    ) as status:
+        next_nonce = await subtensor.substrate.get_account_next_index(
+            wallet.coldkeypub.ss58_address
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            nonce=next_nonce,
+            era={"period": period},
+            proxy=proxy,
+            mev_protection=mev_protection,
+        )
 
+        if not success:
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": err_msg,
+                        "extrinsic_identifier": None,
+                    }
+                )
+            else:
+                print_error(err_msg, status=status)
+            return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                if json_output:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": mev_error,
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                else:
+                    print_error(mev_error, status=status)
+                return False
+
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+
+        msg = f"Subnet buyback succeeded on SN{netuid}."
+        if json_output:
+            json_console.print_json(
+                data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
+            )
+        else:
+            await print_extrinsic_id(ext_receipt)
+            print_success(msg)
+
+        return True
 
 
 def _define_buyback_table(
