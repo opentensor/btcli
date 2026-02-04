@@ -1165,7 +1165,7 @@ class CLIManager:
             self.sudo_trim
         )
         self.sudo_app.command("buyback", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_buyback
+            self.sudo_subnet_buyback
         )
 
         # subnets commands
@@ -7385,7 +7385,7 @@ class CLIManager:
             )
         )
 
-    def sudo_buyback(
+    def sudo_subnet_buyback(
         self,
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,

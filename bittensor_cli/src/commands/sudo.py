@@ -117,7 +117,8 @@ async def subnet_buyback(
     period: int,
 ) -> bool:
     """
-    Perform a subnet buyback (owner-only). Stakes TAO into the subnet and immediately burns the acquired alpha.
+    Perform a subnet buyback (owner-only). 
+    Stakes TAO into the subnet and immediately burns the acquired alpha.
     """
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
