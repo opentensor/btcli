@@ -100,6 +100,53 @@ def string_to_bool(val) -> Union[bool, Type[ValueError]]:
         return ValueError
 
 
+async def buyback(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    amount: float,
+    hotkey_ss58: Optional[str],
+    safe_staking: bool,
+    proxy: Optional[str],
+    rate_tolerance: Optional[float],
+    mev_protection: bool,
+    json_output: bool,
+    prompt: bool,
+    decline: bool,
+    quiet: bool,
+    period: int,
+) -> bool:
+    """
+    Perform a subnet buyback (owner-only). Stakes TAO into the subnet and immediately burns the acquired alpha.
+    """
+    subnet_owner = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="SubnetOwner",
+        params=[netuid],
+    )
+    if subnet_owner != wallet.coldkeypub.ss58_address:
+        err_msg = (
+            f"Coldkey {wallet.coldkeypub.ss58_address} does not own subnet {netuid}."
+        )
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
+            )
+        else:
+            print_error(err_msg)
+        return False
+
+    subnet_info = await subtensor.subnet(netuid=netuid)
+    buyback_amount = Balance.from_tao(amount)
+    rate_tolerance = rate_tolerance if rate_tolerance is not None else 0.0
+
+    
+
+
 def _define_buyback_table(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
