@@ -1,6 +1,6 @@
 import asyncio
 import json
-
+import time
 from .utils import (
     find_stake_entries,
 )
@@ -35,7 +35,7 @@ def test_coldkey_swap_with_stake(local_chain, wallet_setup):
     _, wallet_bob, path_bob, exec_command_bob = wallet_setup(wallet_path_bob)
     _, wallet_new, path_new, _ = wallet_setup(wallet_path_new)
     netuid = 2
-
+    time.sleep(5)
     # Create a new subnet by Bob
     create_sn = exec_command_bob(
         command="subnets",

@@ -172,9 +172,9 @@ async def subnet_buyback(
             destination_netuid=netuid,
             amount=amount_minus_fee.rao,
         )
+        
         received_amount = sim_swap.alpha_amount
-
-        current_price_float = float(subnet_info.price.tao)
+        current_price_float = subnet_info.price.tao
         rate = 1.0 / current_price_float
 
         table = _define_buyback_table(

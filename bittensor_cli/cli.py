@@ -7397,6 +7397,7 @@ class CLIManager:
             "--amount",
             "-a",
             help="Amount of TAO to buyback",
+            prompt="Enter the amount of TAO to buyback",
         ),
         proxy: Optional[str] = Options.proxy,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
