@@ -7458,6 +7458,14 @@ class CLIManager:
             )
             hotkey_ss58 = get_hotkey_pub_ss58(wallet)
 
+        if amount <= 0:
+            print_error(f"You entered an incorrect buyback amount: {amount}")
+            raise typer.Exit()
+
+        if netuid == 0:
+            print_error("Cannot buyback on the root subnet.")
+            raise typer.Exit()
+
         self._run_command(
             sudo.buyback(
                 subtensor=self.initialize_chain(network),
