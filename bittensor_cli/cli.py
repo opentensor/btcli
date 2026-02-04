@@ -4861,12 +4861,21 @@ class CLIManager:
 
         # TODO: Ask amount for each subnet explicitly if more than one
         if not stake_all and not amount:
-            free_balance = self._run_command(
-                wallets.wallet_balance(
-                    wallet, self.initialize_chain(network), False, None
-                ),
-                exit_early=False,
-            )
+            staker_ss58 = proxy or wallet.coldkeypub.ss58_address
+            if proxy:
+                free_balance = self._run_command(
+                    wallets.wallet_balance(
+                        None, self.initialize_chain(network), False, [staker_ss58]
+                    ),
+                    exit_early=False,
+                )
+            else:
+                free_balance = self._run_command(
+                    wallets.wallet_balance(
+                        wallet, self.initialize_chain(network), False, None
+                    ),
+                    exit_early=False,
+                )
             logger.debug(f"Free balance: {free_balance}")
             if free_balance == Balance.from_tao(0):
                 print_error("You dont have any balance to stake.")
