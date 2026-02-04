@@ -18,10 +18,16 @@ from bittensor_cli.src import (
     DelegatesDetails,
     COLOR_PALETTE,
 )
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    extract_mev_shield_id,
+    wait_for_extrinsic_by_hash,
+)
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_error,
     print_success,
     print_verbose,
@@ -92,6 +98,56 @@ def string_to_bool(val) -> Union[bool, Type[ValueError]]:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
         return ValueError
+
+
+def _define_buyback_table(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    safe_staking: bool,
+    rate_tolerance: float,
+) -> Table:
+    table = create_table(
+        title=f"\n[{COLOR_PALETTE.G.HEADER}]Subnet Buyback:\n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet.name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n",
+    )
+    table.add_column("Netuid", justify="center", style="grey89")
+    table.add_column(
+        "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+    )
+    table.add_column(
+        "Amount (τ)",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO"],
+    )
+    table.add_column(
+        "Rate (per τ)",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
+    )
+    table.add_column(
+        "Est. Burned",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+    )
+    table.add_column(
+        "Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
+        "Extrinsic Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE.STAKE.TAO,
+    )
+    if safe_staking:
+        table.add_column(
+            f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
+        )
+    return table
 
 
 def search_metadata(
