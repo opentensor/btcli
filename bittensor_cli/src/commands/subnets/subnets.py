@@ -239,7 +239,7 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
-    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    coldkey_ss58 = wallet.coldkeypub.ss58_address
 
     with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
