@@ -117,7 +117,7 @@ async def subnet_buyback(
     period: int,
 ) -> bool:
     """
-    Perform a subnet buyback (owner-only). 
+    Perform a subnet buyback (owner-only).
     Stakes TAO into the subnet and immediately burns the acquired alpha.
     """
     subnet_owner = await subtensor.query(
@@ -172,7 +172,7 @@ async def subnet_buyback(
             destination_netuid=netuid,
             amount=amount_minus_fee.rao,
         )
-        
+
         received_amount = sim_swap.alpha_amount
         current_price_float = subnet_info.price.tao
         rate = 1.0 / current_price_float
