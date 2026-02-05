@@ -616,6 +616,7 @@ async def _unstake_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -624,7 +625,7 @@ async def _unstake_extrinsic(
 
     current_balance, next_nonce, call = await asyncio.gather(
         subtensor.get_balance(coldkey_ss58),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -721,6 +722,7 @@ async def _safe_unstake_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -731,7 +733,7 @@ async def _safe_unstake_extrinsic(
 
     current_balance, next_nonce, current_stake, call = await asyncio.gather(
         subtensor.get_balance(coldkey_ss58, block_hash),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
             coldkey_ss58=coldkey_ss58,
@@ -813,9 +815,7 @@ async def _safe_unstake_extrinsic(
             status=status,
         )
     else:
-        err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-        )
+        err_out(f"\n{failure_prelude} with error: {err_msg}")
     return False, None
 
 
@@ -845,6 +845,7 @@ async def _unstake_all_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake all from {hotkey_name}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -875,7 +876,7 @@ async def _unstake_all_extrinsic(
             call_function=call_function,
             call_params={"hotkey": hotkey_ss58},
         ),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
     )
     try:
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(

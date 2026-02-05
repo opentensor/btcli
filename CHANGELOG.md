@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.18.1 /2026-02-05
+
+## What's Changed
+
+* Error message handled properly by @thewhaleking in https://github.com/opentensor/btcli/pull/814
+* Adds more to the debug section of the readme by @thewhaleking in https://github.com/opentensor/btcli/pull/817
+* Fix/proxy stake add remove by @ibraheem-abe in https://github.com/opentensor/btcli/pull/819
+* Fix/update proxy usage stuff by @ibraheem-abe in https://github.com/opentensor/btcli/pull/820
+* Feat: Add help cmd alias by @ibraheem-abe in https://github.com/opentensor/btcli/pull/821
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.18.0...v9.18.1
+
 ## 9.18.0 /2026-01-15
 
 ## What's Changed

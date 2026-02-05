@@ -424,7 +424,7 @@ async def create_crowdloan(
         table.add_row(
             "Estimated fee",
             f"[{COLORS.P.TAO}]{extrinsic_fee}[/{COLORS.P.TAO}]"
-            + (" (paid by real account)" if proxy else ""),
+            + (" (paid by signer account)" if proxy else ""),
         )
         console.print(table)
 
@@ -678,7 +678,7 @@ async def finalize_crowdloan(
         table.add_row(
             "Transaction Fee",
             f"[{COLORS.S.TAO}]{extrinsic_fee.tao}[/{COLORS.S.TAO}]"
-            + (" (paid by real account)" if proxy else ""),
+            + (" (paid by signer account)" if proxy else ""),
         )
 
         table.add_section()
