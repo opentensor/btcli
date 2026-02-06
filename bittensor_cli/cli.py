@@ -110,6 +110,7 @@ from bittensor_cli.src.commands.subnets import (
     mechanisms as subnet_mechanisms,
 )
 from bittensor_cli.src.commands.axon import axon
+from bittensor_cli.src.bittensor import slip39 as slip39_utils
 from bittensor_cli.version import __version__, __version_as_int__
 
 try:
@@ -1028,6 +1029,12 @@ class CLIManager:
         self.wallet_app.command(
             "new-coldkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_new_coldkey)
+        self.wallet_app.command(
+            "new-coldkey-slip39", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_new_coldkey_slip39)
+        self.wallet_app.command(
+            "recover-coldkey-slip39", rich_help_panel=HELP_PANELS["WALLET"]["SECURITY"]
+        )(self.wallet_recover_coldkey_slip39)
         self.wallet_app.command(
             "associate-hotkey", rich_help_panel=HELP_PANELS["WALLET"]["MANAGEMENT"]
         )(self.wallet_associate_hotkey)
@@ -3537,6 +3544,396 @@ class CLIManager:
                 wallet, n_words, use_password, uri, overwrite, json_output
             )
         )
+
+    def wallet_new_coldkey_slip39(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        shares: int = typer.Option(
+            5,
+            "--shares",
+            "-s",
+            help="Total number of SLIP39 shares to generate",
+        ),
+        threshold: int = typer.Option(
+            3,
+            "--threshold",
+            "-t",
+            help="Minimum number of shares required to recover the coldkey",
+        ),
+        passphrase: Optional[str] = typer.Option(
+            None,
+            "--passphrase",
+            "--slip39-passphrase",
+            help="Optional passphrase for additional security (you must remember this to recover)",
+        ),
+        output_dir: Optional[str] = typer.Option(
+            None,
+            "--output-dir",
+            "-o",
+            help="Directory to save share files (if not specified, shares are displayed on screen)",
+        ),
+        show_shares: bool = typer.Option(
+            False,
+            "--show-shares",
+            help="Display the full mnemonic shares on screen (use with caution)",
+        ),
+        use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Create a new coldkey using SLIP39 (Shamir's Secret Sharing).
+
+        This command creates a new coldkey and splits the secret into multiple
+        mnemonic shares using SLIP39. The plaintext seed phrase is NEVER exposed.
+
+        SLIP39 allows you to split your secret into N shares where M shares are
+        required to recover the original secret (M-of-N threshold scheme).
+
+        USAGE
+
+        Create a coldkey with 3-of-5 shares (default):
+        [green]$[/green] btcli wallet new-coldkey-slip39
+
+        Create a coldkey with 2-of-3 shares:
+        [green]$[/green] btcli wallet new-coldkey-slip39 --shares 3 --threshold 2
+
+        Save shares to files instead of displaying:
+        [green]$[/green] btcli wallet new-coldkey-slip39 --output-dir /secure/location
+
+        Add passphrase protection:
+        [green]$[/green] btcli wallet new-coldkey-slip39 --passphrase "my secret phrase"
+
+        [bold]SECURITY NOTES[/bold]
+
+        • Each share should be stored in a separate secure location
+        • Distribute shares to different custodians for maximum security
+        • The passphrase (if used) must be remembered - it cannot be recovered
+        • Never store all shares together or in digital form on one device
+        • This eliminates risk of screen reader and keylogger attacks since
+          the seed phrase is never exposed in plaintext
+        """
+        self.verbosity_handler(quiet, verbose, json_output, False)
+
+        if threshold > shares:
+            err_console.print(
+                f":cross_mark: [red]Threshold ({threshold}) cannot be greater than "
+                f"total shares ({shares})[/red]"
+            )
+            raise typer.Exit(1)
+
+        if threshold < 1:
+            err_console.print(":cross_mark: [red]Threshold must be at least 1[/red]")
+            raise typer.Exit(1)
+
+        if shares < 1 or shares > 16:
+            err_console.print(
+                ":cross_mark: [red]Number of shares must be between 1 and 16[/red]"
+            )
+            raise typer.Exit(1)
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the name of the [{COLORS.G.CK}]new wallet (coldkey)",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            None,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.NONE,
+        )
+
+        # Configure SLIP39
+        config = slip39_utils.SLIP39Config(
+            group_threshold=1,
+            groups=[(threshold, shares)],
+            passphrase=passphrase or "",
+        )
+
+        try:
+            # Create coldkey with SLIP39 shares
+            share_set, keypair = slip39_utils.create_coldkey_with_slip39(
+                wallet=wallet,
+                config=config,
+                use_password=use_password if use_password is not None else True,
+                overwrite=overwrite,
+            )
+
+            if json_output:
+                output_data = {
+                    "success": True,
+                    "data": {
+                        "name": wallet.name,
+                        "path": wallet.path,
+                        "coldkey_ss58": keypair.ss58_address,
+                        "threshold": threshold,
+                        "total_shares": shares,
+                        "identifier": share_set.identifier,
+                    },
+                    "error": "",
+                }
+
+                if output_dir:
+                    # Save shares to files
+                    created_files = slip39_utils.save_shares_to_files(
+                        share_set, output_dir, prefix=wallet_name
+                    )
+                    output_data["data"]["share_files"] = [str(f) for f in created_files]
+                elif show_shares:
+                    output_data["data"]["shares"] = share_set.all_shares_flat()
+
+                console.print_json(data=output_data)
+            else:
+                console.print(
+                    "\n:white_check_mark: [green]Coldkey created successfully![/green]"
+                )
+                console.print(f"[bold]Wallet:[/bold] {wallet.name}")
+                console.print(f"[bold]Path:[/bold] {wallet.path}")
+                console.print(
+                    f"[bold]SS58 Address:[/bold] [{COLORS.G.CK}]{keypair.ss58_address}[/{COLORS.G.CK}]"
+                )
+
+                if output_dir:
+                    # Save shares to files
+                    created_files = slip39_utils.save_shares_to_files(
+                        share_set, output_dir, prefix=wallet_name
+                    )
+                    console.print(
+                        f"\n[bold green]Shares saved to {len(created_files)} files:[/bold green]"
+                    )
+                    for f in created_files:
+                        console.print(f"  • {f}")
+                    console.print(
+                        "\n[bold yellow]⚠ Distribute these files to separate secure locations![/bold yellow]"
+                    )
+                else:
+                    # Display shares on screen
+                    slip39_utils.print_shares_securely(
+                        share_set, show_shares=show_shares
+                    )
+
+        except Exception as e:
+            if json_output:
+                console.print_json(
+                    data={"success": False, "error": str(e), "data": None}
+                )
+            else:
+                err_console.print(
+                    f":cross_mark: [red]Failed to create coldkey: {e}[/red]"
+                )
+            raise typer.Exit(1)
+
+    def wallet_recover_coldkey_slip39(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        share_files: Optional[list[str]] = typer.Option(
+            None,
+            "--share-file",
+            "-f",
+            help="Path to a SLIP39 share file (can be specified multiple times)",
+        ),
+        passphrase: Optional[str] = typer.Option(
+            None,
+            "--passphrase",
+            "--slip39-passphrase",
+            help="Passphrase used during share generation (if any)",
+        ),
+        use_password: Optional[bool] = Options.use_password,
+        overwrite: bool = Options.overwrite,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Recover a coldkey from SLIP39 mnemonic shares.
+
+        This command recovers a coldkey by combining SLIP39 mnemonic shares.
+        You need to provide at least the threshold number of shares that were
+        specified when the coldkey was created.
+
+        USAGE
+
+        Recover from share files:
+        [green]$[/green] btcli wallet recover-coldkey-slip39 -f share1.slip39 -f share2.slip39 -f share3.slip39
+
+        Recover with passphrase:
+        [green]$[/green] btcli wallet recover-coldkey-slip39 -f share1.slip39 -f share2.slip39 --passphrase "my secret"
+
+        Enter shares interactively:
+        [green]$[/green] btcli wallet recover-coldkey-slip39
+
+        [bold]SECURITY NOTES[/bold]
+
+        • Only combine shares on a secure, air-gapped machine if possible
+        • The recovered coldkey will be encrypted with a password (recommended)
+        • If a passphrase was used during creation, you must provide it here
+        """
+        self.verbosity_handler(quiet, verbose, json_output, False)
+
+        if not wallet_path:
+            wallet_path = Prompt.ask(
+                "Enter the path to the wallets directory",
+                default=self.config.get("wallet_path") or defaults.wallet.path,
+            )
+
+        if not wallet_name:
+            wallet_name = Prompt.ask(
+                f"Enter the name for the recovered [{COLORS.G.CK}]wallet (coldkey)",
+                default=self.config.get("wallet_name") or defaults.wallet.name,
+            )
+
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            None,
+            ask_for=[WO.NAME, WO.PATH],
+            validate=WV.NONE,
+        )
+
+        # Collect shares
+        shares = []
+
+        if share_files:
+            # Load shares from files
+            try:
+                shares = slip39_utils.load_shares_from_files(share_files)
+                if not json_output:
+                    console.print(f"[dim]Loaded {len(shares)} shares from files[/dim]")
+            except FileNotFoundError as e:
+                if json_output:
+                    console.print_json(
+                        data={"success": False, "error": str(e), "data": None}
+                    )
+                else:
+                    err_console.print(f":cross_mark: [red]{e}[/red]")
+                raise typer.Exit(1)
+        else:
+            # Interactive share entry
+            if not json_output:
+                console.print(
+                    "\n[bold cyan]Enter your SLIP39 mnemonic shares[/bold cyan]"
+                )
+                console.print(
+                    "[dim]Enter each share on a single line. Type 'done' when finished.[/dim]\n"
+                )
+
+            share_num = 1
+            while True:
+                try:
+                    share = Prompt.ask(f"Share {share_num}")
+                    if share.lower() == "done":
+                        break
+                    if share.strip():
+                        # Validate the share
+                        validation = slip39_utils.validate_shares([share])
+                        if validation["valid"]:
+                            shares.append(share.strip())
+                            share_num += 1
+                        else:
+                            err_console.print(
+                                f"[yellow]Invalid share: {validation.get('error', 'Unknown error')}[/yellow]"
+                            )
+                except KeyboardInterrupt:
+                    console.print("\n[dim]Cancelled[/dim]")
+                    raise typer.Exit(0)
+
+        if not shares:
+            if json_output:
+                console.print_json(
+                    data={"success": False, "error": "No shares provided", "data": None}
+                )
+            else:
+                err_console.print(":cross_mark: [red]No shares provided[/red]")
+            raise typer.Exit(1)
+
+        # Validate all shares together
+        validation = slip39_utils.validate_shares(shares)
+        if not validation["valid"]:
+            if json_output:
+                console.print_json(
+                    data={
+                        "success": False,
+                        "error": validation.get("error", "Invalid shares"),
+                        "data": None,
+                    }
+                )
+            else:
+                err_console.print(
+                    f":cross_mark: [red]Invalid shares: {validation.get('error')}[/red]"
+                )
+            raise typer.Exit(1)
+
+        if not json_output:
+            console.print(
+                f"\n[dim]Share set identifier: {validation['identifier']}[/dim]"
+            )
+            console.print(f"[dim]Shares provided: {validation['share_count']}[/dim]")
+
+        try:
+            # Recover the coldkey
+            keypair = slip39_utils.recover_coldkey_from_slip39(
+                wallet=wallet,
+                shares=shares,
+                passphrase=passphrase or "",
+                use_password=use_password if use_password is not None else True,
+                overwrite=overwrite,
+            )
+
+            if json_output:
+                console.print_json(
+                    data={
+                        "success": True,
+                        "data": {
+                            "name": wallet.name,
+                            "path": wallet.path,
+                            "coldkey_ss58": keypair.ss58_address,
+                        },
+                        "error": "",
+                    }
+                )
+            else:
+                console.print(
+                    "\n:white_check_mark: [green]Coldkey recovered successfully![/green]"
+                )
+                console.print(f"[bold]Wallet:[/bold] {wallet.name}")
+                console.print(f"[bold]Path:[/bold] {wallet.path}")
+                console.print(
+                    f"[bold]SS58 Address:[/bold] [{COLORS.G.CK}]{keypair.ss58_address}[/{COLORS.G.CK}]"
+                )
+
+        except Exception as e:
+            error_msg = str(e)
+            if (
+                "not enough shares" in error_msg.lower()
+                or "threshold" in error_msg.lower()
+            ):
+                error_msg = (
+                    f"Not enough shares to recover the secret. "
+                    f"You provided {len(shares)} shares but more may be required."
+                )
+
+            if json_output:
+                console.print_json(
+                    data={"success": False, "error": error_msg, "data": None}
+                )
+            else:
+                err_console.print(
+                    f":cross_mark: [red]Failed to recover coldkey: {error_msg}[/red]"
+                )
+            raise typer.Exit(1)
 
     def wallet_check_ck_swap(
         self,

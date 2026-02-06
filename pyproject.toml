@@ -47,6 +47,7 @@ dependencies = [
     "packaging",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
+    "shamir-mnemonic>=0.3.0",
 ]
 
 [project.optional-dependencies]
