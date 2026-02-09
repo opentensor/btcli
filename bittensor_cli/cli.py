@@ -1164,9 +1164,9 @@ class CLIManager:
         self.sudo_app.command("trim", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_trim
         )
-        self.sudo_app.command("stake-burn", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_stake_burn
-        )
+        self.sudo_app.command(
+            "stake-burn", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"]
+        )(self.sudo_stake_burn)
 
         # subnets commands
         self.subnets_app.command(
@@ -7397,8 +7397,8 @@ class CLIManager:
             None,
             "--amount",
             "-a",
-            help="Amount of TAO to buyback",
-            prompt="Enter the amount of TAO to buyback",
+            help="Amount of TAO to stake and burn",
+            prompt="Enter the amount of TAO to stake and burn",
         ),
         proxy: Optional[str] = Options.proxy,
         rate_tolerance: Optional[float] = Options.rate_tolerance,
@@ -7415,12 +7415,12 @@ class CLIManager:
         Allows subnet owners to buy back alpha on their subnet by staking TAO and immediately burning the acquired alpha.
 
         [bold]Examples:[/bold]
-        1. Buyback 10 TAO on subnet 14:
-            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10
-        2. Buyback 10 TAO on subnet 14 with safe staking and 5% rate tolerance:
-            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10 --tolerance 0.05
-        3. Buyback 10 TAO on subnet 14 with a specific hotkey:
-            [green]$[/green] btcli sudo buyback --netuid 14 --amount 10 --wallet-hotkey <HOTKEY_SS58>
+        1. Stake and burn 10 TAO on subnet 14:
+            [green]$[/green] btcli sudo stake-burn --netuid 14 --amount 10
+        2. Stake and burn 10 TAO on subnet 14 with safe staking and 5% rate tolerance:
+            [green]$[/green] btcli sudo stake-burn --netuid 14 --amount 10 --tolerance 0.05
+        3. Stake and burn 10 TAO on subnet 14 with a specific hotkey:
+            [green]$[/green] btcli sudo stake-burn --netuid 14 --amount 10 --wallet-hotkey <HOTKEY_SS58>
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only=False)
@@ -7431,13 +7431,13 @@ class CLIManager:
         print_protection_warnings(
             mev_protection=mev_protection,
             safe_staking=safe_staking,
-            command_name="sudo buyback",
+            command_name="sudo stake-burn",
         )
 
         if not wallet_hotkey:
             wallet_hotkey = Prompt.ask(
                 "Enter the [blue]hotkey[/blue] name or "
-                "[blue]hotkey ss58 address[/blue] [dim](to use for the buyback)[/dim]",
+                "[blue]hotkey ss58 address[/blue] [dim](to use for the stake burn)[/dim]",
                 default=self.config.get("wallet_hotkey") or defaults.wallet.hotkey,
             )
 
@@ -7461,11 +7461,11 @@ class CLIManager:
             hotkey_ss58 = get_hotkey_pub_ss58(wallet)
 
         if amount <= 0:
-            print_error(f"You entered an incorrect buyback amount: {amount}")
+            print_error(f"You entered an incorrect stake and burn amount: {amount}")
             raise typer.Exit()
 
         if netuid == 0:
-            print_error("Cannot buyback on the root subnet.")
+            print_error("Cannot stake and burn on the root subnet.")
             raise typer.Exit()
 
         self._run_command(
