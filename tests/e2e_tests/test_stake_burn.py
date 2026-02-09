@@ -159,5 +159,7 @@ def test_stake_burn(local_chain, wallet_setup):
         ],
     )
     stake_burn_ratelimited = json.loads(stake_burn_ratelimited_result.stdout)
-    assert stake_burn_ratelimited["success"] is False, stake_burn_ratelimited_result.stdout
+    assert stake_burn_ratelimited["success"] is False, (
+        stake_burn_ratelimited_result.stdout
+    )
     assert "AddStakeBurnRateLimitExceeded" in stake_burn_ratelimited["message"]
