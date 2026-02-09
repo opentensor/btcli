@@ -142,7 +142,7 @@ async def stake_burn(
         return False
 
     subnet_info = await subtensor.subnet(netuid=netuid)
-    buyback_amount = Balance.from_tao(amount)
+    stake_burn_amount = Balance.from_tao(amount)
     rate_tolerance = rate_tolerance if rate_tolerance is not None else 0.0
 
     price_limit: Optional[Balance] = None
@@ -152,7 +152,7 @@ async def stake_burn(
     call_params = {
         "hotkey": hotkey_ss58,
         "netuid": netuid,
-        "amount": buyback_amount.rao,
+        "amount": stake_burn_amount.rao,
         "limit": price_limit.rao if price_limit else None,
     }
 
@@ -166,7 +166,7 @@ async def stake_burn(
         extrinsic_fee = await subtensor.get_extrinsic_fee(
             call, wallet.coldkeypub, proxy=proxy
         )
-        amount_minus_fee = buyback_amount - extrinsic_fee
+        amount_minus_fee = stake_burn_amount - extrinsic_fee
         sim_swap = await subtensor.sim_swap(
             origin_netuid=0,
             destination_netuid=netuid,
@@ -177,7 +177,7 @@ async def stake_burn(
         current_price_float = subnet_info.price.tao
         rate = 1.0 / current_price_float
 
-        table = _define_buyback_table(
+        table = _define_stake_burn_table(
             wallet=wallet,
             subtensor=subtensor,
             safe_staking=safe_staking,
@@ -186,7 +186,7 @@ async def stake_burn(
         row = [
             str(netuid),
             hotkey_ss58,
-            str(buyback_amount),
+            str(stake_burn_amount),
             str(rate) + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
             str(received_amount.set_unit(netuid)),
             str(sim_swap.tao_fee),
@@ -214,7 +214,7 @@ async def stake_burn(
         return False
 
     with console.status(
-        f":satellite: Performing subnet buyback on [bold]{netuid}[/bold]...",
+        f":satellite: Performing subnet stake burn on [bold]{netuid}[/bold]...",
         spinner="earth",
     ) as status:
         next_nonce = await subtensor.substrate.get_account_next_index(
@@ -268,7 +268,7 @@ async def stake_burn(
 
         ext_id = await ext_receipt.get_extrinsic_identifier()
 
-        msg = f"Subnet buyback succeeded on SN{netuid}."
+        msg = f"Subnet stake burn succeeded on SN{netuid}."
         if json_output:
             json_console.print_json(
                 data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
@@ -280,7 +280,7 @@ async def stake_burn(
         return True
 
 
-def _define_buyback_table(
+def _define_stake_burn_table(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     safe_staking: bool,
