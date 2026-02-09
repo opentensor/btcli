@@ -100,7 +100,7 @@ def string_to_bool(val) -> Union[bool, Type[ValueError]]:
         return ValueError
 
 
-async def subnet_buyback(
+async def stake_burn(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     netuid: int,
@@ -117,7 +117,7 @@ async def subnet_buyback(
     period: int,
 ) -> bool:
     """
-    Perform a subnet buyback (owner-only).
+    Perform a stake burn (owner-only).
     Stakes TAO into the subnet and immediately burns the acquired alpha.
     """
     subnet_owner = await subtensor.query(
@@ -158,7 +158,7 @@ async def subnet_buyback(
 
     call = await subtensor.substrate.compose_call(
         call_module="SubtensorModule",
-        call_function="subnet_buyback",
+        call_function="add_stake_burn",
         call_params=call_params,
     )
 
