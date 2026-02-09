@@ -7,18 +7,18 @@ from .utils import extract_coldkey_balance
 
 
 @pytest.mark.parametrize("local_chain", [False], indirect=True)
-def test_subnet_buyback(local_chain, wallet_setup):
+def test_stake_burn(local_chain, wallet_setup):
     """
-    Test subnet buyback
+    Test stake burn
     1. Create a subnet
     2. Start the subnet's emission schedule
-    3. Buyback the subnet
+    3. Buyback the subnet (stake burn)
     3. Check the balance before and after the buyback upon success
     4. Try to buyback again and expect it to fail due to rate limit
     """
 
     _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup("//Alice")
-    time.sleep(2)
+    time.sleep(12)
     netuid = 2
     result = exec_command_alice(
         command="subnets",
@@ -94,11 +94,11 @@ def test_subnet_buyback(local_chain, wallet_setup):
         _balance_before.stdout, wallet_alice.name, wallet_alice.coldkey.ss58_address
     )["free_balance"]
 
-    # First buyback
+    # First stake burn
     amount_tao = 5.0
-    buyback_result = exec_command_alice(
+    stake_burn_result = exec_command_alice(
         "sudo",
-        "buyback",
+        "stake-burn",
         extra_args=[
             "--wallet-path",
             wallet_path_alice,
@@ -116,10 +116,10 @@ def test_subnet_buyback(local_chain, wallet_setup):
             "--json-output",
         ],
     )
-    buyback_ok_out = json.loads(buyback_result.stdout)
-    assert buyback_ok_out["success"] is True, buyback_result.stdout
+    stale_burn_ok_out = json.loads(stake_burn_result.stdout)
+    assert stale_burn_ok_out["success"] is True, stake_burn_result.stdout
 
-    # Balance after buyback
+    # Balance after stake burn
     _balance_after = exec_command_alice(
         "wallet",
         "balance",
@@ -138,7 +138,7 @@ def test_subnet_buyback(local_chain, wallet_setup):
     assert balance_after < balance_before, (balance_before, balance_after)
 
     # Should fail due to rate limit
-    buyback_ratelimited_result = exec_command_alice(
+    stake_burn_ratelimited_result = exec_command_alice(
         "sudo",
         "buyback",
         extra_args=[
@@ -158,6 +158,6 @@ def test_subnet_buyback(local_chain, wallet_setup):
             "--json-output",
         ],
     )
-    buyback_ratelimited = json.loads(buyback_ratelimited_result.stdout)
-    assert buyback_ratelimited["success"] is False, buyback_ratelimited_result.stdout
-    assert "SubnetBuybackRateLimitExceeded" in buyback_ratelimited["message"]
+    stake_burn_ratelimited = json.loads(stake_burn_ratelimited_result.stdout)
+    assert stake_burn_ratelimited["success"] is False, stake_burn_ratelimited_result.stdout
+    assert "AddStakeBurnRateLimitExceeded" in stake_burn_ratelimited["message"]
