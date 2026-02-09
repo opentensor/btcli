@@ -1164,8 +1164,8 @@ class CLIManager:
         self.sudo_app.command("trim", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
             self.sudo_trim
         )
-        self.sudo_app.command("buyback", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
-            self.sudo_subnet_buyback
+        self.sudo_app.command("stake-burn", rich_help_panel=HELP_PANELS["SUDO"]["CONFIG"])(
+            self.sudo_stake_burn
         )
 
         # subnets commands
@@ -1301,6 +1301,7 @@ class CLIManager:
         self.sudo_app.command("senate_vote", hidden=True)(self.sudo_senate_vote)
         self.sudo_app.command("get_take", hidden=True)(self.sudo_get_take)
         self.sudo_app.command("set_take", hidden=True)(self.sudo_set_take)
+        self.sudo_app.command("buyback", hidden=True)(self.sudo_stake_burn)
 
         # Stake
         self.stake_app.command(
@@ -7385,7 +7386,7 @@ class CLIManager:
             )
         )
 
-    def sudo_subnet_buyback(
+    def sudo_stake_burn(
         self,
         network: Optional[list[str]] = Options.network,
         wallet_name: Optional[str] = Options.wallet_name,
@@ -7468,7 +7469,7 @@ class CLIManager:
             raise typer.Exit()
 
         self._run_command(
-            sudo.subnet_buyback(
+            sudo.stake_burn(
                 subtensor=self.initialize_chain(network),
                 wallet=wallet,
                 netuid=netuid,
