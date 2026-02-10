@@ -1794,6 +1794,7 @@ class SubtensorInterface:
             )
             secondary_fee = (result.tao_fee / sn_price.tao).set_unit(origin_netuid)
             result.alpha_fee = result.alpha_fee + secondary_fee
+            result.tao_slippage = intermediate_result.tao_slippage
             return result
         elif origin_netuid > 0:
             # dynamic to tao
@@ -2556,24 +2557,14 @@ class SubtensorInterface:
 
         :return: A dictionary mapping netuid to the current Alpha price in TAO units.
         """
-        all_netuids = await self.get_all_subnet_netuids(block_hash=block_hash)
-
-        result = {0: Balance.from_tao(1.0)}
-        netuids_to_query = [netuid for netuid in all_netuids if netuid != 0]
-        prices = await asyncio.gather(
-            *[
-                self.query_runtime_api(
-                    "SwapRuntimeApi",
-                    "current_alpha_price",
-                    params={"netuid": netuid},
-                    block_hash=block_hash,
-                )
-                for netuid in netuids_to_query
-            ],
+        all_prices = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price_all",
+            block_hash=block_hash,
         )
-        for netuid, current_price in zip(netuids_to_query, prices):
-            result[netuid] = Balance.from_rao(current_price)
-
+        result = {}
+        for entry in all_prices:
+            result[entry["netuid"]] = Balance.from_rao(entry["price"])
         return result
 
     async def get_all_subnet_ema_tao_inflow(
