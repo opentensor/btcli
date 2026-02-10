@@ -433,11 +433,7 @@ async def stake_add(
             )
             received_amount = sim_swap.alpha_amount
 
-            _, _, slippage_pct_float = sim_swap.tao_to_alpha_slippage(
-                tao_amount=amount_minus_fee,
-                current_price=current_price_float,
-                netuid=netuid,
-            )
+            slippage_pct_float = sim_swap.alpha_slippage_pct
             slippage_pct = f"{slippage_pct_float:.4f} %"
             max_slippage = max(slippage_pct_float, max_slippage)
 

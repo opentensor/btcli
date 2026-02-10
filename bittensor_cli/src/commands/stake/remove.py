@@ -251,10 +251,7 @@ async def unstake(
                 if not proxy:
                     received_amount -= extrinsic_fee
 
-                _, _, slippage_pct_float = sim_swap.alpha_to_tao_slippage(
-                    alpha_amount=amount_to_unstake_as_balance,
-                    current_price=current_price,
-                )
+                slippage_pct_float = sim_swap.tao_slippage_pct
                 slippage_pct = f"{slippage_pct_float:.4f} %"
                 max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except ValueError:
@@ -533,10 +530,7 @@ async def unstake_all(
                     print_error("Not enough Alpha to pay the transaction fee.")
                     continue
 
-                _, _, slippage_pct_float = sim_swap.alpha_to_tao_slippage(
-                    alpha_amount=stake_amount,
-                    current_price=current_price,
-                )
+                slippage_pct_float = sim_swap.tao_slippage_pct
                 slippage_pct = f"{slippage_pct_float:.4f} %"
                 max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except (AttributeError, ValueError):
