@@ -297,8 +297,8 @@ def test_staking(local_chain, wallet_setup):
     assert str(netuid) in get_s_price_output.keys()
     stats = get_s_price_output[str(netuid)]["stats"]
     assert stats["name"] == sn_name
-    assert stats["current_price"] == 0.0
-    assert stats["market_cap"] == 0.0
+    assert stats["current_price"] == 1
+    assert stats["market_cap"] == 1_000
 
     # Start emissions on SNs
     for netuid_ in multiple_netuids:

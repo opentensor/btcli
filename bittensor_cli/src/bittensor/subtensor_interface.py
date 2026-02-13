@@ -444,40 +444,52 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes, dynamic_info = await asyncio.gather(
+        sub_stakes, price_map = await asyncio.gather(
             self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
-            # Token pricing info
-            self.all_subnets(block_hash=block_hash),
+            self.get_subnet_prices(block_hash=block_hash),
         )
 
-        results = {}
+        results: dict[str, tuple[Balance, Balance]] = {}
+        dynamic_stakes: list[tuple[str, "StakeInfo"]] = []
+
         for ss58, stake_info_list in sub_stakes.items():
-            total_tao_value = Balance(0)
-            total_swapped_tao_value = Balance(0)
+            total_tao_value, total_swapped_tao_value = Balance(0), Balance(0)
             for sub_stake in stake_info_list:
                 if sub_stake.stake.rao == 0:
                     continue
+
                 netuid = sub_stake.netuid
-                pool = dynamic_info[netuid]
-
-                alpha_value = Balance.from_rao(int(sub_stake.stake.rao)).set_unit(
-                    netuid
+                price = price_map[netuid]
+                ideal_tao = Balance.from_tao(sub_stake.stake.tao * price.tao).set_unit(
+                    0
                 )
+                total_tao_value += ideal_tao
 
-                # Without slippage
-                tao_value = pool.alpha_to_tao(alpha_value)
-                total_tao_value += tao_value
-
-                # With slippage
                 if netuid == 0:
-                    swapped_tao_value = tao_value
+                    total_swapped_tao_value += ideal_tao
                 else:
-                    swapped_tao_value, _, _ = pool.alpha_to_tao_with_slippage(
-                        sub_stake.stake
-                    )
-                total_swapped_tao_value += swapped_tao_value
+                    dynamic_stakes.append((ss58, sub_stake))
 
             results[ss58] = (total_tao_value, total_swapped_tao_value)
+
+        if dynamic_stakes:
+            sim_results = await asyncio.gather(
+                *[
+                    self.sim_swap(
+                        origin_netuid=sub_stake.netuid,
+                        destination_netuid=0,
+                        amount=sub_stake.stake.rao,
+                        block_hash=block_hash,
+                    )
+                    for _, sub_stake in dynamic_stakes
+                ]
+            )
+
+            for (ss58, sub_stake), sim_result in zip(dynamic_stakes, sim_results):
+                total_tao_value, total_swapped_tao_value = results[ss58]
+                total_swapped_tao_value += sim_result.tao_amount
+                results[ss58] = (total_tao_value, total_swapped_tao_value)
+
         return results
 
     async def get_total_stake_for_hotkey(
@@ -1654,7 +1666,7 @@ class SubtensorInterface:
                 "get_all_dynamic_info",
                 block_hash=block_hash,
             ),
-            self.get_subnet_prices(block_hash=block_hash, page_size=129),
+            self.get_subnet_prices(block_hash=block_hash),
         )
         sns: list[DynamicInfo] = DynamicInfo.list_from_any(result)
         for sn in sns:
@@ -1782,6 +1794,7 @@ class SubtensorInterface:
             )
             secondary_fee = (result.tao_fee / sn_price.tao).set_unit(origin_netuid)
             result.alpha_fee = result.alpha_fee + secondary_fee
+            result.tao_slippage = intermediate_result.tao_slippage
             return result
         elif origin_netuid > 0:
             # dynamic to tao
@@ -2523,43 +2536,36 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
-        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
-        current_sqrt_price = await self.query(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            params=[netuid],
+        if netuid == 0:
+            return Balance.from_tao(1.0)
+
+        current_price = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price",
+            params={"netuid": netuid},
             block_hash=block_hash,
         )
-
-        current_sqrt_price = fixed_to_float(current_sqrt_price)
-        current_price = current_sqrt_price * current_sqrt_price
-        return Balance.from_rao(int(current_price * 1e9))
+        return Balance.from_rao(current_price)
 
     async def get_subnet_prices(
-        self, block_hash: Optional[str] = None, page_size: int = 100
+        self, block_hash: Optional[str] = None
     ) -> dict[int, Balance]:
         """
         Gets the current Alpha prices in TAO for all subnets.
 
         :param block_hash: The hash of the block to retrieve prices from.
-        :param page_size: The page size for batch queries (default: 100).
 
         :return: A dictionary mapping netuid to the current Alpha price in TAO units.
         """
-        query = await self.substrate.query_map(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            page_size=page_size,
+        all_prices = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price_all",
             block_hash=block_hash,
         )
-
-        map_ = {}
-        async for netuid_, current_sqrt_price in query:
-            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
-            current_price = current_sqrt_price_**2
-            map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
-
-        return map_
+        result = {}
+        for entry in all_prices:
+            result[entry["netuid"]] = Balance.from_rao(entry["price"])
+        return result
 
     async def get_all_subnet_ema_tao_inflow(
         self,
