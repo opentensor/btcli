@@ -126,8 +126,19 @@ def search_metadata(
             return arg_types[type_](val)
         except ValueError:
             return type_converter_with_retry(type_, None, arg_name)
+        except KeyError:
+            print_error(
+                f"Type {type_} is not recognized. "
+                "You will be unable to set this parameter via this command.\n"
+                "Some hyperparams must be set by their dedicated command, such as `btcli subnets mech`"
+            )
 
-    arg_types = {"bool": string_to_bool, "u16": string_to_u16, "u64": string_to_u64}
+    arg_types = {
+        "bool": string_to_bool,
+        "u16": string_to_u16,
+        "u64": string_to_u64,
+        "MechId": int,
+    }
     arg_type_output = {"bool": "bool", "u16": "float", "u64": "float"}
 
     call_crafter = {"netuid": netuid}
