@@ -1,3 +1,6 @@
+import tempfile
+from unittest.mock import AsyncMock, patch, MagicMock, Mock
+
 import numpy as np
 import pytest
 import typer
@@ -8,7 +11,19 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
     get_current_weights_for_uid,
     set_root_weights_extrinsic,
 )
-from unittest.mock import AsyncMock, patch, MagicMock, Mock
+from bittensor_cli.src.bittensor.slip39 import (
+    SLIP39Config,
+    ENTROPY_256_BITS,
+    generate_slip39_shares,
+    recover_secret_from_shares,
+    generate_secure_entropy,
+    entropy_to_keypair,
+    create_coldkey_with_slip39,
+    recover_coldkey_from_slip39,
+    save_shares_to_files,
+    load_shares_from_files,
+    validate_shares,
+)
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
@@ -765,3 +780,142 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
         )
 
         mock_get_current.assert_not_called()
+
+
+# =============================================================================
+# SLIP39 (Shamir's Secret Sharing) Tests
+# =============================================================================
+
+
+class TestSLIP39Config:
+    """Tests for SLIP39Config dataclass."""
+
+    def test_default_config(self):
+        config = SLIP39Config()
+        assert config.group_threshold == 1
+        assert config.groups == [(2, 3)]
+        assert config.passphrase == ""
+
+    def test_custom_config(self):
+        config = SLIP39Config(
+            group_threshold=2,
+            groups=[(2, 3), (3, 5)],
+            passphrase="test",
+        )
+        assert config.group_threshold == 2
+        assert config.total_shares == 8
+
+    def test_threshold_description(self):
+        config = SLIP39Config(groups=[(2, 3)])
+        assert config.threshold_description == "2-of-3"
+
+
+class TestSLIP39ShareGeneration:
+    """Tests for SLIP39 share generation and recovery."""
+
+    def test_generate_and_recover_shares(self):
+        """Test generating shares and recovering the secret."""
+        entropy = generate_secure_entropy(ENTROPY_256_BITS)
+        config = SLIP39Config(groups=[(2, 3)])
+        share_set = generate_slip39_shares(entropy, config)
+
+        assert len(share_set.shares[0]) == 3
+        assert share_set.identifier > 0
+
+        # Recover with threshold shares
+        recovered = recover_secret_from_shares(share_set.shares[0][:2])
+        assert recovered == entropy
+
+    def test_generate_shares_with_passphrase(self):
+        """Test shares with passphrase protection."""
+        entropy = generate_secure_entropy(ENTROPY_256_BITS)
+        config = SLIP39Config(groups=[(2, 3)], passphrase="secret")
+        share_set = generate_slip39_shares(entropy, config)
+
+        # Correct passphrase recovers original
+        recovered = recover_secret_from_shares(
+            share_set.shares[0][:2], passphrase="secret"
+        )
+        assert recovered == entropy
+
+        # Wrong passphrase gives different result
+        recovered_wrong = recover_secret_from_shares(
+            share_set.shares[0][:2], passphrase="wrong"
+        )
+        assert recovered_wrong != entropy
+
+    def test_entropy_to_keypair(self):
+        """Test creating keypair from entropy."""
+        entropy = generate_secure_entropy(ENTROPY_256_BITS)
+        keypair = entropy_to_keypair(entropy)
+        assert keypair.ss58_address is not None
+
+        # Same entropy = same keypair
+        keypair2 = entropy_to_keypair(entropy)
+        assert keypair.ss58_address == keypair2.ss58_address
+
+
+class TestSLIP39Validation:
+    """Tests for share validation."""
+
+    def test_validate_valid_shares(self):
+        entropy = generate_secure_entropy(ENTROPY_256_BITS)
+        share_set = generate_slip39_shares(entropy)
+        result = validate_shares(share_set.shares[0])
+        assert result["valid"] is True
+
+    def test_validate_empty_shares(self):
+        result = validate_shares([])
+        assert result["valid"] is False
+
+    def test_validate_mixed_identifiers(self):
+        """Shares from different sets should fail validation."""
+        entropy1 = generate_secure_entropy(ENTROPY_256_BITS)
+        entropy2 = generate_secure_entropy(ENTROPY_256_BITS)
+        share_set1 = generate_slip39_shares(entropy1)
+        share_set2 = generate_slip39_shares(entropy2)
+
+        mixed = [share_set1.shares[0][0], share_set2.shares[0][0]]
+        result = validate_shares(mixed)
+        assert result["valid"] is False
+
+
+class TestSLIP39FileOperations:
+    """Tests for file I/O operations."""
+
+    def test_save_and_load_shares(self):
+        entropy = generate_secure_entropy(ENTROPY_256_BITS)
+        share_set = generate_slip39_shares(entropy)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            files = save_shares_to_files(share_set, tmpdir)
+            assert len(files) == 3
+
+            loaded = load_shares_from_files(files[:2])
+            recovered = recover_secret_from_shares(loaded)
+            assert recovered == entropy
+
+
+class TestSLIP39ColdkeyOperations:
+    """Tests for coldkey creation and recovery."""
+
+    def test_create_and_recover_coldkey(self):
+        """Test full coldkey workflow with SLIP39."""
+        wallet = MagicMock()
+        config = SLIP39Config(groups=[(2, 3)])
+
+        share_set, keypair = create_coldkey_with_slip39(
+            wallet=wallet,
+            config=config,
+            use_password=False,
+        )
+
+        # Recover
+        wallet2 = MagicMock()
+        recovered_keypair = recover_coldkey_from_slip39(
+            wallet=wallet2,
+            shares=share_set.shares[0][:2],
+            use_password=False,
+        )
+
+        assert recovered_keypair.ss58_address == keypair.ss58_address
