@@ -55,7 +55,6 @@ async def encrypt_extrinsic(
 async def wait_for_extrinsic_by_hash(
     subtensor: "SubtensorInterface",
     extrinsic_hash: str,
-    shield_id: str,
     submit_block_hash: str,
     timeout_blocks: int = 2,
     status=None,
@@ -89,7 +88,7 @@ async def wait_for_extrinsic_by_hash(
         return True
 
     starting_block = await subtensor.substrate.get_block_number(submit_block_hash)
-    current_block = starting_block + 1
+    current_block = starting_block
 
     while current_block - starting_block <= timeout_blocks:
         if status:
@@ -113,20 +112,6 @@ async def wait_for_extrinsic_by_hash(
             if f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash:
                 result_idx = idx
                 break
-
-            # Failure: Decryption failed
-            call = extrinsic.value.get("call", {})
-            if (
-                call.get("call_module") == "MevShield"
-                and call.get("call_function") == "mark_decryption_failed"
-            ):
-                call_args = call.get("call_args", [])
-                for arg in call_args:
-                    if arg.get("name") == "id" and arg.get("value") == shield_id:
-                        result_idx = idx
-                        break
-                if result_idx is not None:
-                    break
 
         if result_idx is not None:
             receipt = AsyncExtrinsicReceipt(
