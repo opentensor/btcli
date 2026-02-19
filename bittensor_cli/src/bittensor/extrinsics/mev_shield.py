@@ -1,4 +1,3 @@
-import hashlib
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -37,42 +36,20 @@ async def encrypt_extrinsic(
     plaintext = bytes(signed_extrinsic.data.data)
 
     # Encrypt using ML-KEM-768
-    ciphertext = encrypt_mlkem768(ml_kem_768_public_key, plaintext)
-
-    # Commitment: blake2_256(payload_core)
-    commitment_hash = hashlib.blake2b(plaintext, digest_size=32).digest()
-    commitment_hex = "0x" + commitment_hash.hex()
+    ciphertext = encrypt_mlkem768(
+        ml_kem_768_public_key, plaintext, include_key_hash=False
+    )
 
     # Create the MevShield.submit_encrypted call
     encrypted_call = await subtensor.substrate.compose_call(
         call_module="MevShield",
         call_function="submit_encrypted",
         call_params={
-            "commitment": commitment_hex,
             "ciphertext": ciphertext,
         },
     )
 
     return encrypted_call
-
-
-async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
-    """
-    Extract the MEV Shield wrapper ID from an extrinsic response.
-
-    After submitting a MEV Shield encrypted call, the EncryptedSubmitted event
-    contains the wrapper ID needed to track execution.
-
-    Args:
-        response: The extrinsic receipt from submit_extrinsic.
-
-    Returns:
-        The wrapper ID (hex string) or None if not found.
-    """
-    for event in await response.triggered_events:
-        if event["event_id"] == "EncryptedSubmitted":
-            return event["attributes"]["id"]
-    return None
 
 
 async def wait_for_extrinsic_by_hash(
