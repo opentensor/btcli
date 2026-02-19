@@ -37,7 +37,7 @@ async def encrypt_extrinsic(
 
     # Encrypt using ML-KEM-768
     ciphertext = encrypt_mlkem768(
-        ml_kem_768_public_key, plaintext, include_key_hash=False
+        ml_kem_768_public_key, plaintext, include_key_hash=True
     )
 
     # Create the MevShield.submit_encrypted call
