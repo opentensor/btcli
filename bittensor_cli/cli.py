@@ -32,7 +32,7 @@ from rich import box
 from rich.prompt import FloatPrompt, Prompt, IntPrompt
 from rich.table import Column, Table
 from rich.tree import Tree
-from typing_extensions import Annotated
+from typing import Annotated
 from yaml import safe_dump, safe_load
 
 from bittensor_cli.src import (
