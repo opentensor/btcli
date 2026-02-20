@@ -683,9 +683,9 @@ HYPERPARAMS = {
     "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", RootSudoOnly.FALSE),
     "transfers_enabled": ("sudo_set_toggle_transfer", RootSudoOnly.FALSE),
     "min_allowed_uids": ("sudo_set_min_allowed_uids", RootSudoOnly.TRUE),
-    "sudo_set_sn_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.TRUE),
-    "sudo_set_subnet_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.TRUE),
-    "sudo_set_recycle_or_burn": ("sudo_set_recycle_or_burn", RootSudoOnly.TRUE),
+    "sn_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
+    "subnet_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
+    "recycle_or_burn": ("sudo_set_recycle_or_burn", RootSudoOnly.FALSE),
     # Note: These are displayed but not directly settable via HYPERPARAMS
     # They are derived or set via other mechanisms
     "alpha_high": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
@@ -898,19 +898,19 @@ HYPERPARAMS_METADATA = {
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#minalloweduids",
     },
-    "sudo_set_sn_owner_hotkey": {
+    "sn_owner_hotkey": {
         "description": "Set the subnet owner hotkey (root sudo only).",
         "side_effects": "Changes which hotkey is authorized as subnet owner for the given subnet.",
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
     },
-    "sudo_set_subnet_owner_hotkey": {
-        "description": "Alias for sudo_set_sn_owner_hotkey; sets the subnet owner hotkey (root sudo only).",
-        "side_effects": "Same as sudo_set_sn_owner_hotkey.",
+    "subnet_owner_hotkey": {
+        "description": "Alias for sn_owner_hotkey; sets the subnet owner hotkey (root sudo only).",
+        "side_effects": "Same as sn_owner_hotkey.",
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
     },
-    "sudo_set_recycle_or_burn": {
+    "recycle_or_burn": {
         "description": "Set whether subnet TAO is recycled or burned (root sudo only).",
         "side_effects": "Controls whether unstaked TAO is recycled back into the subnet or burned.",
         "owner_settable": False,

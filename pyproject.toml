@@ -42,7 +42,6 @@ dependencies = [
     "PyYAML~=6.0",
     "rich>=13.7,<15.0",
     "scalecodec==1.2.12",
-    "typing_extensions>=3.7.4.3",
     "typer>=0.16",
     "bittensor-wallet>=4.0.0",
     "packaging",
