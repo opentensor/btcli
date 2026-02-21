@@ -683,9 +683,9 @@ HYPERPARAMS = {
     "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", RootSudoOnly.FALSE),
     "transfers_enabled": ("sudo_set_toggle_transfer", RootSudoOnly.FALSE),
     "min_allowed_uids": ("sudo_set_min_allowed_uids", RootSudoOnly.TRUE),
-    "sn_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
-    "subnet_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
-    "recycle_or_burn": ("sudo_set_recycle_or_burn", RootSudoOnly.FALSE),
+    "sn_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.TRUE),
+    "subnet_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.TRUE),
+    "recycle_or_burn": ("sudo_set_recycle_or_burn", RootSudoOnly.TRUE),
     # Note: These are displayed but not directly settable via HYPERPARAMS
     # They are derived or set via other mechanisms
     "alpha_high": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
