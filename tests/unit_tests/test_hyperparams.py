@@ -15,7 +15,7 @@ def test_new_hyperparams_in_hyperparams():
         assert key in HYPERPARAMS, f"{key} should be in HYPERPARAMS"
         extrinsic, root_only = HYPERPARAMS[key]
         assert extrinsic, f"{key} must have non-empty extrinsic name"
-        assert root_only is RootSudoOnly.TRUE
+        assert root_only is RootSudoOnly.FALSE
 
 
 def test_subnet_owner_hotkey_alias_maps_to_same_extrinsic():
@@ -35,6 +35,6 @@ def test_new_hyperparams_have_metadata():
         assert isinstance(meta["owner_settable"], bool)
 
 
-def test_new_hyperparams_owner_settable_false():
+def test_new_hyperparams_owner_settable_true():
     for key in NEW_HYPERPARAMS_826:
-        assert HYPERPARAMS_METADATA[key]["owner_settable"] is False
+        assert HYPERPARAMS_METADATA[key]["owner_settable"] is True
