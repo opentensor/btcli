@@ -899,19 +899,19 @@ HYPERPARAMS_METADATA = {
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#minalloweduids",
     },
     "sn_owner_hotkey": {
-        "description": "Set the subnet owner hotkey (root sudo only).",
+        "description": "Set the subnet owner hotkey.",
         "side_effects": "Changes which hotkey is authorized as subnet owner for the given subnet.",
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
     },
     "subnet_owner_hotkey": {
-        "description": "Alias for sn_owner_hotkey; sets the subnet owner hotkey (root sudo only).",
+        "description": "Alias for sn_owner_hotkey; sets the subnet owner hotkey.",
         "side_effects": "Same as sn_owner_hotkey.",
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
     },
     "recycle_or_burn": {
-        "description": "Set whether subnet TAO is recycled or burned (root sudo only).",
+        "description": "Set whether subnet TAO is recycled or burned.",
         "side_effects": "Controls whether unstaked TAO is recycled back into the subnet or burned.",
         "owner_settable": False,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
