@@ -837,6 +837,6 @@ def test_new_hyperparams_have_metadata():
         assert isinstance(meta["owner_settable"], bool)
 
 
-def test_new_hyperparams_owner_settable_false():
+def test_new_hyperparams_owner_settable_true():
     for key in NEW_HYPERPARAMS_826:
-        assert HYPERPARAMS_METADATA[key]["owner_settable"] is False
+        assert HYPERPARAMS_METADATA[key]["owner_settable"] is True
