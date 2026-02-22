@@ -1,42 +1,33 @@
 name: Ruff Formatter Check
+
+concurrency:
+  group: ruff-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
 
 jobs:
   ruff:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10"]
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
-      - name: Set up caching for Ruff virtual environment
-        id: cache-ruff
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: v2-pypi-py-ruff-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            v2-pypi-py-ruff-${{ matrix.python-version }}-
-
-      - name: Set up Ruff virtual environment if cache is missed
-        if: steps.cache-ruff.outputs.cache-hit != 'true'
-        run: |
-          python -m venv .venv
-          .venv/bin/python -m pip install ruff==0.11.5
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Ruff format check
         run: |
-          .venv/bin/ruff format --diff bittensor_cli
-          .venv/bin/ruff format --diff tests
+          uv run ruff format --diff bittensor_cli
+          uv run ruff format --diff tests
