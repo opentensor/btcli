@@ -19,15 +19,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: uv sync --all-extras
-
       - name: Ruff format check
-        run: |
-          uv run ruff format --diff bittensor_cli
-          uv run ruff format --diff tests
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.11.5"
+          args: "format --diff"
+          src: "bittensor_cli tests"
