@@ -18,6 +18,7 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_success,
     print_verbose,
     print_error,
@@ -249,6 +250,10 @@ async def unstake(
                 received_amount = sim_swap.tao_amount
                 if not proxy:
                     received_amount -= extrinsic_fee
+
+                slippage_pct_float = sim_swap.tao_slippage_pct
+                slippage_pct = f"{slippage_pct_float:.4f} %"
+                max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -274,7 +279,7 @@ async def unstake(
                 str(sim_swap.alpha_fee),  # Fee
                 str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
-                # slippage_pct,  # Slippage Percent
+                slippage_pct,  # Slippage Percent
             ]
 
             # Additional fields for safe unstaking
@@ -443,6 +448,7 @@ async def unstake_all(
             return
 
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+        max_float_slippage = 0.0
 
         # Create table for unstaking all
         table_title = (
@@ -450,21 +456,13 @@ async def unstake_all(
             if not unstake_all_alpha
             else "Unstaking Summary - All Alpha Stakes"
         )
-        table = Table(
+        table = create_table(
             title=(
                 f"\n[{COLOR_PALETTE.G.HEADER}]{table_title}[/{COLOR_PALETTE.G.HEADER}]\n"
                 f"Wallet: [{COLOR_PALETTE.G.COLDKEY}]{wallet.name}[/{COLOR_PALETTE.G.COLDKEY}], "
                 f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
                 f"Network: [{COLOR_PALETTE.G.HEADER}]{subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n"
             ),
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
         table.add_column("Netuid", justify="center", style="grey89")
         table.add_column(
@@ -495,11 +493,11 @@ async def unstake_all(
             justify="center",
             style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         )
-        # table.add_column(
-        #     "Slippage",
-        #     justify="center",
-        #     style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
-        # )
+        table.add_column(
+            "Slippage",
+            justify="center",
+            style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+        )
 
         # Calculate total received
         total_received_value = Balance(0)
@@ -531,6 +529,10 @@ async def unstake_all(
                 if received_amount < Balance.from_tao(0):
                     print_error("Not enough Alpha to pay the transaction fee.")
                     continue
+
+                slippage_pct_float = sim_swap.tao_slippage_pct
+                slippage_pct = f"{slippage_pct_float:.4f} %"
+                max_float_slippage = max(slippage_pct_float, max_float_slippage)
             except (AttributeError, ValueError):
                 continue
 
@@ -545,8 +547,9 @@ async def unstake_all(
                 str(sim_swap.alpha_fee),
                 str(extrinsic_fee),
                 str(received_amount),
+                slippage_pct,
             )
-    console.print(table)
+    _print_table_and_slippage(table, max_float_slippage, False)
 
     console.print(
         f"Total expected return: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
@@ -1056,16 +1059,8 @@ async def _unstake_selection(
 
     # Display existing hotkeys, id, and staked netuids.
     subnet_filter = f" for Subnet {netuid}" if netuid is not None else ""
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Hotkeys with Stakes{subnet_filter}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Index", justify="right")
     table.add_column("Identity", style=COLOR_PALETTE.G.SUBHEAD)
@@ -1093,18 +1088,10 @@ async def _unstake_selection(
     netuid_stakes = hotkey_stakes[selected_hotkey_ss58]
 
     # Display hotkey's staked netuids with amount.
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n"
         f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n"
         f"{selected_hotkey_ss58}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Subnet", justify="right")
     table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
@@ -1342,16 +1329,8 @@ def _create_unstake_table(
         f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet_coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
         f"Network: {network}[/{COLOR_PALETTE.G.HEADER}]\n"
     )
-    table = Table(
+    table = create_table(
         title=title,
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column("Netuid", justify="center", style="grey89")
@@ -1382,9 +1361,9 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         footer=str(total_received_amount),
     )
-    # table.add_column(
-    #     "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
-    # )
+    table.add_column(
+        "Slippage", justify="center", style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"]
+    )
     if safe_staking:
         table.add_column(
             f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",

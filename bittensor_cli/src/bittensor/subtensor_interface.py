@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     MetagraphInfo,
     SimSwapResult,
     CrowdloanData,
+    ColdkeySwapAnnouncementInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -443,40 +444,52 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes, dynamic_info = await asyncio.gather(
+        sub_stakes, price_map = await asyncio.gather(
             self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
-            # Token pricing info
-            self.all_subnets(block_hash=block_hash),
+            self.get_subnet_prices(block_hash=block_hash),
         )
 
-        results = {}
+        results: dict[str, tuple[Balance, Balance]] = {}
+        dynamic_stakes: list[tuple[str, "StakeInfo"]] = []
+
         for ss58, stake_info_list in sub_stakes.items():
-            total_tao_value = Balance(0)
-            total_swapped_tao_value = Balance(0)
+            total_tao_value, total_swapped_tao_value = Balance(0), Balance(0)
             for sub_stake in stake_info_list:
                 if sub_stake.stake.rao == 0:
                     continue
+
                 netuid = sub_stake.netuid
-                pool = dynamic_info[netuid]
-
-                alpha_value = Balance.from_rao(int(sub_stake.stake.rao)).set_unit(
-                    netuid
+                price = price_map[netuid]
+                ideal_tao = Balance.from_tao(sub_stake.stake.tao * price.tao).set_unit(
+                    0
                 )
+                total_tao_value += ideal_tao
 
-                # Without slippage
-                tao_value = pool.alpha_to_tao(alpha_value)
-                total_tao_value += tao_value
-
-                # With slippage
                 if netuid == 0:
-                    swapped_tao_value = tao_value
+                    total_swapped_tao_value += ideal_tao
                 else:
-                    swapped_tao_value, _, _ = pool.alpha_to_tao_with_slippage(
-                        sub_stake.stake
-                    )
-                total_swapped_tao_value += swapped_tao_value
+                    dynamic_stakes.append((ss58, sub_stake))
 
             results[ss58] = (total_tao_value, total_swapped_tao_value)
+
+        if dynamic_stakes:
+            sim_results = await asyncio.gather(
+                *[
+                    self.sim_swap(
+                        origin_netuid=sub_stake.netuid,
+                        destination_netuid=0,
+                        amount=sub_stake.stake.rao,
+                        block_hash=block_hash,
+                    )
+                    for _, sub_stake in dynamic_stakes
+                ]
+            )
+
+            for (ss58, sub_stake), sim_result in zip(dynamic_stakes, sim_results):
+                total_tao_value, total_swapped_tao_value = results[ss58]
+                total_swapped_tao_value += sim_result.tao_amount
+                results[ss58] = (total_tao_value, total_swapped_tao_value)
+
         return results
 
     async def get_total_stake_for_hotkey(
@@ -1653,7 +1666,7 @@ class SubtensorInterface:
                 "get_all_dynamic_info",
                 block_hash=block_hash,
             ),
-            self.get_subnet_prices(block_hash=block_hash, page_size=129),
+            self.get_subnet_prices(block_hash=block_hash),
         )
         sns: list[DynamicInfo] = DynamicInfo.list_from_any(result)
         for sn in sns:
@@ -1781,6 +1794,7 @@ class SubtensorInterface:
             )
             secondary_fee = (result.tao_fee / sn_price.tao).set_unit(origin_netuid)
             result.alpha_fee = result.alpha_fee + secondary_fee
+            result.tao_slippage = intermediate_result.tao_slippage
             return result
         elif origin_netuid > 0:
             # dynamic to tao
@@ -1805,30 +1819,119 @@ class SubtensorInterface:
                 destination_netuid,
             )
 
-    async def get_scheduled_coldkey_swap(
+    async def get_coldkey_swap_announcements(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> Optional[list[str]]:
-        """
-        Queries the chain to fetch the list of coldkeys that are scheduled for a swap.
+    ) -> list[ColdkeySwapAnnouncementInfo]:
+        """Fetches all pending coldkey swap announcements.
 
-        :param block_hash: Block hash at which to perform query.
-        :param reuse_block: Whether to reuse the last-used block hash.
+        Args:
+            block_hash: Block hash at which to perform query.
+            reuse_block: Whether to reuse the last-used block hash.
 
-        :return: A list of SS58 addresses of the coldkeys that are scheduled for a coldkey swap.
+        Returns:
+            A list of ColdkeySwapAnnouncementInfo for all pending announcements.
         """
         result = await self.substrate.query_map(
             module="SubtensorModule",
-            storage_function="ColdkeySwapScheduled",
+            storage_function="ColdkeySwapAnnouncements",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
 
-        keys_pending_swap = []
-        async for ss58, _ in result:
-            keys_pending_swap.append(decode_account_id(ss58))
-        return keys_pending_swap
+        announcements = []
+        async for ss58, data in result:
+            coldkey = decode_account_id(ss58)
+            announcements.append(
+                ColdkeySwapAnnouncementInfo._fix_decoded(coldkey, data)
+            )
+        return announcements
+
+    async def get_coldkey_swap_announcement(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[ColdkeySwapAnnouncementInfo]:
+        """Fetches a pending coldkey swap announcement for a specific coldkey.
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey to query.
+            block_hash: Block hash at which to perform query.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            ColdkeySwapAnnouncementInfo if an announcement exists, None otherwise.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapAnnouncements",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return None
+
+        return ColdkeySwapAnnouncementInfo._fix_decoded(coldkey_ss58, result)
+
+    async def get_coldkey_swap_disputes(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[tuple[str, int]]:
+        """Fetch all coldkey swap disputes.
+
+        Args:
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            list[tuple[str, int]]: Tuples of `(coldkey_ss58, disputed_block)`.
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        disputes: list[tuple[str, int]] = []
+        async for ss58, data in result:
+            coldkey = decode_account_id(ss58)
+            disputes.append((coldkey, data.value))
+        return disputes
+
+    async def get_coldkey_swap_dispute(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[int]:
+        """Fetch the disputed block for a given coldkey swap.
+
+        Args:
+            coldkey_ss58: Coldkey SS58 address.
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            int | None: Block number when disputed, or None if no dispute exists.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return None
+
+        return int(result)
 
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
@@ -1962,30 +2065,83 @@ class SubtensorInterface:
 
         return contributor_contributions
 
-    async def get_coldkey_swap_schedule_duration(
+    async def get_coldkey_swap_announcement_delay(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> int:
-        """
-        Retrieves the duration (in blocks) required for a coldkey swap to be executed.
+        """Retrieves the delay (in blocks) before a coldkey swap can be executed.
+
+        This is the time the user must wait after announcing a coldkey swap
+        before they can execute the swap.
 
         Args:
             block_hash: The hash of the blockchain block number for the query.
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            int: The number of blocks required for the coldkey swap schedule duration.
+            The number of blocks to wait after announcement.
         """
         result = await self.query(
             module="SubtensorModule",
-            storage_function="ColdkeySwapScheduleDuration",
+            storage_function="ColdkeySwapAnnouncementDelay",
             params=[],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
 
         return result
+
+    async def get_coldkey_swap_reannouncement_delay(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> int:
+        """Retrieves the delay (in blocks) before the user can reannounce a coldkey swap.
+
+        If the user has already announced a swap, they must wait this many blocks
+        after the original execution block before they can announce a new swap.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            The number of blocks to wait before reannouncing.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapReannouncementDelay",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        return result
+
+    async def get_coldkey_swap_cost(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the fee required to announce a coldkey swap.
+
+        Args:
+            block_hash: Block hash at which to query the constant.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            The swap cost as a Balance object. Returns 0 TAO if constant not found.
+        """
+        swap_cost = await self.substrate.get_constant(
+            module_name="SubtensorModule",
+            constant_name="KeySwapCost",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        if swap_cost is None:
+            return None
+        return Balance.from_rao(swap_cost.value)
 
     async def get_coldkey_claim_type(
         self,
@@ -2380,43 +2536,36 @@ class SubtensorInterface:
 
         :return: The current Alpha price in TAO units for the specified subnet.
         """
-        # TODO update this to use the runtime call SwapRuntimeAPI.current_alpha_price
-        current_sqrt_price = await self.query(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            params=[netuid],
+        if netuid == 0:
+            return Balance.from_tao(1.0)
+
+        current_price = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price",
+            params={"netuid": netuid},
             block_hash=block_hash,
         )
-
-        current_sqrt_price = fixed_to_float(current_sqrt_price)
-        current_price = current_sqrt_price * current_sqrt_price
-        return Balance.from_rao(int(current_price * 1e9))
+        return Balance.from_rao(current_price)
 
     async def get_subnet_prices(
-        self, block_hash: Optional[str] = None, page_size: int = 100
+        self, block_hash: Optional[str] = None
     ) -> dict[int, Balance]:
         """
         Gets the current Alpha prices in TAO for all subnets.
 
         :param block_hash: The hash of the block to retrieve prices from.
-        :param page_size: The page size for batch queries (default: 100).
 
         :return: A dictionary mapping netuid to the current Alpha price in TAO units.
         """
-        query = await self.substrate.query_map(
-            module="Swap",
-            storage_function="AlphaSqrtPrice",
-            page_size=page_size,
+        all_prices = await self.query_runtime_api(
+            "SwapRuntimeApi",
+            "current_alpha_price_all",
             block_hash=block_hash,
         )
-
-        map_ = {}
-        async for netuid_, current_sqrt_price in query:
-            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
-            current_price = current_sqrt_price_**2
-            map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
-
-        return map_
+        result = {}
+        for entry in all_prices:
+            result[entry["netuid"]] = Balance.from_rao(entry["price"])
+        return result
 
     async def get_all_subnet_ema_tao_inflow(
         self,
