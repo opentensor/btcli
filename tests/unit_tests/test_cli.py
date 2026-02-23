@@ -802,7 +802,6 @@ def test_new_hyperparams_owner_settable_true():
         assert HYPERPARAMS_METADATA[key]["owner_settable"] is True
 
 
-
 # ============================================================================
 # Tests for proxy_remove command
 # ============================================================================

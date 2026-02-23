@@ -9779,9 +9779,7 @@ class CLIManager:
 
         if all and delegate:
             if not json_output:
-                print_error(
-                    "--delegate cannot be used together with --all flag."
-                )
+                print_error("--delegate cannot be used together with --all flag.")
             else:
                 json_console.print_json(
                     data={

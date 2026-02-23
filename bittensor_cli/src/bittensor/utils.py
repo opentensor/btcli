@@ -1757,8 +1757,9 @@ def prompt_for_subnet_identity(
             "github_repo",
             "[blue]GitHub repository URL [dim](optional)[/blue]",
             github_repo,
-            lambda x: x
-            and (not is_valid_github_url(x) or len(x.encode("utf-8")) > 1024),
+            lambda x: (
+                x and (not is_valid_github_url(x) or len(x.encode("utf-8")) > 1024)
+            ),
             "[red]Error:[/red] Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo).",
         ),
         (
