@@ -18,10 +18,16 @@ from bittensor_cli.src import (
     DelegatesDetails,
     COLOR_PALETTE,
 )
+from bittensor_cli.src.bittensor.balances import Balance
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    extract_mev_shield_id,
+    wait_for_extrinsic_by_hash,
+)
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_error,
     print_success,
     print_verbose,
@@ -92,6 +98,236 @@ def string_to_bool(val) -> Union[bool, Type[ValueError]]:
         return {"true": True, "1": True, "0": False, "false": False}[val.lower()]
     except KeyError:
         return ValueError
+
+
+async def stake_burn(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    netuid: int,
+    amount: float,
+    hotkey_ss58: Optional[str],
+    safe_staking: bool,
+    proxy: Optional[str],
+    rate_tolerance: Optional[float],
+    mev_protection: bool,
+    json_output: bool,
+    prompt: bool,
+    decline: bool,
+    quiet: bool,
+    period: int,
+) -> bool:
+    """
+    Perform a stake burn (owner-only).
+    Stakes TAO into the subnet and immediately burns the acquired alpha.
+    """
+    subnet_owner = await subtensor.query(
+        module="SubtensorModule",
+        storage_function="SubnetOwner",
+        params=[netuid],
+    )
+    if subnet_owner != wallet.coldkeypub.ss58_address:
+        err_msg = (
+            f"Coldkey {wallet.coldkeypub.ss58_address} does not own subnet {netuid}."
+        )
+        if json_output:
+            json_console.print_json(
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
+            )
+        else:
+            print_error(err_msg)
+        return False
+
+    subnet_info = await subtensor.subnet(netuid=netuid)
+    stake_burn_amount = Balance.from_tao(amount)
+    rate_tolerance = rate_tolerance if rate_tolerance is not None else 0.0
+
+    price_limit: Optional[Balance] = None
+    if safe_staking:
+        price_limit = Balance.from_tao(subnet_info.price.tao * (1 + rate_tolerance))
+
+    call_params = {
+        "hotkey": hotkey_ss58,
+        "netuid": netuid,
+        "amount": stake_burn_amount.rao,
+        "limit": price_limit.rao if price_limit else None,
+    }
+
+    call = await subtensor.substrate.compose_call(
+        call_module="SubtensorModule",
+        call_function="add_stake_burn",
+        call_params=call_params,
+    )
+
+    if not json_output:
+        extrinsic_fee = await subtensor.get_extrinsic_fee(
+            call, wallet.coldkeypub, proxy=proxy
+        )
+        amount_minus_fee = stake_burn_amount - extrinsic_fee
+        sim_swap = await subtensor.sim_swap(
+            origin_netuid=0,
+            destination_netuid=netuid,
+            amount=amount_minus_fee.rao,
+        )
+
+        received_amount = sim_swap.alpha_amount
+        current_price_float = subnet_info.price.tao
+        rate = 1.0 / current_price_float
+
+        table = _define_stake_burn_table(
+            wallet=wallet,
+            subtensor=subtensor,
+            safe_staking=safe_staking,
+            rate_tolerance=rate_tolerance,
+        )
+        row = [
+            str(netuid),
+            hotkey_ss58,
+            str(stake_burn_amount),
+            str(rate) + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+            str(received_amount.set_unit(netuid)),
+            str(sim_swap.tao_fee),
+            str(extrinsic_fee),
+        ]
+        if safe_staking:
+            price_with_tolerance = current_price_float * (1 + rate_tolerance)
+            rate_with_tolerance = 1.0 / price_with_tolerance
+            rate_with_tolerance_str = (
+                f"{rate_with_tolerance:.4f} "
+                f"{Balance.get_unit(netuid)}/{Balance.get_unit(0)} "
+            )
+            row.append(rate_with_tolerance_str)
+
+        table.add_row(*row)
+        console.print(table)
+
+        if prompt and not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
+            print_error("User aborted.")
+            return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    with console.status(
+        f":satellite: Performing subnet stake burn on [bold]{netuid}[/bold]...",
+        spinner="earth",
+    ) as status:
+        next_nonce = await subtensor.substrate.get_account_next_index(
+            wallet.coldkeypub.ss58_address
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            nonce=next_nonce,
+            era={"period": period},
+            proxy=proxy,
+            mev_protection=mev_protection,
+        )
+
+        if not success:
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": err_msg,
+                        "extrinsic_identifier": None,
+                    }
+                )
+            else:
+                print_error(err_msg, status=status)
+            return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_shield_id = await extract_mev_shield_id(ext_receipt)
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                shield_id=mev_shield_id,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                if json_output:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": mev_error,
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                else:
+                    print_error(mev_error, status=status)
+                return False
+
+        ext_id = await ext_receipt.get_extrinsic_identifier()
+
+        msg = f"Subnet stake burn succeeded on SN{netuid}."
+        if json_output:
+            json_console.print_json(
+                data={"success": True, "message": msg, "extrinsic_identifier": ext_id}
+            )
+        else:
+            await print_extrinsic_id(ext_receipt)
+            print_success(msg)
+
+        return True
+
+
+def _define_stake_burn_table(
+    wallet: Wallet,
+    subtensor: "SubtensorInterface",
+    safe_staking: bool,
+    rate_tolerance: float,
+) -> Table:
+    table = create_table(
+        title=f"\n[{COLOR_PALETTE.G.HEADER}]Subnet Buyback:\n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet.name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n",
+    )
+    table.add_column("Netuid", justify="center", style="grey89")
+    table.add_column(
+        "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+    )
+    table.add_column(
+        "Amount (τ)",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO"],
+    )
+    table.add_column(
+        "Rate (per τ)",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
+    )
+    table.add_column(
+        "Est. Burned",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+    )
+    table.add_column(
+        "Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
+        "Extrinsic Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE.STAKE.TAO,
+    )
+    if safe_staking:
+        table.add_column(
+            f"Rate with tolerance: [blue]({rate_tolerance * 100}%)[/blue]",
+            justify="center",
+            style=COLOR_PALETTE["POOLS"]["RATE"],
+        )
+    return table
 
 
 def search_metadata(
