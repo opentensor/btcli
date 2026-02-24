@@ -95,7 +95,7 @@ def test_stake_burn(local_chain, wallet_setup):
     )["free_balance"]
 
     # First stake burn
-    amount_tao = 5.0
+    amount_tao = 1.0
     stake_burn_result = exec_command_alice(
         "sudo",
         "stake-burn",
