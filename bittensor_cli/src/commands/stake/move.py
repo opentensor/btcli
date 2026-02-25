@@ -888,10 +888,13 @@ async def transfer_stake(
     # Client-side slippage check for cross-subnet transfers
     if safe_staking and origin_netuid != dest_netuid:
         if pricing.rate_with_tolerance is not None and pricing.rate > 0:
+            received = (
+                sim_swap.tao_amount.tao
+                if dest_netuid == 0
+                else sim_swap.alpha_amount.tao
+            )
             sim_rate = (
-                sim_swap.alpha_amount.tao / amount_to_transfer.tao
-                if amount_to_transfer.tao > 0
-                else 0
+                received / amount_to_transfer.tao if amount_to_transfer.tao > 0 else 0
             )
             if sim_rate < pricing.rate_with_tolerance:
                 print_error(
