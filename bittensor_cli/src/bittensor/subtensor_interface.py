@@ -1302,6 +1302,11 @@ class SubtensorInterface:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
             err_msg = format_error_message(e)
+            if mev_protection and "'result': 'invalid'" in str(e).lower():
+                err_msg = (
+                    f"MEV Shield extrinsic rejected as invalid. "
+                    f"This usually means the MEV Shield NextKey changed between fetching and submission."
+                )
             if proxy and "Invalid Transaction" in err_msg:
                 extrinsic_fee, signer_balance = await asyncio.gather(
                     self.get_extrinsic_fee(

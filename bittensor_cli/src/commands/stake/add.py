@@ -11,7 +11,6 @@ from rich.prompt import Prompt
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
@@ -167,11 +166,9 @@ async def stake_add(
         else:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status_,
                 )
@@ -259,11 +256,9 @@ async def stake_add(
         else:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status_,
                 )
