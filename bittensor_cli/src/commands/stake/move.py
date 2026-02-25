@@ -753,13 +753,23 @@ async def transfer_stake(
     era: int,
     interactive_selection: bool = False,
     stake_all: bool = False,
+    safe_staking: bool = True,
+    rate_tolerance: float = 0.005,
+    allow_partial_stake: bool = False,
     prompt: bool = True,
     decline: bool = False,
     quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
 ) -> tuple[bool, str]:
-    """Transfers stake from one network to another.
+    """Transfers stake from one coldkey to another, optionally across subnets.
+
+    When transferring across subnets (origin_netuid != dest_netuid), the operation
+    involves an unstake-and-stake which is vulnerable to sandwich attacks. When
+    safe_staking is enabled, a client-side rate check is performed before submission
+    to reject the transaction if the rate deviates beyond the tolerance. Note that
+    unlike swap_stake_limit, there is no chain-level enforcement for transfer_stake
+    so this protection is best-effort on the client side.
 
     Args:
         wallet: Bittensor wallet object.
@@ -769,10 +779,16 @@ async def transfer_stake(
         origin_netuid: The netuid to transfer stake from.
         dest_netuid: The netuid to transfer stake to.
         dest_coldkey_ss58: The destination coldkey to transfer stake to.
-        interactive_selection: If true, prompts for selection of origin and destination subnets.
-        prompt: If true, prompts for confirmation before executing transfer.
         era: number of blocks for which the extrinsic should be valid
+        interactive_selection: If true, prompts for selection of origin and destination subnets.
         stake_all: If true, transfer all stakes.
+        safe_staking: Whether to enable client-side slippage protection.
+        rate_tolerance: The accepted rate tolerance (e.g., 0.005 for 0.5%).
+        allow_partial_stake: Accepted for API consistency but not enforced on-chain
+            for transfer_stake (no transfer_stake_limit extrinsic exists).
+        prompt: If true, prompts for confirmation before executing transfer.
+        decline: bool for prompt decline.
+        quiet: bool for quiet mode.
         proxy: Optional proxy to use for this extrinsic
         mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
 
@@ -857,6 +873,8 @@ async def transfer_stake(
             subtensor=subtensor,
             origin_netuid=origin_netuid,
             destination_netuid=dest_netuid,
+            safe_staking=safe_staking,
+            rate_tolerance=rate_tolerance,
         ),
         subtensor.sim_swap(
             origin_netuid=origin_netuid,
@@ -866,6 +884,24 @@ async def transfer_stake(
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
         subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
+
+    # Client-side slippage check for cross-subnet transfers
+    if safe_staking and origin_netuid != dest_netuid:
+        if pricing.rate_with_tolerance is not None and pricing.rate > 0:
+            sim_rate = (
+                sim_swap.alpha_amount.tao / amount_to_transfer.tao
+                if amount_to_transfer.tao > 0
+                else 0
+            )
+            if sim_rate < pricing.rate_with_tolerance:
+                print_error(
+                    f"Rate check failed: simulated rate ({sim_rate:.5f}) is below the "
+                    f"minimum acceptable rate ({pricing.rate_with_tolerance:.5f}) "
+                    f"with {rate_tolerance * 100}% tolerance.\n"
+                    f"Transaction rejected to protect against slippage. "
+                    f"Use --unsafe to bypass this check."
+                )
+                return False, ""
 
     # Display stake movement details
     if prompt:
@@ -882,6 +918,9 @@ async def transfer_stake(
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
                 extrinsic_fee=extrinsic_fee,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 proxy=proxy,
             )
         except ValueError:

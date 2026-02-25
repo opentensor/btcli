@@ -5614,6 +5614,9 @@ class CLIManager:
             False, "--stake-all", "--all", help="Stake all", prompt=False
         ),
         mev_protection: bool = Options.mev_protection,
+        rate_tolerance: Optional[float] = Options.rate_tolerance,
+        safe_staking: Optional[bool] = Options.safe_staking,
+        allow_partial_stake: Optional[bool] = Options.allow_partial_stake,
         period: int = Options.period,
         proxy: Optional[str] = Options.proxy,
         announce_only: bool = Options.announce_only,
@@ -5641,28 +5644,35 @@ class CLIManager:
 
         If no arguments are provided, an interactive selection menu will be shown.
 
-        EXAMPLE
+        EXAMPLES
 
-        Transfer 100 TAO from subnet 1 to subnet 2:
-        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100
+        1. Transfer 100 TAO from subnet 1 to subnet 2:
+            [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100
 
-        Using Destination SS58 address:
-        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --amount 100
+        2. Using Destination SS58 address:
+            [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --amount 100
 
-        Using Origin hotkey SS58 address (useful when transferring stake from a delegate):
-        [green]$[/green] btcli stake transfer --wallet-hotkey 5FrLxJsyJ5x9n2rmxFwosFraxFCKcXZDngEP9H7qjkKgHLcK --wallet-name sample_wallet
+        3. Transfer with custom rate tolerance:
+            [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100 --rate-tolerance 0.01
 
-        Transfer all available stake from origin hotkey:
-        [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
+        4. Transfer without slippage protection:
+            [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --dest wallet2 --amount 100 --unsafe
 
-        Transfer stake without MEV protection:
-        [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
+        5. Transfer all available stake from origin hotkey:
+            [green]$[/green] btcli stake transfer --all --origin-netuid 1 --dest-netuid 2
+
+        6. Transfer stake without MEV protection:
+            [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
+        safe_staking = self.ask_safe_staking(safe_staking)
+        if safe_staking:
+            rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+            allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
         print_protection_warnings(
             mev_protection=mev_protection,
-            safe_staking=None,
+            safe_staking=safe_staking,
             command_name="stake transfer",
         )
         if prompt:
@@ -5761,8 +5771,11 @@ class CLIManager:
             f"amount: {amount}\n"
             f"era: {period}\n"
             f"stake_all: {stake_all}\n"
-            f"mev_protection: {mev_protection}"
-            f"proxy: {proxy}"
+            f"mev_protection: {mev_protection}\n"
+            f"proxy: {proxy}\n"
+            f"safe_staking: {safe_staking}\n"
+            f"rate_tolerance: {rate_tolerance}\n"
+            f"allow_partial_stake: {allow_partial_stake}\n"
         )
         result, ext_id = self._run_command(
             move_stake.transfer_stake(
@@ -5776,6 +5789,9 @@ class CLIManager:
                 era=period,
                 interactive_selection=interactive_selection,
                 stake_all=stake_all,
+                safe_staking=safe_staking,
+                rate_tolerance=rate_tolerance,
+                allow_partial_stake=allow_partial_stake,
                 prompt=prompt,
                 decline=decline,
                 quiet=quiet,
@@ -6046,6 +6062,10 @@ class CLIManager:
                 )
                 dest_coldkey = dest_wallet.coldkeypub.ss58_address
 
+            safe_staking = self.ask_safe_staking(safe_staking)
+            if safe_staking:
+                rate_tolerance = self.ask_rate_tolerance(rate_tolerance)
+                allow_partial_stake = self.ask_partial_stake(allow_partial_stake)
             result, ext_id = self._run_command(
                 move_stake.transfer_stake(
                     wallet=wallet,
@@ -6056,6 +6076,9 @@ class CLIManager:
                     dest_coldkey_ss58=dest_coldkey,
                     amount=wizard_result.get("amount"),
                     stake_all=wizard_result.get("stake_all", False),
+                    safe_staking=safe_staking,
+                    rate_tolerance=rate_tolerance,
+                    allow_partial_stake=allow_partial_stake,
                     era=period,
                     interactive_selection=False,
                     prompt=prompt,
