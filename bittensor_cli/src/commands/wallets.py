@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import itertools
 import json
 import os
 from collections import defaultdict
@@ -1559,6 +1558,129 @@ async def transfer(
     return result
 
 
+def _build_coldkey_table(network: str) -> Table:
+    """Build the coldkey overview table for wallet inspect output."""
+    return Table(
+        Column("[bold white]Coldkey", style="dark_orange"),
+        Column("[bold white]Balance", style="dark_sea_green"),
+        Column("[bold white]Delegate", style="bright_cyan", overflow="fold"),
+        Column("[bold white]Stake", style="light_goldenrod2"),
+        Column("[bold white]Emission", style="rgb(42,161,152)"),
+        title=(
+            f"[underline dark_orange]Coldkey Overview"
+            f"[/underline dark_orange]\n"
+            f"[dark_orange]Network: {network}\n"
+        ),
+        show_edge=False,
+        expand=True,
+        box=box.MINIMAL,
+        border_style="bright_black",
+    )
+
+
+def _build_hotkey_table(network: str) -> Table:
+    """Build the hotkey details table for wallet inspect output."""
+    return Table(
+        Column("[bold white]Coldkey", style="dark_orange"),
+        Column("[bold white]Netuid", style="dark_orange"),
+        Column("[bold white]Hotkey", style="bright_magenta", overflow="fold"),
+        Column("[bold white]Stake", style="light_goldenrod2"),
+        Column("[bold white]Emission", style="rgb(42,161,152)"),
+        title=(
+            f"[underline dark_orange]Hotkey Details"
+            f"[/underline dark_orange]\n"
+            f"[dark_orange]Network: {network}\n"
+        ),
+        show_edge=False,
+        expand=True,
+        box=box.MINIMAL,
+        border_style="bright_black",
+    )
+
+
+def _make_delegate_rows(
+    delegates: list[tuple[DelegateInfo, Balance]],
+    registered_delegate_info: dict,
+) -> Generator[list[str], None, None]:
+    """Yield coldkey table rows for each delegate with a positive stake."""
+    for delegate_info, staked in delegates:
+        if not staked.tao > 0:
+            continue
+        delegate_name = _resolve_delegate_name(
+            delegate_info.hotkey_ss58, registered_delegate_info
+        )
+        daily_return = _calculate_daily_return(delegate_info, staked)
+        yield ["", "", str(delegate_name), str(staked), str(daily_return)]
+
+
+def _resolve_delegate_name(hotkey_ss58: str, registered_delegate_info: dict) -> str:
+    """Look up the display name for a delegate, falling back to the SS58 address."""
+    if hotkey_ss58 in registered_delegate_info:
+        return registered_delegate_info[hotkey_ss58].display
+    return hotkey_ss58
+
+
+def _calculate_daily_return(delegate_info: DelegateInfo, staked: Balance) -> float:
+    """Calculate the estimated daily return for a delegation."""
+    if delegate_info.total_stake.tao != 0:
+        return delegate_info.total_daily_return.tao * (
+            staked.tao / delegate_info.total_stake.tao
+        )
+    return 0
+
+
+def _make_neuron_rows(
+    wallet_: Wallet,
+    all_netuids: list[int],
+    neuron_state_dict: dict,
+) -> Generator[list[str], None, None]:
+    """Yield hotkey table rows for each neuron registered under the wallet's coldkey."""
+    hotkeys = get_hotkey_wallets_for_wallet(wallet_)
+    for netuid in all_netuids:
+        for neuron in neuron_state_dict[netuid]:
+            if neuron.coldkey == wallet_.coldkeypub.ss58_address:
+                hotkey_label = _format_hotkey_label(neuron.hotkey, hotkeys)
+                yield [
+                    wallet_.name,
+                    str(netuid),
+                    hotkey_label,
+                    str(neuron.stake),
+                    str(Balance.from_tao(neuron.emission)),
+                ]
+
+
+def _format_hotkey_label(hotkey_ss58: str, hotkeys: list) -> str:
+    """Format a hotkey address with its wallet name prefix if available."""
+    for wallet in hotkeys:
+        if get_hotkey_pub_ss58(wallet) == hotkey_ss58:
+            return f"{wallet.hotkey_str}-{hotkey_ss58}"
+    return hotkey_ss58
+
+
+def _populate_coldkey_table(
+    coldkey_table: Table,
+    coldkey_rows: list[list[str]],
+) -> None:
+    """Add rows to the coldkey overview table with section separators."""
+    for i, row in enumerate(coldkey_rows):
+        is_last_row = i + 1 == len(coldkey_rows)
+        coldkey_table.add_row(*row)
+        if is_last_row or (coldkey_rows[i + 1][0] != ""):
+            coldkey_table.add_row(end_section=True)
+
+
+def _populate_hotkey_table(
+    hotkey_table: Table,
+    hotkey_rows: list[list[str]],
+) -> None:
+    """Add rows to the hotkey details table with section separators."""
+    for i, row in enumerate(hotkey_rows):
+        is_last_row = i + 1 == len(hotkey_rows)
+        hotkey_table.add_row(*row)
+        if is_last_row or (hotkey_rows[i + 1][0] != ""):
+            hotkey_table.add_row(end_section=True)
+
+
 async def inspect(
     wallet: Wallet,
     subtensor: SubtensorInterface,
@@ -1566,58 +1688,10 @@ async def inspect(
     all_wallets: bool = False,
 ):
     # TODO add json_output when this is re-enabled and updated for dTAO
-    def delegate_row_maker(
-        delegates_: list[tuple[DelegateInfo, Balance]],
-    ) -> Generator[list[str], None, None]:
-        for d_, staked in delegates_:
-            if not staked.tao > 0:
-                continue
-            if d_.hotkey_ss58 in registered_delegate_info:
-                delegate_name = registered_delegate_info[d_.hotkey_ss58].display
-            else:
-                delegate_name = d_.hotkey_ss58
-            yield (
-                [""] * 2
-                + [
-                    str(delegate_name),
-                    str(staked),
-                    str(
-                        d_.total_daily_return.tao * (staked.tao / d_.total_stake.tao)
-                        if d_.total_stake.tao != 0
-                        else 0
-                    ),
-                ]
-                + [""] * 4
-            )
-
-    def neuron_row_maker(
-        wallet_, all_netuids_, nsd
-    ) -> Generator[list[str], None, None]:
-        hotkeys = get_hotkey_wallets_for_wallet(wallet_)
-        for netuid in all_netuids_:
-            for n in nsd[netuid]:
-                if n.coldkey == wallet_.coldkeypub.ss58_address:
-                    hotkey_name: str = ""
-                    if hotkey_names := [
-                        w.hotkey_str
-                        for w in hotkeys
-                        if get_hotkey_pub_ss58(w) == n.hotkey
-                    ]:
-                        hotkey_name = f"{hotkey_names[0]}-"
-                    yield [""] * 5 + [
-                        str(netuid),
-                        f"{hotkey_name}{n.hotkey}",
-                        str(n.stake),
-                        str(Balance.from_tao(n.emission)),
-                    ]
-
     if all_wallets:
         print_verbose("Fetching data for all wallets")
         wallets = get_coldkey_wallets_for_path(wallet.path)
-        all_hotkeys = get_all_wallets_for_path(
-            wallet.path
-        )  # TODO verify this is correct
-
+        all_hotkeys = get_all_wallets_for_path(wallet.path)
     else:
         print_verbose(f"Fetching data for wallet: {wallet.name}")
         wallets = [wallet]
@@ -1634,7 +1708,7 @@ async def inspect(
             all_hotkeys,
             block_hash=block_hash,
         )
-    # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
+
     with console.status("Pulling delegates info...", spinner="aesthetic"):
         registered_delegate_info = await subtensor.get_delegate_identities()
         if not registered_delegate_info:
@@ -1642,26 +1716,10 @@ async def inspect(
                 ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
             )
 
-    table = Table(
-        Column("[bold white]Coldkey", style="dark_orange"),
-        Column("[bold white]Balance", style="dark_sea_green"),
-        Column("[bold white]Delegate", style="bright_cyan", overflow="fold"),
-        Column("[bold white]Stake", style="light_goldenrod2"),
-        Column("[bold white]Emission", style="rgb(42,161,152)"),
-        Column("[bold white]Netuid", style="dark_orange"),
-        Column("[bold white]Hotkey", style="bright_magenta", overflow="fold"),
-        Column("[bold white]Stake", style="light_goldenrod2"),
-        Column("[bold white]Emission", style="rgb(42,161,152)"),
-        title=f"[underline dark_orange]Wallets[/underline dark_orange]\n[dark_orange]Network: {subtensor.network}\n",
-        show_edge=False,
-        expand=True,
-        box=box.MINIMAL,
-        border_style="bright_black",
-    )
-    rows = []
-    wallets_with_ckp_file = [
-        wallet for wallet in wallets if wallet.coldkeypub_file.exists_on_device()
-    ]
+    coldkey_table = _build_coldkey_table(subtensor.network)
+    hotkey_table = _build_hotkey_table(subtensor.network)
+
+    wallets_with_ckp_file = [w for w in wallets if w.coldkeypub_file.exists_on_device()]
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
@@ -1686,23 +1744,29 @@ async def inspect(
     for netuid, neuron in zip(all_netuids, all_neurons):
         neuron_state_dict[netuid] = neuron if neuron else []
 
-    for wall, d in zip(wallets_with_ckp_file, all_delegates):
-        rows.append([wall.name, str(balances[wall.coldkeypub.ss58_address])] + [""] * 7)
-        for row in itertools.chain(
-            delegate_row_maker(d),
-            neuron_row_maker(wall, all_netuids, neuron_state_dict),
-        ):
-            rows.append(row)
+    coldkey_rows = []
+    hotkey_rows = []
+    for wall, delegates in zip(wallets_with_ckp_file, all_delegates):
+        coldkey_rows.append(
+            [wall.name, str(balances[wall.coldkeypub.ss58_address]), "", "", ""]
+        )
+        for row in _make_delegate_rows(delegates, registered_delegate_info):
+            coldkey_rows.append(row)
 
-    for i, row in enumerate(rows):
-        is_last_row = i + 1 == len(rows)
-        table.add_row(*row)
+        for row in _make_neuron_rows(wall, all_netuids, neuron_state_dict):
+            hotkey_rows.append(row)
 
-        # If last row or new coldkey starting next
-        if is_last_row or (rows[i + 1][0] != ""):
-            table.add_row(end_section=True)
+    if coldkey_rows:
+        _populate_coldkey_table(coldkey_table, coldkey_rows)
+        console.print(coldkey_table)
 
-    return console.print(table)
+    if hotkey_rows:
+        console.print()
+        _populate_hotkey_table(hotkey_table, hotkey_rows)
+        console.print(hotkey_table)
+
+    if not coldkey_rows and not hotkey_rows:
+        console.print("[yellow]No wallet data found.[/yellow]")
 
 
 async def faucet(

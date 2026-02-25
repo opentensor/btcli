@@ -2913,7 +2913,6 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2921,9 +2920,11 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet (coldkey) on the Bittensor network.
 
-        The output is presented as a table with the below columns:
+        The output is presented as two separate tables:
+
+        [bold]Coldkey Overview[/bold]:
 
         - [blue bold]Coldkey[/blue bold]: The coldkey associated with the user's wallet.
 
@@ -2931,13 +2932,21 @@ class CLIManager:
 
         - [blue bold]Delegate[/blue bold]: The name of the delegate to which the coldkey has staked TAO.
 
-        - [blue bold]Stake[/blue bold]: The amount of stake held by both the coldkey and hotkey.
+        - [blue bold]Stake[/blue bold]: The amount of stake delegated.
 
-        - [blue bold]Emission[/blue bold]: The emission or rewards earned from staking.
+        - [blue bold]Emission[/blue bold]: The daily emission earned from delegation.
 
-        - [blue bold]Netuid[/blue bold]: The network unique identifier of the subnet where the hotkey is active (i.e., validating).
+        [bold]Hotkey Details[/bold]:
+
+        - [blue bold]Coldkey[/blue bold]: The parent coldkey of the hotkey.
+
+        - [blue bold]Netuid[/blue bold]: The network unique identifier of the subnet where the hotkey is active.
 
         - [blue bold]Hotkey[/blue bold]: The hotkey associated with the neuron on the network.
+
+        - [blue bold]Stake[/blue bold]: The amount of stake held by the hotkey.
+
+        - [blue bold]Emission[/blue bold]: The emission or rewards earned from staking.
 
         USAGE
 
@@ -2966,7 +2975,7 @@ class CLIManager:
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
         self.initialize_chain(network)
