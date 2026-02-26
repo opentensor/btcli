@@ -684,3 +684,314 @@ def test_add_proxy(local_chain, wallet_setup):
         os.environ["BTCLI_PROXIES_PATH"] = ""
         if os.path.exists(testing_db_loc):
             os.remove(testing_db_loc)
+
+
+def test_proxy_list_after_add(local_chain, wallet_setup):
+    """After adding a proxy, proxy list shows it; list with --address works."""
+    testing_db_loc = "/tmp/btcli-test.db"
+    os.environ["BTCLI_PROXIES_PATH"] = testing_db_loc
+    wallet_path_alice = "//Alice"
+    wallet_path_dave = "//Dave"
+
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_dave, wallet_dave, wallet_path_dave, exec_command_dave = wallet_setup(
+        wallet_path_dave
+    )
+    proxy_type = "Any"
+    delay = 0
+
+    try:
+        add_result = exec_command_alice(
+            command="proxy",
+            sub_command="add",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_dave.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        add_result_output = json.loads(add_result.stdout)
+        assert add_result_output["success"] is True
+
+        list_result = exec_command_alice(
+            command="proxy",
+            sub_command="list",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--json-output",
+            ],
+        )
+        list_output = json.loads(list_result.stdout)
+        assert list_output.get("success") is True
+        proxies = list_output.get("proxies") or []
+        assert len(proxies) >= 1
+        delegates = [p["delegate"] for p in proxies]
+        assert wallet_dave.coldkeypub.ss58_address in delegates
+
+        list_by_addr = exec_command_alice(
+            command="proxy",
+            sub_command="list",
+            extra_args=[
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--address",
+                wallet_alice.coldkeypub.ss58_address,
+                "--json-output",
+            ],
+        )
+        list_by_addr_output = json.loads(list_by_addr.stdout)
+        assert list_by_addr_output.get("success") is True
+        assert len(list_by_addr_output.get("proxies") or []) >= 1
+
+        exec_command_alice(
+            command="proxy",
+            sub_command="remove",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_dave.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+    finally:
+        os.environ["BTCLI_PROXIES_PATH"] = ""
+        if os.path.exists(testing_db_loc):
+            os.remove(testing_db_loc)
+
+
+def test_proxy_remove_all(local_chain, wallet_setup):
+    """proxy remove --all removes every proxy for the account."""
+    testing_db_loc = "/tmp/btcli-test.db"
+    os.environ["BTCLI_PROXIES_PATH"] = testing_db_loc
+    wallet_path_alice = "//Alice"
+    wallet_path_dave = "//Dave"
+
+    keypair_alice, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_dave, wallet_dave, wallet_path_dave, exec_command_dave = wallet_setup(
+        wallet_path_dave
+    )
+    proxy_type = "Any"
+    delay = 0
+
+    try:
+        exec_command_alice(
+            command="proxy",
+            sub_command="add",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_dave.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+
+        remove_all_result = exec_command_alice(
+            command="proxy",
+            sub_command="remove",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--all",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        remove_all_output = json.loads(remove_all_result.stdout)
+        assert remove_all_output["success"] is True
+
+        list_result = exec_command_alice(
+            command="proxy",
+            sub_command="list",
+            extra_args=[
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--address",
+                wallet_alice.coldkeypub.ss58_address,
+                "--json-output",
+            ],
+        )
+        list_output = json.loads(list_result.stdout)
+        assert list_output.get("success") is True
+        assert len(list_output.get("proxies") or []) == 0
+    finally:
+        os.environ["BTCLI_PROXIES_PATH"] = ""
+        if os.path.exists(testing_db_loc):
+            os.remove(testing_db_loc)
+
+
+def test_proxy_reject_announced(local_chain, wallet_setup):
+    """proxy reject removes announcement and prevents execution of that call."""
+    testing_db_loc = "/tmp/btcli-test.db"
+    os.environ["BTCLI_PROXIES_PATH"] = testing_db_loc
+    wallet_path_alice = "//Alice"
+    wallet_path_bob = "//Bob"
+    wallet_path_dave = "//Dave"
+
+    _, wallet_alice, wallet_path_alice, exec_command_alice = wallet_setup(
+        wallet_path_alice
+    )
+    keypair_bob, _, _, _ = wallet_setup(wallet_path_bob)
+    _, wallet_dave, wallet_path_dave, exec_command_dave = wallet_setup(wallet_path_dave)
+    proxy_type = "Any"
+    delay = 1
+
+    try:
+        add_result = exec_command_alice(
+            command="proxy",
+            sub_command="add",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_dave.coldkeypub.ss58_address,
+                "--proxy-type",
+                proxy_type,
+                "--delay",
+                str(delay),
+                "--period",
+                "128",
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        add_output = json.loads(add_result.stdout)
+        assert add_output["success"] is True
+
+        announce_result = exec_command_dave(
+            command="wallet",
+            sub_command="transfer",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_dave,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--proxy",
+                wallet_alice.coldkeypub.ss58_address,
+                "--dest",
+                keypair_bob.ss58_address,
+                "--amount",
+                "100",
+                "--no-prompt",
+                "--json-output",
+                "--announce-only",
+            ],
+        )
+        announce_output = json.loads(announce_result.stdout)
+        assert announce_output["success"] is True
+
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            rows = ProxyAnnouncements.read_rows(conn, cursor, include_header=False)
+        latest = next(iter(sorted(rows, key=lambda row: row[2], reverse=True)))
+        _, address, _, _, call_hash, call_hex, _, executed_int = latest
+        assert address == wallet_alice.coldkeypub.ss58_address
+        assert executed_int == 0
+
+        reject_result = exec_command_alice(
+            command="proxy",
+            sub_command="reject",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--delegate",
+                wallet_dave.coldkeypub.ss58_address,
+                "--call-hash",
+                call_hash,
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        reject_output = json.loads(reject_result.stdout)
+        assert reject_output["success"] is True
+
+        with ProxyAnnouncements.get_db() as (conn, cursor):
+            rows = ProxyAnnouncements.read_rows(conn, cursor, include_header=False)
+        matched_rows = [
+            row for row in rows if row[4] == call_hash and row[1] == address
+        ]
+        assert len(matched_rows) >= 1
+        assert any(bool(row[7]) for row in matched_rows)
+
+        execute_result = exec_command_dave(
+            command="proxy",
+            sub_command="execute",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_dave,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                "default",
+                "--proxy",
+                wallet_alice.coldkeypub.ss58_address,
+                "--call-hash",
+                call_hash,
+                "--call-hex",
+                call_hex,
+                "--no-prompt",
+                "--json-output",
+            ],
+        )
+        execute_output = json.loads(execute_result.stdout)
+        assert execute_output["success"] is False
+    finally:
+        os.environ["BTCLI_PROXIES_PATH"] = ""
+        if os.path.exists(testing_db_loc):
+            os.remove(testing_db_loc)

@@ -1,3 +1,4 @@
+import asyncio
 import numpy as np
 import pytest
 import typer
@@ -9,6 +10,8 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
     get_current_weights_for_uid,
     set_root_weights_extrinsic,
 )
+from bittensor_cli.src.commands import proxy as proxy_commands
+from bittensor_cli.src.commands.proxy import _parse_proxy_storage
 from unittest.mock import AsyncMock, patch, MagicMock, Mock
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
@@ -766,6 +769,578 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
         )
 
         mock_get_current.assert_not_called()
+
+
+# ============================================================================
+# Tests for proxy list, reject, remove --all (issue #742)
+# ============================================================================
+
+
+def test_parse_proxy_storage_empty():
+    """_parse_proxy_storage returns empty list for None or empty input."""
+    rows, dep = _parse_proxy_storage(None)
+    assert rows == []
+    assert dep is None
+    rows, dep = _parse_proxy_storage([])
+    assert rows == []
+    assert dep is None
+
+
+def test_parse_proxy_storage_one_row():
+    """_parse_proxy_storage decodes one proxy row when decode_account_id works."""
+    with patch(
+        "bittensor_cli.src.commands.proxy.decode_account_id",
+        return_value="5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+    ):
+        raw = ([(tuple(range(32)), "Any", 0)], 100)
+        rows, dep = _parse_proxy_storage(raw)
+    assert len(rows) == 1
+    assert rows[0]["delegate"] == "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    assert rows[0]["proxy_type"] == "Any"
+    assert rows[0]["delay"] == 0
+    assert dep == 100
+
+
+def test_parse_proxy_storage_delegate_as_list():
+    """_parse_proxy_storage converts list delegate to tuple for decode_account_id."""
+    with patch(
+        "bittensor_cli.src.commands.proxy.decode_account_id",
+        return_value="5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+    ) as mock_decode:
+        raw = ([(list(range(32)), "Transfer", 1)], None)
+        rows, dep = _parse_proxy_storage(raw)
+    assert len(rows) == 1
+    assert rows[0]["delegate"] == "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    assert rows[0]["proxy_type"] == "Transfer"
+    assert rows[0]["delay"] == 1
+    mock_decode.assert_called_once()
+    call_arg = mock_decode.call_args[0][0]
+    assert isinstance(call_arg, tuple)
+    assert len(call_arg) == 32
+
+
+def test_parse_proxy_storage_substrate_nested_format():
+    """_parse_proxy_storage handles actual substrate response with nested tuples and dict proxy_type."""
+    with patch(
+        "bittensor_cli.src.commands.proxy.decode_account_id",
+        return_value="5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+    ) as mock_decode:
+        # Actual substrate format: items wrapped in extra tuples, delegate nested, proxy_type as dict
+        raw = (
+            (
+                (
+                    {
+                        "delegate": (tuple(range(32)),),
+                        "proxy_type": {"Any": ()},
+                        "delay": 0,
+                    },
+                ),
+            ),
+            93000000,
+        )
+        rows, dep = _parse_proxy_storage(raw)
+    assert len(rows) == 1
+    assert rows[0]["delegate"] == "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
+    assert rows[0]["proxy_type"] == "Any"
+    assert rows[0]["delay"] == 0
+    assert dep == 93000000
+    mock_decode.assert_called_once()
+    call_arg = mock_decode.call_args[0][0]
+    assert isinstance(call_arg, tuple)
+    assert len(call_arg) == 32
+
+
+def test_proxy_remove_all_and_delegate_mutually_exclusive():
+    """proxy remove: --all and --delegate cannot be used together."""
+    cli = CLIManager()
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask") as mock_wallet,
+        patch("bittensor_cli.cli.print_error"),
+    ):
+        mock_wallet.return_value = Mock()
+        mock_wallet.return_value.coldkeypub = Mock()
+        mock_wallet.return_value.coldkeypub.ss58_address = (
+            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+        )
+        with pytest.raises(typer.Exit):
+            cli.proxy_remove(
+                delegate="5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+                remove_all=True,
+                network=None,
+                wallet_name="default",
+                wallet_path="/tmp",
+                wallet_hotkey="default",
+                prompt=False,
+                decline=False,
+                quiet=True,
+                verbose=False,
+                json_output=False,
+            )
+
+
+def test_proxy_remove_requires_delegate_or_all():
+    """proxy remove: one of --delegate or --all is required."""
+    cli = CLIManager()
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch("bittensor_cli.cli.print_error"),
+    ):
+        with pytest.raises(typer.Exit):
+            cli.proxy_remove(
+                delegate=None,
+                remove_all=False,
+                network=None,
+                wallet_name="default",
+                wallet_path="/tmp",
+                wallet_hotkey="default",
+                prompt=False,
+                decline=False,
+                quiet=True,
+                verbose=False,
+                json_output=False,
+            )
+
+
+def test_proxy_remove_with_all_calls_remove_all_proxies():
+    """proxy remove --all invokes remove_all_proxies."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=None) as mock_run,
+        patch.object(proxy_commands, "remove_all_proxies", new_callable=AsyncMock),
+    ):
+        cli.proxy_remove(
+            delegate=None,
+            remove_all=True,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        mock_run.assert_called_once()
+        call_arg = mock_run.call_args[0][0]
+        assert asyncio.iscoroutine(call_arg)
+        proxy_commands.remove_all_proxies.assert_called_once()
+        proxy_commands.remove_all_proxies.assert_called_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            json_output=False,
+        )
+
+
+def test_proxy_remove_with_delegate_calls_remove_proxy():
+    """proxy remove --delegate invokes remove_proxy (single)."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=None),
+        patch.object(proxy_commands, "remove_proxy", new_callable=AsyncMock),
+    ):
+        cli.proxy_remove(
+            delegate=delegate,
+            remove_all=False,
+            network=None,
+            proxy_type=proxy_commands.ProxyType.Any,
+            delay=0,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.remove_proxy.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=delegate,
+            proxy_type=proxy_commands.ProxyType.Any,
+            delay=0,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            json_output=False,
+        )
+
+
+def test_proxy_list_with_address_calls_list_proxies():
+    """proxy list --address calls list_proxies with that address."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    addr = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=None),
+        patch.object(proxy_commands, "list_proxies", new_callable=AsyncMock),
+    ):
+        cli.proxy_list(
+            address=addr,
+            network=None,
+            wallet_name=None,
+            wallet_path=None,
+            wallet_hotkey=None,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.list_proxies.assert_called_once_with(
+            subtensor=mock_subtensor,
+            address=addr,
+            prompt=False,
+            json_output=False,
+        )
+
+
+def test_proxy_list_without_address_uses_wallet():
+    """proxy list without --address uses wallet coldkey and calls list_proxies."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=None),
+        patch.object(proxy_commands, "list_proxies", new_callable=AsyncMock),
+    ):
+        cli.proxy_list(
+            address=None,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey=None,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.list_proxies.assert_called_once_with(
+            subtensor=mock_subtensor,
+            address=mock_wallet.coldkeypub.ss58_address,
+            prompt=False,
+            json_output=False,
+        )
+
+
+def test_proxy_reject_announced_calls_reject_announcement():
+    """proxy reject invokes reject_announcement with delegate and call_hash."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    call_hash = "0x1234abcd"
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=True),
+        patch.object(proxy_commands, "reject_announcement", new_callable=AsyncMock),
+        patch("bittensor_cli.cli.ProxyAnnouncements") as mock_pa,
+    ):
+        mock_pa.get_db.return_value.__enter__ = Mock(return_value=(Mock(), Mock()))
+        mock_pa.get_db.return_value.__exit__ = Mock(return_value=False)
+        mock_pa.read_rows.return_value = []
+        cli.proxy_reject_announced(
+            delegate=delegate,
+            call_hash=call_hash,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.reject_announcement.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=delegate,
+            call_hash=call_hash,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            json_output=False,
+        )
+
+
+def test_proxy_reject_announced_requires_delegate_without_prompt():
+    """proxy reject requires --delegate in non-interactive mode."""
+    cli = CLIManager()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "_run_command") as mock_run_command,
+        patch("bittensor_cli.cli.print_error"),
+    ):
+        with pytest.raises(typer.Exit):
+            cli.proxy_reject_announced(
+                delegate=None,
+                call_hash="0x1234abcd",
+                network=None,
+                wallet_name="default",
+                wallet_path="/tmp",
+                wallet_hotkey="default",
+                prompt=False,
+                decline=False,
+                wait_for_inclusion=False,
+                wait_for_finalization=False,
+                period=16,
+                quiet=True,
+                verbose=False,
+                json_output=False,
+            )
+        mock_run_command.assert_not_called()
+
+
+def test_proxy_reject_announced_prompts_for_delegate_when_missing():
+    """proxy reject prompts for delegate in interactive mode when not provided."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    call_hash = "0x1234abcd"
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=True),
+        patch.object(proxy_commands, "reject_announcement", new_callable=AsyncMock),
+        patch("bittensor_cli.cli.Prompt.ask", return_value=delegate),
+        patch("bittensor_cli.cli.ProxyAnnouncements") as mock_pa,
+    ):
+        mock_pa.get_db.return_value.__enter__ = Mock(return_value=(Mock(), Mock()))
+        mock_pa.get_db.return_value.__exit__ = Mock(return_value=False)
+        mock_pa.read_rows.return_value = []
+        cli.proxy_reject_announced(
+            delegate=None,
+            call_hash=call_hash,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=True,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.reject_announcement.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=delegate,
+            call_hash=call_hash,
+            prompt=True,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            json_output=False,
+        )
+
+
+def test_proxy_reject_announced_marks_executed_in_db():
+    """proxy reject marks announcement as executed in ProxyAnnouncements on success."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    call_hash = "0xdeadbeef"
+    other_wallet_row = (
+        41,
+        "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+        1,
+        100,
+        "0xdeadbeef",
+        "0xCAFE",
+        "{}",
+        0,
+    )
+    matching_wallet_row = (
+        42,
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+        2,
+        101,
+        "0xdeadbeef",
+        "0xCAFF",
+        "{}",
+        0,
+    )
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=True),
+        patch.object(proxy_commands, "reject_announcement", new_callable=AsyncMock),
+        patch("bittensor_cli.cli.ProxyAnnouncements") as mock_pa,
+    ):
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_pa.get_db.return_value.__enter__ = Mock(
+            return_value=(mock_conn, mock_cursor)
+        )
+        mock_pa.get_db.return_value.__exit__ = Mock(return_value=False)
+        mock_pa.read_rows.return_value = [other_wallet_row, matching_wallet_row]
+        cli.proxy_reject_announced(
+            delegate=delegate,
+            call_hash=call_hash,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        mock_pa.mark_as_executed.assert_called_once_with(mock_conn, mock_cursor, 42)
+
+
+def test_proxy_reject_announced_ambiguous_db_entries_skip_mark_no_prompt():
+    """proxy reject does not mark DB executed when call hash matches multiple rows for same wallet."""
+    cli = CLIManager()
+    mock_subtensor = Mock()
+    mock_wallet = Mock()
+    mock_wallet.coldkeypub = Mock()
+    mock_wallet.coldkeypub.ss58_address = (
+        "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+    )
+    delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    call_hash = "0xdeadbeef"
+    db_rows = [
+        (
+            41,
+            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+            1,
+            100,
+            "0xdeadbeef",
+            "0xCAFE",
+            "{}",
+            0,
+        ),
+        (
+            42,
+            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+            2,
+            101,
+            "0xdeadbeef",
+            "0xCAFF",
+            "{}",
+            0,
+        ),
+    ]
+    with (
+        patch.object(cli, "verbosity_handler"),
+        patch.object(cli, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli, "_run_command", return_value=True),
+        patch.object(proxy_commands, "reject_announcement", new_callable=AsyncMock),
+        patch("bittensor_cli.cli.ProxyAnnouncements") as mock_pa,
+    ):
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_pa.get_db.return_value.__enter__ = Mock(
+            return_value=(mock_conn, mock_cursor)
+        )
+        mock_pa.get_db.return_value.__exit__ = Mock(return_value=False)
+        mock_pa.read_rows.return_value = db_rows
+        cli.proxy_reject_announced(
+            delegate=delegate,
+            call_hash=call_hash,
+            network=None,
+            wallet_name="default",
+            wallet_path="/tmp",
+            wallet_hotkey="default",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+        proxy_commands.reject_announcement.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=delegate,
+            call_hash=call_hash,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=16,
+            json_output=False,
+        )
+        mock_pa.mark_as_executed.assert_not_called()
 
 
 # HYPERPARAMS / HYPERPARAMS_METADATA (issue #826)
