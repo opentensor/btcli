@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING, Any, Optional
-import logging
 import sys
 
 from async_substrate_interface.errors import StateDiscardedError
@@ -118,10 +117,7 @@ def _parse_proxy_storage(raw: Any) -> tuple[list[dict[str, Any]], Any]:
                     "delay": int(delay) if delay is not None else 0,
                 }
             )
-        except (KeyError, TypeError, ValueError, IndexError) as exc:
-            logging.getLogger("btcli").debug(
-                "Skipping unparseable proxy entry: %s (%s)", item, exc
-            )
+        except (KeyError, TypeError, ValueError, IndexError):
             continue
     return rows, deposit
 
