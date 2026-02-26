@@ -1630,22 +1630,26 @@ def _calculate_daily_return(delegate_info: DelegateInfo, staked: Balance) -> flo
 
 
 def _make_neuron_rows(
-    wallet_: Wallet,
+    coldkey_ss58: str,
+    coldkey_name: str,
     all_netuids: list[int],
     neuron_state_dict: dict,
+    hotkeys: list = None,
 ) -> Generator[list[str], None, None]:
-    """Yield hotkey table rows for each neuron registered under the wallet's coldkey."""
-    hotkeys = get_hotkey_wallets_for_wallet(wallet_)
+    """Yield hotkey table rows for each neuron registered under the given coldkey."""
+    hotkeys = hotkeys or []
     for netuid in all_netuids:
         for neuron in neuron_state_dict[netuid]:
-            if neuron.coldkey == wallet_.coldkeypub.ss58_address:
+            if neuron.coldkey == coldkey_ss58:
                 hotkey_label = _format_hotkey_label(neuron.hotkey, hotkeys)
+                stake = Balance.from_rao(neuron.stake.rao).set_unit(netuid)
+                emission = Balance.from_tao(neuron.emission).set_unit(netuid)
                 yield [
-                    wallet_.name,
+                    coldkey_name,
                     str(netuid),
                     hotkey_label,
-                    str(neuron.stake),
-                    str(Balance.from_tao(neuron.emission)),
+                    str(stake),
+                    str(emission),
                 ]
 
 
@@ -1682,20 +1686,50 @@ def _populate_hotkey_table(
 
 
 async def inspect(
-    wallet: Wallet,
+    wallet: Optional[Wallet],
     subtensor: SubtensorInterface,
     netuids_filter: list[int],
     all_wallets: bool = False,
+    ss58_address: Optional[str] = None,
 ):
-    # TODO add json_output when this is re-enabled and updated for dTAO
-    if all_wallets:
+    if ss58_address:
+        # Direct SS58 address lookup — no wallet file needed
+        coldkey_addresses = [ss58_address]
+        coldkey_names = {ss58_address: ss58_address[:8] + "..."}
+        hotkeys_by_coldkey: dict[str, list] = {ss58_address: []}
+    elif all_wallets:
         print_verbose("Fetching data for all wallets")
         wallets = get_coldkey_wallets_for_path(wallet.path)
+        wallets_with_ckp = [w for w in wallets if w.coldkeypub_file.exists_on_device()]
+        coldkey_addresses = [w.coldkeypub.ss58_address for w in wallets_with_ckp]
+        coldkey_names = {
+            w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp
+        }
+        hotkeys_by_coldkey = {
+            w.coldkeypub.ss58_address: get_hotkey_wallets_for_wallet(w)
+            for w in wallets_with_ckp
+        }
         all_hotkeys = get_all_wallets_for_path(wallet.path)
     else:
         print_verbose(f"Fetching data for wallet: {wallet.name}")
-        wallets = [wallet]
-        all_hotkeys = get_hotkey_wallets_for_wallet(wallet)
+        wallets_with_ckp = [wallet] if wallet.coldkeypub_file.exists_on_device() else []
+        coldkey_addresses = [w.coldkeypub.ss58_address for w in wallets_with_ckp]
+        coldkey_names = {
+            w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp
+        }
+        hotkeys_by_coldkey = {
+            w.coldkeypub.ss58_address: get_hotkey_wallets_for_wallet(w)
+            for w in wallets_with_ckp
+        }
+        all_hotkeys = get_hotkey_wallets_for_wallet(wallet) if wallet else []
+
+    if not coldkey_addresses:
+        console.print("[yellow]No wallet data found.[/yellow]")
+        return
+
+    # For ss58_address mode we skip the hotkey-based netuid filter
+    if ss58_address:
+        all_hotkeys = []
 
     with console.status("Synchronising with chain...", spinner="aesthetic") as status:
         block_hash = await subtensor.substrate.get_chain_head()
@@ -1719,14 +1753,10 @@ async def inspect(
     coldkey_table = _build_coldkey_table(subtensor.network)
     hotkey_table = _build_hotkey_table(subtensor.network)
 
-    wallets_with_ckp_file = [w for w in wallets if w.coldkeypub_file.exists_on_device()]
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
         balances, all_neurons, all_delegates = await asyncio.gather(
-            subtensor.get_balances(
-                *[w.coldkeypub.ss58_address for w in wallets_with_ckp_file],
-                block_hash=block_hash,
-            ),
+            subtensor.get_balances(*coldkey_addresses, block_hash=block_hash),
             asyncio.gather(
                 *[
                     subtensor.neurons_lite(netuid=netuid, block_hash=block_hash)
@@ -1735,8 +1765,8 @@ async def inspect(
             ),
             asyncio.gather(
                 *[
-                    subtensor.get_delegated(w.coldkeypub.ss58_address)
-                    for w in wallets_with_ckp_file
+                    subtensor.get_delegated(addr)
+                    for addr in coldkey_addresses
                 ]
             ),
         )
@@ -1746,14 +1776,18 @@ async def inspect(
 
     coldkey_rows = []
     hotkey_rows = []
-    for wall, delegates in zip(wallets_with_ckp_file, all_delegates):
+    for addr, delegates in zip(coldkey_addresses, all_delegates):
+        name = coldkey_names[addr]
         coldkey_rows.append(
-            [wall.name, str(balances[wall.coldkeypub.ss58_address]), "", "", ""]
+            [name, str(balances.get(addr, Balance(0))), "", "", ""]
         )
         for row in _make_delegate_rows(delegates, registered_delegate_info):
             coldkey_rows.append(row)
 
-        for row in _make_neuron_rows(wall, all_netuids, neuron_state_dict):
+        hotkeys = hotkeys_by_coldkey.get(addr, [])
+        for row in _make_neuron_rows(
+            addr, name, all_netuids, neuron_state_dict, hotkeys
+        ):
             hotkey_rows.append(row)
 
     if coldkey_rows:

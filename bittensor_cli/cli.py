@@ -2913,6 +2913,12 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
+        ss58_address: Optional[str] = typer.Option(
+            None,
+            "--ss58-address",
+            "--ss58",
+            help="SS58 address of the coldkey to inspect. Allows inspecting any coldkey without a local wallet file.",
+        ),
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2958,10 +2964,10 @@ class CLIManager:
 
         [green]$[/green] btcli wallet inspect --all -n 1 -n 2 -n 3
 
+        [green]$[/green] btcli wallet inspect --ss58-address 5FHneW46...
+
         [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
-        print_error("This command is disabled on the 'rao' network.")
-        raise typer.Exit()
         self.verbosity_handler(quiet, verbose, json_output, False)
 
         if netuids:
@@ -2971,6 +2977,19 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
+        self.initialize_chain(network)
+
+        if ss58_address:
+            return self._run_command(
+                wallets.inspect(
+                    None,
+                    self.subtensor,
+                    netuids_filter=netuids,
+                    all_wallets=False,
+                    ss58_address=ss58_address,
+                )
+            )
+
         # if all-wallets is entered, ask for path
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
@@ -2978,7 +2997,6 @@ class CLIManager:
             wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
-        self.initialize_chain(network)
         return self._run_command(
             wallets.inspect(
                 wallet,
