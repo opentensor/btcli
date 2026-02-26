@@ -20,7 +20,6 @@ from bittensor_cli.src import (
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.chain_data import decode_account_id
@@ -244,11 +243,9 @@ async def stake_burn(
 
         if mev_protection:
             inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(ext_receipt)
             mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
                 extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
                 submit_block_hash=ext_receipt.block_hash,
                 status=status,
             )
