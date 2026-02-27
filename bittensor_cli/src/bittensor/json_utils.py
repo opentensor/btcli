@@ -24,7 +24,9 @@ from typing import Any, Optional, Union
 from rich.console import Console
 from bittensor_cli.src.bittensor.balances import Balance
 
-json_console = Console()
+json_console = Console(
+    markup=False, highlight=False, force_terminal=False, no_color=True
+)
 
 
 def transaction_response(
