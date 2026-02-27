@@ -38,7 +38,10 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
-from bittensor_cli.src.bittensor.json_utils import print_json_data, print_transaction_response
+from bittensor_cli.src.bittensor.json_utils import (
+    print_json_data,
+    print_transaction_response,
+)
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import (

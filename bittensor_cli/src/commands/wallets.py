@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import itertools
-import json
 import os
 from collections import defaultdict
 from enum import Enum
@@ -59,6 +58,7 @@ from bittensor_cli.src.bittensor.json_utils import (
     print_json,
     print_json_data,
     print_transaction_response,
+    print_json_success,
 )
 
 
@@ -188,13 +188,17 @@ async def regen_coldkey(
                 f"coldkey ss58: ({new_wallet.coldkeypub.ss58_address})",
             )
             if json_output:
-                print_json(json_success({
-                    "name": new_wallet.name,
-                    "path": new_wallet.path,
-                    "hotkey": new_wallet.hotkey_str,
-                    "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
-                    "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
-                }))
+                print_json(
+                    json_success(
+                        {
+                            "name": new_wallet.name,
+                            "path": new_wallet.path,
+                            "hotkey": new_wallet.hotkey_str,
+                            "hotkey_ss58": get_hotkey_pub_ss58(new_wallet),
+                            "coldkey_ss58": new_wallet.coldkeypub.ss58_address,
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
@@ -226,13 +230,17 @@ async def regen_coldkey_pub(
                 f"coldkey ss58: ({new_coldkeypub.coldkeypub.ss58_address})",
             )
             if json_output:
-                print_json(json_success({
-                    "name": new_coldkeypub.name,
-                    "path": new_coldkeypub.path,
-                    "hotkey": new_coldkeypub.hotkey_str,
-                    "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
-                    "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
-                }))
+                print_json(
+                    json_success(
+                        {
+                            "name": new_coldkeypub.name,
+                            "path": new_coldkeypub.path,
+                            "hotkey": new_coldkeypub.hotkey_str,
+                            "hotkey_ss58": get_hotkey_pub_ss58(new_coldkeypub),
+                            "coldkey_ss58": new_coldkeypub.coldkeypub.ss58_address,
+                        }
+                    )
+                )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
         if json_output:
@@ -273,13 +281,17 @@ async def regen_hotkey(
                 f"hotkey ss58: ({new_hotkey_.hotkeypub.ss58_address})",
             )
             if json_output:
-                print_json(json_success({
-                    "name": new_hotkey_.name,
-                    "path": new_hotkey_.path,
-                    "hotkey": new_hotkey_.hotkey_str,
-                    "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
-                    "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
-                }))
+                print_json(
+                    json_success(
+                        {
+                            "name": new_hotkey_.name,
+                            "path": new_hotkey_.path,
+                            "hotkey": new_hotkey_.hotkey_str,
+                            "hotkey_ss58": new_hotkey_.hotkeypub.ss58_address,
+                            "coldkey_ss58": new_hotkey_.coldkeypub.ss58_address,
+                        }
+                    )
+                )
     except ValueError:
         print_error("Mnemonic phrase is invalid")
         if json_output:
@@ -312,19 +324,17 @@ async def regen_hotkey_pub(
             )
             if json_output:
                 print_json_data(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "data": {
-                                "name": new_hotkeypub.name,
-                                "path": new_hotkeypub.path,
-                                "hotkey": new_hotkeypub.hotkey_str,
-                                "hotkey_ss58": new_hotkeypub.hotkeypub.ss58_address,
-                                "coldkey_ss58": new_hotkeypub.coldkeypub.ss58_address,
-                            },
-                            "error": "",
-                        }
-                    )
+                    {
+                        "success": True,
+                        "data": {
+                            "name": new_hotkeypub.name,
+                            "path": new_hotkeypub.path,
+                            "hotkey": new_hotkeypub.hotkey_str,
+                            "hotkey_ss58": new_hotkeypub.hotkeypub.ss58_address,
+                            "coldkey_ss58": new_hotkeypub.coldkeypub.ss58_address,
+                        },
+                        "error": "",
+                    }
                 )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
@@ -363,19 +373,17 @@ async def new_hotkey(
             console.print("[dark_sea_green]Hotkey created[/dark_sea_green]")
         if json_output:
             print_json_data(
-                json.dumps(
-                    {
-                        "success": True,
-                        "data": {
-                            "name": wallet.name,
-                            "path": wallet.path,
-                            "hotkey": wallet.hotkey_str,
-                            "hotkey_ss58": get_hotkey_pub_ss58(wallet),
-                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
-                        },
-                        "error": "",
-                    }
-                )
+                {
+                    "success": True,
+                    "data": {
+                        "name": wallet.name,
+                        "path": wallet.path,
+                        "hotkey": wallet.hotkey_str,
+                        "hotkey_ss58": get_hotkey_pub_ss58(wallet),
+                        "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                    },
+                    "error": "",
+                }
             )
     except KeyFileError:
         print_error("KeyFileError: File is not writable")
@@ -414,29 +422,25 @@ async def new_coldkey(
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
         if json_output:
             print_json_data(
-                json.dumps(
-                    {
-                        "success": True,
-                        "data": {
-                            "name": wallet.name,
-                            "path": wallet.path,
-                            "coldkey_ss58": wallet.coldkeypub.ss58_address,
-                        },
-                        "error": "",
-                    }
-                )
+                {
+                    "success": True,
+                    "data": {
+                        "name": wallet.name,
+                        "path": wallet.path,
+                        "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                    },
+                    "error": "",
+                }
             )
     except KeyFileError as e:
         print_error("KeyFileError: File is not writable")
         if json_output:
             print_json_data(
-                json.dumps(
-                    {
-                        "success": False,
-                        "error": f"Keyfile is not writable: {e}",
-                        "data": None,
-                    }
-                )
+                {
+                    "success": False,
+                    "error": f"Keyfile is not writable: {e}",
+                    "data": None,
+                }
             )
 
 
@@ -1888,9 +1892,7 @@ async def sign(
 
     if json_output:
         print_json_data(
-            json.dumps(
-                {"signed_message": signed_message, "signer_address": signer_address}
-            )
+            {"signed_message": signed_message, "signer_address": signer_address}
         )
     else:
         console.print(f"[yellow]Signature:[/yellow]\n{signed_message}")
@@ -1928,12 +1930,10 @@ async def verify(
         except (ValueError, TypeError) as e:
             if json_output:
                 print_json_data(
-                    json.dumps(
-                        {
-                            "verified": False,
-                            "error": f"Invalid public key or SS58 address: {str(e)}",
-                        }
-                    )
+                    {
+                        "verified": False,
+                        "error": f"Invalid public key or SS58 address: {str(e)}",
+                    }
                 )
             else:
                 print_error(
@@ -1946,12 +1946,10 @@ async def verify(
     except ValueError as e:
         if json_output:
             print_json_data(
-                json.dumps(
-                    {
-                        "verified": False,
-                        "error": f"Invalid signature format: {str(e)}",
-                    }
-                )
+                {
+                    "verified": False,
+                    "error": f"Invalid signature format: {str(e)}",
+                }
             )
         else:
             print_error(f"Invalid signature format: {str(e)}")
@@ -1961,9 +1959,7 @@ async def verify(
 
     if json_output:
         print_json_data(
-            json.dumps(
-                {"verified": is_valid, "signer": signer_address, "message": message}
-            )
+            {"verified": is_valid, "signer": signer_address, "message": message}
         )
     else:
         if is_valid:
@@ -2506,14 +2502,11 @@ async def check_swap_status(
                 "[yellow]No pending coldkey swap announcements found.[/yellow]"
             )
             if json_output:
-                json_console.print(
-                    json.dumps(
-                        {
-                            "success": True,
-                            "current_block": current_block,
-                            "announcements": [],
-                        }
-                    )
+                json_success(
+                    {
+                        "current_block": current_block,
+                        "announcements": [],
+                    }
                 )
             return
 
@@ -2522,7 +2515,6 @@ async def check_swap_status(
     }
 
     payload = {
-        "success": True,
         "current_block": current_block,
         "announcements": [],
     }
@@ -2586,7 +2578,7 @@ async def check_swap_status(
         )
 
     if json_output:
-        json_console.print(json.dumps(payload))
+        print_json_success(payload)
         return
 
     console.print(table)

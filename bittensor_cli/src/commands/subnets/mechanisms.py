@@ -34,7 +34,8 @@ async def count(
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
         print_error(f"Subnet {netuid} does not exist")
         if json_output:
-            print_json_data({"success": False, "error": f"Subnet {netuid} does not exist"}
+            print_json_data(
+                {"success": False, "error": f"Subnet {netuid} does not exist"}
             )
         return None
 
@@ -47,11 +48,13 @@ async def count(
         )
         if not mechanism_count:
             if json_output:
-                print_json_data({
-                    "netuid": netuid,
-                    "count": None,
-                    "error": "Failed to get mechanism count",
-                })
+                print_json_data(
+                    {
+                        "netuid": netuid,
+                        "count": None,
+                        "error": "Failed to get mechanism count",
+                    }
+                )
             else:
                 print_error(
                     "Subnet mechanism count: [red]Failed to get mechanism count[/red]"
@@ -59,11 +62,13 @@ async def count(
             return None
 
     if json_output:
-        print_json_data({
-            "netuid": netuid,
-            "count": mechanism_count,
-            "error": "",
-        })
+        print_json_data(
+            {
+                "netuid": netuid,
+                "count": mechanism_count,
+                "error": "",
+            }
+        )
     else:
         console.print(
             f"[blue]Subnet {netuid}[/blue] currently has [blue]{mechanism_count}[/blue] mechanism"
@@ -87,7 +92,8 @@ async def get_emission_split(
             f"Subnet {netuid} only has the primary mechanism (mechanism 0). No emission split to display."
         )
         if json_output:
-            print_json_data({
+            print_json_data(
+                {
                     "success": False,
                     "error": "Subnet only has the primary mechanism (mechanism 0). No emission split to display.",
                 }
@@ -291,7 +297,8 @@ async def set_emission_split(
     if normalized_weights == existing_split:
         message = "[dark_sea_green3]Emission split unchanged.[/dark_sea_green3]"
         if json_output:
-            print_json_data({
+            print_json_data(
+                {
                     "success": True,
                     "message": "Emission split unchanged.",
                     "split": normalized_weights,
@@ -366,13 +373,15 @@ async def set_emission_split(
     )
 
     if json_output:
-        print_json_data({
-            "success": success,
-            "err_msg": err_msg,
-            "split": normalized_weights,
-            "percentages": [round(value * 100, 6) for value in fractions],
-            "extrinsic_identifier": ext_id,
-        })
+        print_json_data(
+            {
+                "success": success,
+                "err_msg": err_msg,
+                "split": normalized_weights,
+                "percentages": [round(value * 100, 6) for value in fractions],
+                "extrinsic_identifier": ext_id,
+            }
+        )
 
     return success
 

@@ -62,7 +62,9 @@ def print_transaction_response(
         message: Human-readable status message
         extrinsic_identifier: The extrinsic ID (e.g., "12345678-2")
     """
-    json_console.print_json(data=transaction_response(success, message, extrinsic_identifier))
+    json_console.print_json(
+        data=transaction_response(success, message, extrinsic_identifier)
+    )
 
 
 class TransactionResult:
@@ -190,14 +192,17 @@ def json_error(error: str, data: Optional[Any] = None) -> str:
     return json_response(success=False, data=data, error=error)
 
 
-def print_json(response: str) -> None:
+def print_json(response: Any) -> None:
     """
     Print a JSON string response to the console.
 
     Args:
         response: JSON string to print
     """
-    json_console.print(response)
+    if isinstance(response, str):
+        json_console.print(response)
+    else:
+        json_console.print_json(data=response)
 
 
 def print_json_success(data: Any) -> None:

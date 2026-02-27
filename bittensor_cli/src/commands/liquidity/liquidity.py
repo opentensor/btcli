@@ -578,7 +578,9 @@ async def remove_liquidity(
         success, msg, positions = await get_liquidity_list(subtensor, wallet, netuid)
         if not success:
             if json_output:
-                print_json_data({"success": False, "err_msg": msg, "positions": positions})
+                print_json_data(
+                    {"success": False, "err_msg": msg, "positions": positions}
+                )
             else:
                 return print_error(f"Error: {msg}")
             return None
@@ -623,7 +625,9 @@ async def remove_liquidity(
     else:
         json_results = MultiTransactionResult()
         for (success, msg, ext_receipt), posid in zip(results, position_ids):
-            ext_id = await ext_receipt.get_extrinsic_identifier() if ext_receipt else None
+            ext_id = (
+                await ext_receipt.get_extrinsic_identifier() if ext_receipt else None
+            )
             json_results.add(str(posid), success, msg, ext_id)
         json_results.print()
     return None

@@ -90,7 +90,9 @@ async def submit_proxy(
     )
     if success:
         if json_output:
-            print_transaction_response(success, msg, await receipt.get_extrinsic_identifier())
+            print_transaction_response(
+                success, msg, await receipt.get_extrinsic_identifier()
+            )
         else:
             await print_extrinsic_id(receipt)
             print_success("Success!")
@@ -626,7 +628,9 @@ async def execute_announced(
     )
     if success is True:
         if json_output:
-            print_transaction_response(True, msg, await receipt.get_extrinsic_identifier())
+            print_transaction_response(
+                True, msg, await receipt.get_extrinsic_identifier()
+            )
         else:
             print_success("Success!")
             await print_extrinsic_id(receipt)

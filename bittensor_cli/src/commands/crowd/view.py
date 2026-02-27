@@ -89,19 +89,17 @@ async def list_crowdloans(
     if not loans:
         if json_output:
             print_json_data(
-                json.dumps(
-                    {
-                        "success": True,
-                        "error": None,
-                        "data": {
-                            "crowdloans": [],
-                            "total_count": 0,
-                            "total_raised": 0,
-                            "total_cap": 0,
-                            "total_contributors": 0,
-                        },
-                    }
-                )
+                {
+                    "success": True,
+                    "error": None,
+                    "data": {
+                        "crowdloans": [],
+                        "total_count": 0,
+                        "total_raised": 0,
+                        "total_cap": 0,
+                        "total_contributors": 0,
+                    },
+                }
             )
         else:
             console.print("[yellow]No crowdloans found.[/yellow]")
@@ -152,20 +150,18 @@ async def list_crowdloans(
 
     if not filtered_loans:
         if json_output:
-            json_console.print(
-                json.dumps(
-                    {
-                        "success": True,
-                        "error": None,
-                        "data": {
-                            "crowdloans": [],
-                            "total_count": 0,
-                            "total_raised": 0,
-                            "total_cap": 0,
-                            "total_contributors": 0,
-                        },
-                    }
-                )
+            print_json_data(
+                {
+                    "success": True,
+                    "error": None,
+                    "data": {
+                        "crowdloans": [],
+                        "total_count": 0,
+                        "total_raised": 0,
+                        "total_cap": 0,
+                        "total_contributors": 0,
+                    },
+                }
             )
         else:
             console.print("[yellow]No crowdloans found matching the filters.[/yellow]")

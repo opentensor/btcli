@@ -52,9 +52,7 @@ class TestJsonResponse:
     def test_error_with_data(self):
         """Test error response with additional data."""
         result = json_response(
-            success=False,
-            data={"partial": "data"},
-            error="Partial failure"
+            success=False, data={"partial": "data"}, error="Partial failure"
         )
         parsed = json.loads(result)
 
@@ -68,7 +66,7 @@ class TestJsonResponse:
             "wallet": {
                 "name": "test",
                 "hotkeys": ["hk1", "hk2"],
-                "balance": {"rao": 1000000000, "tao": 1.0}
+                "balance": {"rao": 1000000000, "tao": 1.0},
             }
         }
         result = json_response(success=True, data=data)
@@ -137,7 +135,7 @@ class TestTransactionResponse:
         result = transaction_response(
             success=True,
             message="Transfer successful",
-            extrinsic_identifier="12345678-2"
+            extrinsic_identifier="12345678-2",
         )
 
         assert result["success"] is True
@@ -146,10 +144,7 @@ class TestTransactionResponse:
 
     def test_failed_transaction(self):
         """Test failed transaction response."""
-        result = transaction_response(
-            success=False,
-            message="Insufficient balance"
-        )
+        result = transaction_response(success=False, message="Insufficient balance")
 
         assert result["success"] is False
         assert result["message"] == "Insufficient balance"
@@ -157,10 +152,7 @@ class TestTransactionResponse:
 
     def test_transaction_without_message(self):
         """Test transaction without message."""
-        result = transaction_response(
-            success=True,
-            extrinsic_identifier="12345678-3"
-        )
+        result = transaction_response(success=True, extrinsic_identifier="12345678-3")
 
         assert result["success"] is True
         assert result["message"] is None
@@ -173,9 +165,7 @@ class TestTransactionResult:
     def test_as_dict(self):
         """Test conversion to dictionary."""
         result = TransactionResult(
-            success=True,
-            message="Success",
-            extrinsic_identifier="12345-1"
+            success=True, message="Success", extrinsic_identifier="12345-1"
         )
         d = result.as_dict()
 
@@ -185,10 +175,7 @@ class TestTransactionResult:
 
     def test_failed_result(self):
         """Test failed transaction result."""
-        result = TransactionResult(
-            success=False,
-            message="Error occurred"
-        )
+        result = TransactionResult(success=False, message="Error occurred")
         d = result.as_dict()
 
         assert d["success"] is False
@@ -230,6 +217,7 @@ class TestSerializeBalance:
 
     def test_balance_object(self):
         """Test serializing a Balance-like object."""
+
         class MockBalance:
             rao = 1000000000
             tao = 1.0

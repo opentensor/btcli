@@ -16,7 +16,10 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     print_extrinsic_id,
 )
-from bittensor_cli.src.bittensor.json_utils import print_json_data, print_transaction_with_data
+from bittensor_cli.src.bittensor.json_utils import (
+    print_json_data,
+    print_transaction_with_data,
+)
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface

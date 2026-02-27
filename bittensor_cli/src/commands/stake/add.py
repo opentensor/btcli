@@ -524,11 +524,13 @@ async def stake_add(
                     staking_address
                 ] = await ext_receipt.get_extrinsic_identifier()
     if json_output:
-        print_json_data({
-            "staking_success": successes,
-            "error_messages": error_messages,
-            "extrinsic_ids": extrinsic_ids,
-        })
+        print_json_data(
+            {
+                "staking_success": successes,
+                "error_messages": error_messages,
+                "extrinsic_ids": extrinsic_ids,
+            }
+        )
 
 
 # Helper functions
