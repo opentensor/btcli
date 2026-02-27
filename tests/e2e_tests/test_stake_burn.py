@@ -114,6 +114,7 @@ def test_stake_burn(local_chain, wallet_setup):
             str(amount_tao),
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     stale_burn_ok_out = json.loads(stake_burn_result.stdout)
@@ -156,6 +157,7 @@ def test_stake_burn(local_chain, wallet_setup):
             str(amount_tao),
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     stake_burn_ratelimited = json.loads(stake_burn_ratelimited_result.stdout)

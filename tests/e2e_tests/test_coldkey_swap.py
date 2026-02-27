@@ -272,6 +272,7 @@ def test_coldkey_swap_dispute(local_chain, wallet_setup):
             "Created for e2e coldkey swap dispute test",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     create_payload = json.loads(create_sn.stdout)
@@ -403,9 +404,10 @@ def test_coldkey_swap_dispute(local_chain, wallet_setup):
             "--new-coldkey",
             wallet_new.coldkeypub.ss58_address,
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
-    assert "The account is frozen" in execute.stderr, execute.stderr
+    assert "ColdkeySwapDisputed" in execute.stderr, execute.stderr
 
     status_after = exec_command_bob(
         command="wallet",

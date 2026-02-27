@@ -86,6 +86,7 @@ def test_stake_movement(local_chain, wallet_setup):
                 "https://testsubnet.com/logo.png",
                 "--no-prompt",
                 "--json-output",
+                "--no-mev-protection",
             ],
         )
         create_subnet_payload = json.loads(create_subnet_result.stdout)
@@ -248,6 +249,7 @@ def test_stake_movement(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Sent" in move_result.stdout
@@ -350,6 +352,7 @@ def test_stake_movement(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Sent" in transfer_result.stdout
@@ -481,6 +484,7 @@ def test_stake_movement(local_chain, wallet_setup):
             "ws://127.0.0.1:9945",
             "--no-prompt",
             "--unsafe",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Sent" in swap_result.stdout, swap_result.stderr
@@ -532,6 +536,7 @@ def test_stake_movement(local_chain, wallet_setup):
             "--no-prompt",
             "--rate-tolerance",
             "0.1",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Sent" in swap_with_limit_result.stdout, swap_with_limit_result.stderr

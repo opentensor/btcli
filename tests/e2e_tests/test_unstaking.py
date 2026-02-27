@@ -87,6 +87,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Registered subnetwork with netuid: 2" in result.stdout
@@ -122,6 +123,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Registered subnetwork with netuid: 3" in result.stdout
@@ -238,6 +240,7 @@ def test_unstaking(local_chain, wallet_setup):
                 "--no-prompt",
                 "--era",
                 "144",
+                "--no-mev-protection",
             ],
         )
         assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
@@ -266,6 +269,7 @@ def test_unstaking(local_chain, wallet_setup):
                 "0.5",
                 "--era",
                 "144",
+                "--no-mev-protection",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout, stake_result.stderr
@@ -316,6 +320,7 @@ def test_unstaking(local_chain, wallet_setup):
             "0.5",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Finalized" in partial_unstake_netuid_2.stdout
@@ -385,6 +390,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--verbose",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
 
@@ -417,6 +423,7 @@ def test_unstaking(local_chain, wallet_setup):
                 "0.5",
                 "--era",
                 "144",
+                "--no-mev-protection",
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
@@ -439,6 +446,7 @@ def test_unstaking(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Included: Successfully unstaked all stakes from" in unstake_all.stdout
