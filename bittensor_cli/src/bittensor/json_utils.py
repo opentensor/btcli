@@ -22,6 +22,7 @@ Standard Data Response Format:
 import json
 from typing import Any, Optional, Union
 from rich.console import Console
+from bittensor_cli.src.bittensor.balances import Balance
 
 json_console = Console()
 
@@ -260,7 +261,7 @@ def print_transaction_with_data(
     json_console.print_json(data=response)
 
 
-def serialize_balance(balance: Any) -> dict[str, Union[int, float]]:
+def serialize_balance(balance: Balance | int | float) -> dict[str, Union[int, float]]:
     """
     Serialize a Balance object to a consistent dictionary format.
 
@@ -270,13 +271,12 @@ def serialize_balance(balance: Any) -> dict[str, Union[int, float]]:
     Returns:
         Dictionary with 'rao' (int) and 'tao' (float) keys
     """
-    if hasattr(balance, "rao") and hasattr(balance, "tao"):
+    if isinstance(balance, Balance):
         return {"rao": int(balance.rao), "tao": float(balance.tao)}
-    elif isinstance(balance, (int, float)):
-        # Assume it's already in tao if float, rao if int
-        if isinstance(balance, float):
-            return {"rao": int(balance * 1e9), "tao": balance}
-        else:
-            return {"rao": balance, "tao": balance / 1e9}
+    # Assume it's already in tao if float, rao if int
+    elif isinstance(balance, float):
+        return {"rao": int(balance * 1e9), "tao": balance}
+    elif isinstance(balance, int):
+        return {"rao": balance, "tao": balance / 1e9}
     else:
-        return {"rao": 0, "tao": 0.0}
+        raise TypeError(f"Unsupported type {type(balance)}")
