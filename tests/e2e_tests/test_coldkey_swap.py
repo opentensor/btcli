@@ -405,7 +405,7 @@ def test_coldkey_swap_dispute(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
-    assert "The account is frozen" in execute.stderr, execute.stderr
+    assert "ColdkeySwapDisputed" in execute.stderr, execute.stderr
 
     status_after = exec_command_bob(
         command="wallet",
