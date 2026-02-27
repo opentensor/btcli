@@ -25,6 +25,7 @@ import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 from scalecodec import GenericCall
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
@@ -87,6 +88,63 @@ def confirm_action(
             console.print(f"{message} [Auto-declined via --no flag]")
         return False
     return Confirm.ask(message, default=default)
+
+
+def create_table(*columns, title: str = "", **overrides) -> Table:
+    """
+    Creates a Rich Table with consistent CLI styling.
+
+    Default styling: no edge borders, bold white headers, bright black borders,
+    footer enabled, center-aligned title, and no lines between rows.
+
+    Args:
+        *columns: Optional Column objects to add to the table upfront.
+        title: Table title with rich markup support.
+        **overrides: Any Table() parameter to override defaults (e.g., show_footer,
+                     border_style, box, expand).
+
+    Returns:
+        Configured Rich Table ready for adding columns/rows.
+
+    Examples:
+        Basic usage (add columns later):
+            >>> table = create_table(title="My Subnets")
+            >>> table.add_column("Netuid", justify="center")
+            >>> table.add_row("1")
+
+        With Column objects upfront:
+            >>> from rich.table import Column
+            >>> table = create_table(
+            ...     Column("Name", justify="left"),
+            ...     Column("Value", justify="right"),
+            ...     title="Settings"
+            ... )
+            >>> table.add_row("Timeout", "30s")
+
+        Custom styling:
+            >>> from rich import box
+            >>> table = create_table(
+            ...     title="Custom",
+            ...     border_style="blue",
+            ...     box=box.ROUNDED
+            ... )
+    """
+    defaults = {
+        "title": title,
+        "show_footer": True,
+        "show_edge": False,
+        "header_style": "bold white",
+        "border_style": "bright_black",
+        "style": "bold",
+        "title_justify": "center",
+        "show_lines": False,
+        "pad_edge": True,
+    }
+
+    # Merge overrides into defaults
+    config = {**defaults, **overrides}
+
+    return Table(*columns, **config)
 
 
 jinja_env = Environment(
@@ -165,6 +223,42 @@ def print_success(message: str, status=None):
         status.start()
     else:
         print_console(success_message, "green", console)
+
+
+def print_protection_warnings(
+    mev_protection: bool,
+    safe_staking: Optional[bool] = None,
+    command_name: str = "",
+) -> None:
+    """
+    Print warnings about missing MEV protection and/or limit price protection.
+
+    Args:
+        mev_protection: Whether MEV protection is enabled.
+        safe_staking: Whether safe staking (limit price protection) is enabled.
+                      None if limit price protection is not available for this command.
+        command_name: Name of the command (e.g., "stake add") for context.
+    """
+    warnings = []
+
+    if not mev_protection:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] MEV protection is disabled. "
+            "This transaction may be exposed to MEV attacks.[/dim]"
+        )
+
+    if safe_staking is not None and not safe_staking:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] Limit price protection (safe staking) is disabled. "
+            "This transaction may be subject to slippage.[/dim]"
+        )
+
+    if warnings:
+        if command_name:
+            console.print(f"\n[dim]Protection status for '{command_name}':[/dim]")
+        for warning in warnings:
+            console.print(warning)
+        console.print()
 
 
 RAO_PER_TAO = 1e9
@@ -861,7 +955,7 @@ def normalize_hyperparameters(
                     norm_value = norm_value.to_dict()
             else:
                 norm_value = value
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
         if not json_output:
@@ -1749,7 +1843,7 @@ def is_valid_github_url(url: str) -> bool:
             return False
 
         return True
-    except Exception:  # TODO figure out the exceptions that can be raised in here
+    except (ValueError, TypeError, AttributeError):
         return False
 
 

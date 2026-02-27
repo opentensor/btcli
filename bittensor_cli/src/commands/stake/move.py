@@ -4,18 +4,17 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
-from rich.table import Table
 from rich.prompt import Prompt
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_error,
     group_subnets,
     get_subnet_name,
@@ -167,7 +166,7 @@ async def display_stake_movement_cross_subnets(
         )
 
     # Create and display table
-    table = Table(
+    table = create_table(
         title=(
             f"\n[{COLOR_PALETTE.G.HEADER}]"
             f"Moving stake from: "
@@ -178,14 +177,6 @@ async def display_stake_movement_cross_subnets(
             f"[/{COLOR_PALETTE.G.SUBHEAD}]\nNetwork: {subtensor.network}\n"
             f"[/{COLOR_PALETTE.G.HEADER}]"
         ),
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column(
@@ -352,16 +343,8 @@ async def stake_move_transfer_selection(
         raise ValueError
 
     # Display hotkeys with stakes
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Index", justify="right")
     table.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
@@ -405,13 +388,12 @@ async def stake_move_transfer_selection(
     origin_hotkey_ss58 = origin_hotkey_info["hotkey_ss58"]
 
     # Display available netuids for selected hotkey
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Available Stakes for Hotkey\n[/{COLOR_PALETTE.G.HEADER}]"
         f"[{COLOR_PALETTE.G.HK}]{origin_hotkey_ss58}[/{COLOR_PALETTE.G.HK}]\n",
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
+        show_footer=False,
+        show_lines=True,
+        pad_edge=False,
         width=len(origin_hotkey_ss58) + 20,
     )
     table.add_column("Netuid", style="cyan")
@@ -483,13 +465,12 @@ async def stake_swap_selection(
         raise ValueError
 
     # Display available stakes
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Available Stakes for Hotkey\n[/{COLOR_PALETTE.G.HEADER}]"
         f"[{COLOR_PALETTE.G.HK}]{wallet.hotkey_str}: {hotkey_ss58}[/{COLOR_PALETTE.G.HK}]\n",
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
+        show_footer=False,
+        show_lines=True,
+        pad_edge=False,
         width=len(hotkey_ss58) + 20,
     )
 
@@ -709,11 +690,9 @@ async def move_stake(
     if success_:
         if mev_protection:
             inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
                 extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
                 submit_block_hash=response.block_hash,
                 status=status,
             )
@@ -882,9 +861,7 @@ async def transfer_stake(
             amount=amount_to_transfer.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
-        subtensor.substrate.get_account_next_index(
-            proxy or wallet.coldkeypub.ss58_address
-        ),
+        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
 
     # Display stake movement details
@@ -929,11 +906,9 @@ async def transfer_stake(
         if success_:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status,
                 )
@@ -1112,9 +1087,7 @@ async def swap_stake(
             amount=amount_to_swap.rao,
         ),
         subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy),
-        subtensor.substrate.get_account_next_index(
-            proxy or wallet.coldkeypub.ss58_address
-        ),
+        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
     )
 
     # Display stake movement details
@@ -1169,11 +1142,9 @@ async def swap_stake(
         if success_:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status,
                 )

@@ -30,6 +30,7 @@ from bittensor_cli.src.bittensor.chain_data import (
     MetagraphInfo,
     SimSwapResult,
     CrowdloanData,
+    ColdkeySwapAnnouncementInfo,
 )
 from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -82,7 +83,7 @@ class SubtensorInterface:
     Thin layer for interacting with Substrate Interface. Mostly a collection of frequently-used calls.
     """
 
-    def __init__(self, network, use_disk_cache: bool = False):
+    def __init__(self, network, use_disk_cache: bool = True):
         if network in Constants.network_map:
             self.chain_endpoint = Constants.network_map[network]
             self.network = network
@@ -114,7 +115,7 @@ class SubtensorInterface:
                 self.network = defaults.subtensor.network
         substrate_class = (
             DiskCachedAsyncSubstrateInterface
-            if (use_disk_cache or os.getenv("DISK_CACHE", "0") == "1")
+            if (use_disk_cache or os.getenv("DISK_CACHE", "1") == "1")
             else AsyncSubstrateInterface
         )
         self.substrate = substrate_class(
@@ -443,11 +444,11 @@ class SubtensorInterface:
 
         :return: {address: Balance objects}
         """
-        sub_stakes = await self.get_stake_for_coldkeys(
-            list(ss58_addresses), block_hash=block_hash
+        sub_stakes, dynamic_info = await asyncio.gather(
+            self.get_stake_for_coldkeys(list(ss58_addresses), block_hash=block_hash),
+            # Token pricing info
+            self.all_subnets(block_hash=block_hash),
         )
-        # Token pricing info
-        dynamic_info = await self.all_subnets()
 
         results = {}
         for ss58, stake_info_list in sub_stakes.items():
@@ -1289,6 +1290,11 @@ class SubtensorInterface:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
             err_msg = format_error_message(e)
+            if mev_protection and "'result': 'invalid'" in str(e).lower():
+                err_msg = (
+                    f"MEV Shield extrinsic rejected as invalid. "
+                    f"This usually means the MEV Shield NextKey changed between fetching and submission."
+                )
             if proxy and "Invalid Transaction" in err_msg:
                 extrinsic_fee, signer_balance = await asyncio.gather(
                     self.get_extrinsic_fee(
@@ -1805,30 +1811,119 @@ class SubtensorInterface:
                 destination_netuid,
             )
 
-    async def get_scheduled_coldkey_swap(
+    async def get_coldkey_swap_announcements(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> Optional[list[str]]:
-        """
-        Queries the chain to fetch the list of coldkeys that are scheduled for a swap.
+    ) -> list[ColdkeySwapAnnouncementInfo]:
+        """Fetches all pending coldkey swap announcements.
 
-        :param block_hash: Block hash at which to perform query.
-        :param reuse_block: Whether to reuse the last-used block hash.
+        Args:
+            block_hash: Block hash at which to perform query.
+            reuse_block: Whether to reuse the last-used block hash.
 
-        :return: A list of SS58 addresses of the coldkeys that are scheduled for a coldkey swap.
+        Returns:
+            A list of ColdkeySwapAnnouncementInfo for all pending announcements.
         """
         result = await self.substrate.query_map(
             module="SubtensorModule",
-            storage_function="ColdkeySwapScheduled",
+            storage_function="ColdkeySwapAnnouncements",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
 
-        keys_pending_swap = []
-        async for ss58, _ in result:
-            keys_pending_swap.append(decode_account_id(ss58))
-        return keys_pending_swap
+        announcements = []
+        async for ss58, data in result:
+            coldkey = decode_account_id(ss58)
+            announcements.append(
+                ColdkeySwapAnnouncementInfo._fix_decoded(coldkey, data)
+            )
+        return announcements
+
+    async def get_coldkey_swap_announcement(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[ColdkeySwapAnnouncementInfo]:
+        """Fetches a pending coldkey swap announcement for a specific coldkey.
+
+        Args:
+            coldkey_ss58: The SS58 address of the coldkey to query.
+            block_hash: Block hash at which to perform query.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            ColdkeySwapAnnouncementInfo if an announcement exists, None otherwise.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapAnnouncements",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return None
+
+        return ColdkeySwapAnnouncementInfo._fix_decoded(coldkey_ss58, result)
+
+    async def get_coldkey_swap_disputes(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> list[tuple[str, int]]:
+        """Fetch all coldkey swap disputes.
+
+        Args:
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            list[tuple[str, int]]: Tuples of `(coldkey_ss58, disputed_block)`.
+        """
+        result = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        disputes: list[tuple[str, int]] = []
+        async for ss58, data in result:
+            coldkey = decode_account_id(ss58)
+            disputes.append((coldkey, data.value))
+        return disputes
+
+    async def get_coldkey_swap_dispute(
+        self,
+        coldkey_ss58: str,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Optional[int]:
+        """Fetch the disputed block for a given coldkey swap.
+
+        Args:
+            coldkey_ss58: Coldkey SS58 address.
+            block_hash: Optional block hash at which to query storage.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            int | None: Block number when disputed, or None if no dispute exists.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapDisputes",
+            params=[coldkey_ss58],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        if result is None:
+            return None
+
+        return int(result)
 
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
@@ -1925,30 +2020,120 @@ class SubtensorInterface:
             return Balance.from_rao(contribution)
         return None
 
-    async def get_coldkey_swap_schedule_duration(
+    async def get_crowdloan_contributors(
+        self,
+        crowdloan_id: int,
+        block_hash: Optional[str] = None,
+    ) -> dict[str, Balance]:
+        """Retrieves all contributors and their contributions for a specific crowdloan.
+
+        Args:
+            crowdloan_id (int): The ID of the crowdloan.
+            block_hash (Optional[str]): The blockchain block hash at which to perform the query.
+
+        Returns:
+            dict[str, Balance]: A dictionary mapping contributor SS58 addresses to their
+                contribution amounts as Balance objects.
+
+        This function queries the Contributions storage map with the crowdloan_id as the first key
+        to retrieve all contributors and their contribution amounts.
+        """
+        contributors_data = await self.substrate.query_map(
+            module="Crowdloan",
+            storage_function="Contributions",
+            params=[crowdloan_id],
+            block_hash=block_hash,
+            fully_exhaust=True,
+        )
+
+        contributor_contributions = {}
+        async for contributor_key, contribution_amount in contributors_data:
+            try:
+                contributor_address = decode_account_id(contributor_key[0])
+                contribution_balance = Balance.from_rao(contribution_amount.value)
+                contributor_contributions[contributor_address] = contribution_balance
+            except Exception:
+                continue
+
+        return contributor_contributions
+
+    async def get_coldkey_swap_announcement_delay(
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
     ) -> int:
-        """
-        Retrieves the duration (in blocks) required for a coldkey swap to be executed.
+        """Retrieves the delay (in blocks) before a coldkey swap can be executed.
+
+        This is the time the user must wait after announcing a coldkey swap
+        before they can execute the swap.
 
         Args:
             block_hash: The hash of the blockchain block number for the query.
             reuse_block: Whether to reuse the last-used blockchain block hash.
 
         Returns:
-            int: The number of blocks required for the coldkey swap schedule duration.
+            The number of blocks to wait after announcement.
         """
         result = await self.query(
             module="SubtensorModule",
-            storage_function="ColdkeySwapScheduleDuration",
+            storage_function="ColdkeySwapAnnouncementDelay",
             params=[],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
 
         return result
+
+    async def get_coldkey_swap_reannouncement_delay(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> int:
+        """Retrieves the delay (in blocks) before the user can reannounce a coldkey swap.
+
+        If the user has already announced a swap, they must wait this many blocks
+        after the original execution block before they can announce a new swap.
+
+        Args:
+            block_hash: The hash of the blockchain block number for the query.
+            reuse_block: Whether to reuse the last-used blockchain block hash.
+
+        Returns:
+            The number of blocks to wait before reannouncing.
+        """
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="ColdkeySwapReannouncementDelay",
+            params=[],
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+
+        return result
+
+    async def get_coldkey_swap_cost(
+        self,
+        block_hash: Optional[str] = None,
+        reuse_block: bool = False,
+    ) -> Balance:
+        """Retrieves the fee required to announce a coldkey swap.
+
+        Args:
+            block_hash: Block hash at which to query the constant.
+            reuse_block: Whether to reuse the last-used block hash.
+
+        Returns:
+            The swap cost as a Balance object. Returns 0 TAO if constant not found.
+        """
+        swap_cost = await self.substrate.get_constant(
+            module_name="SubtensorModule",
+            constant_name="KeySwapCost",
+            block_hash=block_hash,
+            reuse_block_hash=reuse_block,
+        )
+        if swap_cost is None:
+            return None
+        return Balance.from_rao(swap_cost.value)
 
     async def get_coldkey_claim_type(
         self,
@@ -2500,6 +2685,36 @@ class SubtensorInterface:
             )
 
         return public_key_bytes
+
+    async def compose_custom_crowdloan_call(
+        self,
+        pallet_name: str,
+        method_name: str,
+        call_params: dict,
+        block_hash: Optional[str] = None,
+    ) -> tuple[Optional[GenericCall], Optional[str]]:
+        """
+        Compose a custom Substrate call.
+
+        Args:
+            pallet_name: Name of the pallet/module
+            method_name: Name of the method/function
+            call_params: Dictionary of call parameters
+            block_hash: Optional block hash for the query
+
+        Returns:
+            Tuple of (GenericCall or None, error_message or None)
+        """
+        try:
+            call = await self.substrate.compose_call(
+                call_module=pallet_name,
+                call_function=method_name,
+                call_params=call_params,
+                block_hash=block_hash,
+            )
+            return call, None
+        except Exception as e:
+            return None, f"Failed to compose call: {str(e)}"
 
 
 async def best_connection(networks: list[str]):

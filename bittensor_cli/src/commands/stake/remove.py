@@ -10,13 +10,13 @@ from rich.table import Table
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     print_success,
     print_verbose,
     print_error,
@@ -449,21 +449,13 @@ async def unstake_all(
             if not unstake_all_alpha
             else "Unstaking Summary - All Alpha Stakes"
         )
-        table = Table(
+        table = create_table(
             title=(
                 f"\n[{COLOR_PALETTE.G.HEADER}]{table_title}[/{COLOR_PALETTE.G.HEADER}]\n"
                 f"Wallet: [{COLOR_PALETTE.G.COLDKEY}]{wallet.name}[/{COLOR_PALETTE.G.COLDKEY}], "
                 f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
                 f"Network: [{COLOR_PALETTE.G.HEADER}]{subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n"
             ),
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
         table.add_column("Netuid", justify="center", style="grey89")
         table.add_column(
@@ -615,6 +607,7 @@ async def _unstake_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -623,7 +616,7 @@ async def _unstake_extrinsic(
 
     current_balance, next_nonce, call = await asyncio.gather(
         subtensor.get_balance(coldkey_ss58),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -647,11 +640,9 @@ async def _unstake_extrinsic(
     if success:
         if mev_protection:
             inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
                 extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
                 submit_block_hash=response.block_hash,
                 status=status,
             )
@@ -720,6 +711,7 @@ async def _safe_unstake_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -730,7 +722,7 @@ async def _safe_unstake_extrinsic(
 
     current_balance, next_nonce, current_stake, call = await asyncio.gather(
         subtensor.get_balance(coldkey_ss58, block_hash),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
             coldkey_ss58=coldkey_ss58,
@@ -761,11 +753,9 @@ async def _safe_unstake_extrinsic(
     if success:
         if mev_protection:
             inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
                 extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
                 submit_block_hash=response.block_hash,
                 status=status,
             )
@@ -812,9 +802,7 @@ async def _safe_unstake_extrinsic(
             status=status,
         )
     else:
-        err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
-        )
+        err_out(f"\n{failure_prelude} with error: {err_msg}")
     return False, None
 
 
@@ -844,6 +832,7 @@ async def _unstake_all_extrinsic(
         f":cross_mark: [red]Failed[/red] to unstake all from {hotkey_name}"
     )
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -874,7 +863,7 @@ async def _unstake_all_extrinsic(
             call_function=call_function,
             call_params={"hotkey": hotkey_ss58},
         ),
-        subtensor.substrate.get_account_next_index(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
     )
     try:
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
@@ -892,11 +881,9 @@ async def _unstake_all_extrinsic(
 
         if mev_protection:
             inner_hash = err_msg
-            mev_shield_id = await extract_mev_shield_id(response)
             mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                 subtensor=subtensor,
                 extrinsic_hash=inner_hash,
-                shield_id=mev_shield_id,
                 submit_block_hash=response.block_hash,
                 status=status,
             )
@@ -1054,16 +1041,8 @@ async def _unstake_selection(
 
     # Display existing hotkeys, id, and staked netuids.
     subnet_filter = f" for Subnet {netuid}" if netuid is not None else ""
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Hotkeys with Stakes{subnet_filter}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Index", justify="right")
     table.add_column("Identity", style=COLOR_PALETTE.G.SUBHEAD)
@@ -1091,18 +1070,10 @@ async def _unstake_selection(
     netuid_stakes = hotkey_stakes[selected_hotkey_ss58]
 
     # Display hotkey's staked netuids with amount.
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n"
         f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n"
         f"{selected_hotkey_ss58}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Subnet", justify="right")
     table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
@@ -1340,16 +1311,8 @@ def _create_unstake_table(
         f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet_coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
         f"Network: {network}[/{COLOR_PALETTE.G.HEADER}]\n"
     )
-    table = Table(
+    table = create_table(
         title=title,
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column("Netuid", justify="center", style="grey89")
