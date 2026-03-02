@@ -1,4 +1,3 @@
-import hashlib
 from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
@@ -37,18 +36,15 @@ async def encrypt_extrinsic(
     plaintext = bytes(signed_extrinsic.data.data)
 
     # Encrypt using ML-KEM-768
-    ciphertext = encrypt_mlkem768(ml_kem_768_public_key, plaintext)
-
-    # Commitment: blake2_256(payload_core)
-    commitment_hash = hashlib.blake2b(plaintext, digest_size=32).digest()
-    commitment_hex = "0x" + commitment_hash.hex()
+    ciphertext = encrypt_mlkem768(
+        ml_kem_768_public_key, plaintext, include_key_hash=True
+    )
 
     # Create the MevShield.submit_encrypted call
     encrypted_call = await subtensor.substrate.compose_call(
         call_module="MevShield",
         call_function="submit_encrypted",
         call_params={
-            "commitment": commitment_hex,
             "ciphertext": ciphertext,
         },
     )
@@ -56,29 +52,9 @@ async def encrypt_extrinsic(
     return encrypted_call
 
 
-async def extract_mev_shield_id(response: "AsyncExtrinsicReceipt") -> Optional[str]:
-    """
-    Extract the MEV Shield wrapper ID from an extrinsic response.
-
-    After submitting a MEV Shield encrypted call, the EncryptedSubmitted event
-    contains the wrapper ID needed to track execution.
-
-    Args:
-        response: The extrinsic receipt from submit_extrinsic.
-
-    Returns:
-        The wrapper ID (hex string) or None if not found.
-    """
-    for event in await response.triggered_events:
-        if event["event_id"] == "EncryptedSubmitted":
-            return event["attributes"]["id"]
-    return None
-
-
 async def wait_for_extrinsic_by_hash(
     subtensor: "SubtensorInterface",
     extrinsic_hash: str,
-    shield_id: str,
     submit_block_hash: str,
     timeout_blocks: int = 2,
     status=None,
@@ -112,7 +88,7 @@ async def wait_for_extrinsic_by_hash(
         return True
 
     starting_block = await subtensor.substrate.get_block_number(submit_block_hash)
-    current_block = starting_block + 1
+    current_block = starting_block
 
     while current_block - starting_block <= timeout_blocks:
         if status:
@@ -136,20 +112,6 @@ async def wait_for_extrinsic_by_hash(
             if f"0x{extrinsic.extrinsic_hash.hex()}" == extrinsic_hash:
                 result_idx = idx
                 break
-
-            # Failure: Decryption failed
-            call = extrinsic.value.get("call", {})
-            if (
-                call.get("call_module") == "MevShield"
-                and call.get("call_function") == "mark_decryption_failed"
-            ):
-                call_args = call.get("call_args", [])
-                for arg in call_args:
-                    if arg.get("name") == "id" and arg.get("value") == shield_id:
-                        result_idx = idx
-                        break
-                if result_idx is not None:
-                    break
 
         if result_idx is not None:
             receipt = AsyncExtrinsicReceipt(
