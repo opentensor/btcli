@@ -11,12 +11,12 @@ from rich.prompt import Prompt
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
     print_error,
@@ -166,11 +166,9 @@ async def stake_add(
         else:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status_,
                 )
@@ -258,11 +256,9 @@ async def stake_add(
         else:
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status_,
                 )
@@ -652,19 +648,11 @@ def _define_stake_table(
     Returns:
         Table: An initialized rich Table object with appropriate columns
     """
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE.G.HEADER}]Staking to:\n"
         f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet.name}[/{COLOR_PALETTE.G.CK}], "
         f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE.G.CK}]\n"
         f"Network: {subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column("Netuid", justify="center", style="grey89")

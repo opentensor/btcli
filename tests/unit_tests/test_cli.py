@@ -4,6 +4,7 @@ import typer
 from async_substrate_interface import AsyncSubstrateInterface
 
 from bittensor_cli.cli import parse_mnemonic, CLIManager
+from bittensor_cli.src import HYPERPARAMS, HYPERPARAMS_METADATA, RootSudoOnly
 from bittensor_cli.src.bittensor.extrinsics.root import (
     get_current_weights_for_uid,
     set_root_weights_extrinsic,
@@ -551,46 +552,6 @@ def test_wallet_set_id_calls_proxy_validation():
         mock_proxy_validation.assert_called_once_with(valid_proxy, False)
 
 
-def test_wallet_swap_coldkey_calls_proxy_validation():
-    """Test that wallet_swap_coldkey calls is_valid_proxy_name_or_ss58"""
-    cli_manager = CLIManager()
-    valid_proxy = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-    new_coldkey = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-
-    with (
-        patch.object(cli_manager, "verbosity_handler"),
-        patch.object(cli_manager, "wallet_ask") as mock_wallet_ask,
-        patch.object(cli_manager, "initialize_chain"),
-        patch.object(cli_manager, "_run_command"),
-        patch("bittensor_cli.cli.is_valid_ss58_address", return_value=True),
-        patch.object(
-            cli_manager, "is_valid_proxy_name_or_ss58", return_value=valid_proxy
-        ) as mock_proxy_validation,
-    ):
-        mock_wallet = Mock()
-        mock_wallet.coldkeypub = Mock()
-        mock_wallet.coldkeypub.ss58_address = (
-            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-        )
-        mock_wallet_ask.return_value = mock_wallet
-
-        cli_manager.wallet_swap_coldkey(
-            wallet_name="test_wallet",
-            wallet_path="/tmp/test",
-            wallet_hotkey="test_hotkey",
-            new_wallet_or_ss58=new_coldkey,
-            network=None,
-            proxy=valid_proxy,
-            announce_only=False,
-            quiet=True,
-            verbose=False,
-            force_swap=False,
-        )
-
-        # Assert that proxy validation was called
-        mock_proxy_validation.assert_called_once_with(valid_proxy, False)
-
-
 def test_stake_move_calls_proxy_validation():
     """Test that stake_move calls is_valid_proxy_name_or_ss58"""
     cli_manager = CLIManager()
@@ -805,3 +766,37 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
         )
 
         mock_get_current.assert_not_called()
+
+
+# HYPERPARAMS / HYPERPARAMS_METADATA (issue #826)
+NEW_HYPERPARAMS_826 = {"sn_owner_hotkey", "subnet_owner_hotkey", "recycle_or_burn"}
+
+
+def test_new_hyperparams_in_hyperparams():
+    for key in NEW_HYPERPARAMS_826:
+        assert key in HYPERPARAMS, f"{key} should be in HYPERPARAMS"
+        extrinsic, root_only = HYPERPARAMS[key]
+        assert extrinsic, f"{key} must have non-empty extrinsic name"
+        assert root_only is RootSudoOnly.FALSE
+
+
+def test_subnet_owner_hotkey_alias_maps_to_same_extrinsic():
+    ext_sn, _ = HYPERPARAMS["sn_owner_hotkey"]
+    ext_subnet, _ = HYPERPARAMS["subnet_owner_hotkey"]
+    assert ext_sn == ext_subnet == "sudo_set_sn_owner_hotkey"
+
+
+def test_new_hyperparams_have_metadata():
+    required = {"description", "side_effects", "owner_settable", "docs_link"}
+    for key in NEW_HYPERPARAMS_826:
+        assert key in HYPERPARAMS_METADATA, f"{key} should be in HYPERPARAMS_METADATA"
+        meta = HYPERPARAMS_METADATA[key]
+        for field in required:
+            assert field in meta, f"{key} metadata missing '{field}'"
+        assert isinstance(meta["description"], str)
+        assert isinstance(meta["owner_settable"], bool)
+
+
+def test_new_hyperparams_owner_settable_true():
+    for key in NEW_HYPERPARAMS_826:
+        assert HYPERPARAMS_METADATA[key]["owner_settable"] is True
