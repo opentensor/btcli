@@ -1249,6 +1249,9 @@ class SubtensorInterface:
             )
         inner_hash = ""
         if mev_protection:
+            max_mev_era = 8
+            if era is not None and era["period"] > max_mev_era:
+                era = {"period": max_mev_era}
             next_nonce = await self.substrate.get_account_next_index(
                 keypair.ss58_address
             )
