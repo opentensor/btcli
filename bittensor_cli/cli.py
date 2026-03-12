@@ -6368,6 +6368,7 @@ class CLIManager:
             ask_for=[WO.NAME, WO.HOTKEY],
             validate=WV.WALLET_AND_HOTKEY,
         )
+
         logger.debug(
             "args:\n"
             f"network: {network}\n"
