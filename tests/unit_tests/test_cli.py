@@ -800,3 +800,213 @@ def test_new_hyperparams_have_metadata():
 def test_new_hyperparams_owner_settable_true():
     for key in NEW_HYPERPARAMS_826:
         assert HYPERPARAMS_METADATA[key]["owner_settable"] is True
+
+
+# ============================================================================
+# Tests for proxy_remove command
+# ============================================================================
+
+
+@patch("bittensor_cli.cli.print_error")
+def test_proxy_remove_requires_delegate_or_all(mock_print_error):
+    """Test that proxy_remove requires either --delegate or --all flag"""
+    cli_manager = CLIManager()
+
+    # Test without delegate and without --all (should fail)
+    cli_manager.proxy_remove(
+        delegate=None,
+        all=False,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=False,
+    )
+
+    # Should print error message
+    mock_print_error.assert_called_once_with(
+        "Either --delegate must be provided or --all flag must be used."
+    )
+
+
+@patch("bittensor_cli.cli.json_console")
+def test_proxy_remove_requires_delegate_or_all_json(mock_json_console):
+    """Test that proxy_remove requires either --delegate or --all flag (JSON output)"""
+    cli_manager = CLIManager()
+
+    # Test without delegate and without --all (should fail with JSON output)
+    cli_manager.proxy_remove(
+        delegate=None,
+        all=False,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=True,
+    )
+
+    # Should print JSON error
+    mock_json_console.print_json.assert_called_once()
+    call_args = mock_json_console.print_json.call_args[1]["data"]
+    assert call_args["success"] is False
+    assert (
+        "Either --delegate must be provided or --all flag must be used."
+        in call_args["message"]
+    )
+    assert call_args["extrinsic_identifier"] is None
+
+
+@patch("bittensor_cli.cli.print_error")
+def test_proxy_remove_with_all_and_delegate_errors(mock_print_error):
+    """Test that proxy_remove with both --all and --delegate flags returns an error"""
+    cli_manager = CLIManager()
+    valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+
+    cli_manager.proxy_remove(
+        delegate=valid_ss58,
+        all=True,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=False,
+    )
+
+    # Should show error that --delegate cannot be used with --all
+    mock_print_error.assert_called_once_with(
+        "--delegate cannot be used together with --all flag."
+    )
+
+
+@patch("bittensor_cli.cli.proxy_commands")
+def test_proxy_remove_with_all_flag(mock_proxy_commands):
+    """Test that proxy_remove with --all flag calls remove_proxy with remove_all=True"""
+    cli_manager = CLIManager()
+    mock_wallet = Mock()
+    mock_subtensor = Mock()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli_manager, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+    ):
+        cli_manager.proxy_remove(
+            delegate=None,
+            all=True,
+            network=None,
+            proxy_type="Transfer",
+            delay=0,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=100,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Should call remove_proxy with remove_all=True
+        mock_proxy_commands.remove_proxy.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=None,
+            proxy_type="Transfer",
+            delay=0,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=100,
+            json_output=False,
+            remove_all=True,
+        )
+
+        # Should call _run_command with the result
+        mock_run_command.assert_called_once()
+
+
+@patch("bittensor_cli.cli.proxy_commands")
+def test_proxy_remove_with_delegate_calls_remove_proxy(mock_proxy_commands):
+    """Test that proxy_remove with --delegate calls remove_proxy with correct parameters"""
+    cli_manager = CLIManager()
+    valid_delegate = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    mock_wallet = Mock()
+    mock_subtensor = Mock()
+
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli_manager, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+    ):
+        cli_manager.proxy_remove(
+            delegate=valid_delegate,
+            all=False,
+            network=None,
+            proxy_type="Transfer",
+            delay=10,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=100,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
+
+        # Should call remove_proxy with correct parameters
+        mock_proxy_commands.remove_proxy.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=valid_delegate,
+            proxy_type="Transfer",
+            delay=10,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            period=100,
+            json_output=False,
+            remove_all=False,
+        )
+
+        # Should call _run_command with the result
+        mock_run_command.assert_called_once()

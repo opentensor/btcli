@@ -167,9 +167,11 @@ async def stake_list(
         root_stakes = [s for s in substakes_ if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes_ if s.netuid != 0],
-            key=lambda x: dynamic_info[x.netuid]
-            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
-            .tao,
+            key=lambda x: (
+                dynamic_info[x.netuid]
+                .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+                .tao
+            ),
             reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
@@ -328,9 +330,11 @@ async def stake_list(
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info_for_lt[x.netuid]
-            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
-            .tao,
+            key=lambda x: (
+                dynamic_info_for_lt[x.netuid]
+                .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+                .tao
+            ),
             reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
