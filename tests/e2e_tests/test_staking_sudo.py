@@ -103,6 +103,7 @@ def test_staking(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output = json.loads(result.stdout)
@@ -141,6 +142,7 @@ def test_staking(local_chain, wallet_setup):
             "https://testsubnet.com/logo.png",
             "--no-prompt",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     result_output_second = json.loads(result_for_second_repo.stdout)
@@ -349,6 +351,7 @@ def test_staking(local_chain, wallet_setup):
                 "--no-prompt",
                 "--era",
                 "144",
+                "--no-mev-protection",
             ],
         )
         assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
@@ -376,6 +379,7 @@ def test_staking(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Finalized" in add_stake_single.stdout, add_stake_single.stderr
@@ -446,6 +450,7 @@ def test_staking(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "144",
+            "--no-mev-protection",
         ],
     )
     assert "✅ Finalized" in remove_stake.stdout
@@ -476,6 +481,7 @@ def test_staking(local_chain, wallet_setup):
             "--era",
             "32",
             "--json-output",
+            "--no-mev-protection",
         ],
     )
     add_stake_multiple_output = json.loads(add_stake_multiple.stdout)
