@@ -14,7 +14,7 @@ from bittensor_cli.src.bittensor.json_utils import (
     json_success,
     json_error,
     serialize_balance,
-    transaction_response,
+    _transaction_response,
     TransactionResult,
     MultiTransactionResult,
 )
@@ -132,7 +132,7 @@ class TestTransactionResponse:
 
     def test_successful_transaction(self):
         """Test successful transaction response."""
-        result = transaction_response(
+        result = _transaction_response(
             success=True,
             message="Transfer successful",
             extrinsic_identifier="12345678-2",
@@ -144,7 +144,7 @@ class TestTransactionResponse:
 
     def test_failed_transaction(self):
         """Test failed transaction response."""
-        result = transaction_response(success=False, message="Insufficient balance")
+        result = _transaction_response(success=False, message="Insufficient balance")
 
         assert result["success"] is False
         assert result["message"] == "Insufficient balance"
@@ -152,7 +152,7 @@ class TestTransactionResponse:
 
     def test_transaction_without_message(self):
         """Test transaction without message."""
-        result = transaction_response(success=True, extrinsic_identifier="12345678-3")
+        result = _transaction_response(success=True, extrinsic_identifier="12345678-3")
 
         assert result["success"] is True
         assert result["message"] is None
@@ -281,8 +281,8 @@ class TestJsonOutputConsistency:
 
     def test_transaction_response_schema(self):
         """Verify transaction responses have consistent schema."""
-        success_result = transaction_response(True, "OK", "123-1")
-        fail_result = transaction_response(False, "Failed", None)
+        success_result = _transaction_response(True, "OK", "123-1")
+        fail_result = _transaction_response(False, "Failed", None)
 
         # Both should have all three keys
         for result in [success_result, fail_result]:

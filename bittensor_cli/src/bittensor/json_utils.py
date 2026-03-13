@@ -7,15 +7,15 @@ All JSON outputs should use these utilities to ensure schema compliance.
 Standard Transaction Response Format:
 {
     "success": bool,                    # Required: Whether the operation succeeded
-    "message": str | None,              # Optional: Human-readable message
+    "message": str,                     # Optional: Human-readable message
     "extrinsic_identifier": str | None  # Optional: Block-extrinsic ID (e.g., "12345-2")
 }
 
 Standard Data Response Format:
 {
-    "success": bool,       # Required: Whether the operation succeeded
-    "data": {...},         # Optional: Command-specific response data
-    "error": str           # Optional: Error message if success=False
+    "success": bool,                    # Required: Whether the operation succeeded
+    "data": list | dict | None,         # Optional: Command-specific response data
+    "error": str | None                 # Optional: Error message if success=False
 }
 """
 
@@ -29,7 +29,7 @@ json_console = Console(
 )
 
 
-def transaction_response(
+def _transaction_response(
     success: bool,
     message: Optional[str] = None,
     extrinsic_identifier: Optional[str] = None,
@@ -52,6 +52,7 @@ def transaction_response(
     }
 
 
+# TODO remove
 def print_transaction_response(
     success: bool,
     message: Optional[str] = None,
@@ -66,7 +67,7 @@ def print_transaction_response(
         extrinsic_identifier: The extrinsic ID (e.g., "12345678-2")
     """
     json_console.print_json(
-        data=transaction_response(success, message, extrinsic_identifier)
+        data=_transaction_response(success, message, extrinsic_identifier)
     )
 
 
@@ -90,7 +91,7 @@ class TransactionResult:
 
     def as_dict(self) -> dict[str, Any]:
         """Return the response as a dictionary."""
-        return transaction_response(
+        return _transaction_response(
             self.success,
             self.message,
             self.extrinsic_identifier,
@@ -134,6 +135,20 @@ class MultiTransactionResult:
         json_console.print_json(data=self.as_dict())
 
 
+def print_json_response(
+    success: bool,
+    *,
+    data: Any = None,
+    error: Optional[str] = None,
+) -> None:
+    """
+    Prints a standardized JSON response string for non-trnasaction data.
+    """
+    _data = {"success": success, "data": data, "error": error}
+    json_console.print_json(data=_data)
+
+
+# TODO make private also what the fuck is the point?
 def json_response(
     success: bool,
     data: Optional[Any] = None,
@@ -168,6 +183,7 @@ def json_response(
     return json.dumps(response)
 
 
+# TODO remove
 def json_success(data: Any) -> str:
     """
     Create a successful JSON response string.
@@ -181,6 +197,7 @@ def json_success(data: Any) -> str:
     return json_response(success=True, data=data)
 
 
+# TODO remove
 def json_error(error: str, data: Optional[Any] = None) -> str:
     """
     Create an error JSON response string.
@@ -195,29 +212,7 @@ def json_error(error: str, data: Optional[Any] = None) -> str:
     return json_response(success=False, data=data, error=error)
 
 
-def print_json(response: Any) -> None:
-    """
-    Print a JSON string response to the console.
-
-    Args:
-        response: JSON string to print
-    """
-    if isinstance(response, str):
-        json_console.print(response)
-    else:
-        json_console.print_json(data=response)
-
-
-def print_json_success(data: Any) -> None:
-    """
-    Print a successful JSON response.
-
-    Args:
-        data: Response data to include
-    """
-    print_json(json_success(data))
-
-
+# TODO remove
 def print_json_error(error: str, data: Optional[Any] = None) -> None:
     """
     Print an error JSON response.
@@ -229,6 +224,7 @@ def print_json_error(error: str, data: Optional[Any] = None) -> None:
     print_json(json_error(error, data))
 
 
+# TODO remove
 def print_json_data(data: Any) -> None:
     """
     Print data directly as JSON (for simple data responses).
@@ -239,6 +235,7 @@ def print_json_data(data: Any) -> None:
     json_console.print_json(data=data)
 
 
+# TODO remove
 def print_transaction_with_data(
     success: bool,
     message: Optional[str] = None,

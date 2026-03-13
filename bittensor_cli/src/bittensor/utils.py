@@ -6,7 +6,7 @@ import os
 import sqlite3
 import sys
 import webbrowser
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
@@ -35,8 +35,8 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import defaults, Constants
 from bittensor_cli.src.bittensor.json_utils import (
     json_console,
-    print_json_error,
     print_json_success,
+    print_json_response,
 )
 
 json_console = json_console
@@ -210,18 +210,14 @@ def print_verbose(message: str, status=None):
 def print_error(message: str, status=None, *, json_output: bool = False):
     """Print error messages while temporarily pausing the status spinner."""
     error_message = f":cross_mark: {message}"
-    if status:
+    with suppress(AttributeError):
         status.stop()
-        if json_output:
-            print_json_error(message)
-        else:
-            print_console(error_message, "red", err_console)
-        status.start()
+    if json_output:
+        print_json_response(False, error=message)
     else:
-        if json_output:
-            print_json_error(message)
-        else:
-            print_console(error_message, "red", err_console)
+        print_console(error_message, "red", err_console)
+    with suppress(AttributeError):
+        status.start()
 
 
 def print_success(message: str, status=None, *, json_output: bool = False):
