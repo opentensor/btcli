@@ -69,7 +69,7 @@ def _chr_str(codes: tuple[int]) -> str:
     return "".join(map(chr, codes))
 
 
-def process_nested(data: Union[tuple, dict], chr_transform):
+def process_nested(data: Union[tuple, dict], chr_transform) -> list:
     """Processes nested data structures by applying a transformation function to their elements."""
     if isinstance(data, (list, tuple)):
         if len(data) > 0 and isinstance(data[0], dict):
