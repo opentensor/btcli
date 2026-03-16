@@ -641,8 +641,8 @@ def get_creation_data(
     return mnemonic, seed, json_path, json_password
 
 
-def config_selector(conf: dict, title: str) -> None:
-    def curses_selector(stdscr) -> None:
+def config_selector(conf: dict[str, bool], title: str) -> dict[str, bool]:
+    def curses_selector(stdscr) -> dict[str, bool]:
         """
         Enhanced Curses TUI to make selections.
         """
