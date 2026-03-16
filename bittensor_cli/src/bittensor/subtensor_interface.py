@@ -297,7 +297,7 @@ class SubtensorInterface:
         self,
         hotkey_ss58: str,
         coldkey_ss58: str,
-        netuid: Optional[int] = None,
+        netuid: int,
         block_hash: Optional[str] = None,
     ) -> Balance:
         """
@@ -305,42 +305,18 @@ class SubtensorInterface:
 
         :param hotkey_ss58: The SS58 address of the hotkey.
         :param coldkey_ss58: The SS58 address of the coldkey.
-        :param netuid: The subnet ID to filter by. If provided, only returns stake for this specific
-            subnet.
+        :param netuid: The subnet ID for the stake query.
         :param block_hash: The block hash at which to query the stake information.
 
         :return: Balance: The stake under the coldkey - hotkey pairing.
         """
-        alpha_shares, hotkey_alpha, hotkey_shares = await asyncio.gather(
-            self.query(
-                module="SubtensorModule",
-                storage_function="Alpha",
-                params=[hotkey_ss58, coldkey_ss58, netuid],
-                block_hash=block_hash,
-            ),
-            self.query(
-                module="SubtensorModule",
-                storage_function="TotalHotkeyAlpha",
-                params=[hotkey_ss58, netuid],
-                block_hash=block_hash,
-            ),
-            self.query(
-                module="SubtensorModule",
-                storage_function="TotalHotkeyShares",
-                params=[hotkey_ss58, netuid],
-                block_hash=block_hash,
-            ),
+        result = await self.query_runtime_api(
+            runtime_api="StakeInfoRuntimeApi",
+            method="get_stake_info_for_hotkey_coldkey_netuid",
+            params=[hotkey_ss58, coldkey_ss58, netuid],
+            block_hash=block_hash,
         )
-
-        alpha_shares_as_float = fixed_to_float(alpha_shares or 0)
-        hotkey_shares_as_float = fixed_to_float(hotkey_shares or 0)
-
-        if hotkey_shares_as_float == 0:
-            return Balance.from_rao(0).set_unit(netuid=netuid)
-
-        stake = alpha_shares_as_float / hotkey_shares_as_float * (hotkey_alpha or 0)
-
-        return Balance.from_rao(int(stake)).set_unit(netuid=netuid)
+        return StakeInfo.from_any(result).stake
 
     # Alias
     get_stake = get_stake_for_coldkey_and_hotkey
