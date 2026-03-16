@@ -1467,25 +1467,6 @@ class SubtensorInterface:
 
         return all_delegates_details
 
-    async def get_stake_for_coldkey_and_hotkey_on_netuid(
-        self,
-        hotkey_ss58: str,
-        coldkey_ss58: str,
-        netuid: int,
-        block_hash: Optional[str] = None,
-    ) -> "Balance":
-        """Returns the stake under a coldkey - hotkey - netuid pairing"""
-        _result = await self.query(
-            "SubtensorModule",
-            "Alpha",
-            [hotkey_ss58, coldkey_ss58, netuid],
-            block_hash,
-        )
-        if _result is None:
-            return Balance(0).set_unit(netuid)
-        else:
-            return Balance.from_rao(fixed_to_float(_result)).set_unit(int(netuid))
-
     async def get_mechagraph_info(
         self, netuid: int, mech_id: int, block_hash: Optional[str] = None
     ) -> Optional[MetagraphInfo]:
@@ -2366,7 +2347,7 @@ class SubtensorInterface:
             After manual claim, claimable (available) stake will be added to subnet stake.
         """
         root_stake, root_claimable_rate, root_claimed = await asyncio.gather(
-            self.get_stake_for_coldkey_and_hotkey_on_netuid(
+            self.get_stake(
                 coldkey_ss58=coldkey_ss58,
                 hotkey_ss58=hotkey_ss58,
                 netuid=0,
