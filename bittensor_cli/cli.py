@@ -641,8 +641,8 @@ def get_creation_data(
     return mnemonic, seed, json_path, json_password
 
 
-def config_selector(conf: dict, title: str):
-    def curses_selector(stdscr):
+def config_selector(conf: dict[str, bool], title: str) -> dict[str, bool]:
+    def curses_selector(stdscr) -> dict[str, bool]:
         """
         Enhanced Curses TUI to make selections.
         """
@@ -698,7 +698,7 @@ def config_selector(conf: dict, title: str):
     return curses.wrapper(curses_selector)
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """
     Prints the current version/branch-name
     """
@@ -716,7 +716,7 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
-def commands_callback(value: bool):
+def commands_callback(value: bool) -> None:
     """
     Prints a tree of commands for the app
     """
@@ -726,7 +726,7 @@ def commands_callback(value: bool):
         raise typer.Exit()
 
 
-def debug_callback(value: bool):
+def debug_callback(value: bool) -> None:
     if value:
         debug_file_loc = Path(
             os.getenv("BTCLI_DEBUG_FILE")
@@ -1389,7 +1389,7 @@ class CLIManager:
         Generates a rich.Tree of the commands, subcommands, and groups of this app
         """
 
-        def build_rich_tree(data: dict, parent: Tree):
+        def build_rich_tree(data: dict, parent: Tree) -> None:
             for group, content in data.get("groups", {}).items():
                 group_node = parent.add(
                     f"[bold cyan]{group}[/]"
@@ -1943,7 +1943,7 @@ class CLIManager:
         with open(self.config_path, "w") as f:
             safe_dump(self.config, f)
 
-    def get_config(self):
+    def get_config(self) -> None:
         """
         Prints the current config file in a table.
         """
@@ -2079,7 +2079,7 @@ class CLIManager:
             print_error(f"Proxy {name} not found in address book.")
         self.config_get_proxies()
 
-    def config_get_proxies(self):
+    def config_get_proxies(self) -> None:
         """
         Displays the current proxies address book
 
@@ -2228,7 +2228,7 @@ class CLIManager:
             console.print("Proxy updated")
             self.config_get_proxies()
 
-    def config_clear_proxy_book(self):
+    def config_clear_proxy_book(self) -> None:
         """
         Clears the proxy address book. Use with caution.
         Really only useful if you have corrupted your proxy address book.
@@ -10275,11 +10275,11 @@ class CLIManager:
                 )
         return True
 
-    def run(self):
+    def run(self) -> None:
         self.app()
 
 
-def main():
+def main() -> None:
     manager = CLIManager()
     manager.run()
 
