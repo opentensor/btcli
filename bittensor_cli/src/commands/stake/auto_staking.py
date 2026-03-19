@@ -4,12 +4,12 @@ from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
 from rich import box
-from rich.table import Table
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
+    create_table,
     json_console,
     print_success,
     get_subnet_name,
@@ -127,7 +127,7 @@ async def show_auto_stake_destinations(
         json_console.print(json.dumps(data_output))
         return data_output
 
-    table = Table(
+    table = create_table(
         title=(
             f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Auto Stake Destinations"
             f" for [bold]{coldkey_display}[/bold]\n"
@@ -135,13 +135,6 @@ async def show_auto_stake_destinations(
             f"Coldkey: {coldkey_ss58}\n"
             f"[/{COLOR_PALETTE['GENERAL']['HEADER']}]"
         ),
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
         box=box.SIMPLE_HEAD,
     )
 
@@ -214,18 +207,11 @@ async def set_auto_stake_destination(
             hotkey_identity = delegate_info.display
 
     if prompt_user and not json_output:
-        table = Table(
+        table = create_table(
             title=(
                 f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Confirm Auto-Stake Destination"
                 f"[/{COLOR_PALETTE['GENERAL']['HEADER']}]"
             ),
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
             box=box.SIMPLE_HEAD,
         )
         table.add_column(

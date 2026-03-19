@@ -20,7 +20,6 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from rich.live import Live
@@ -30,6 +29,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_and_populate_table,
+    create_table,
     print_success,
     print_verbose,
     print_error,
@@ -271,11 +271,9 @@ async def register_subnetwork_extrinsic(
             # Check for MEV shield execution
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status,
                 )
@@ -364,17 +362,9 @@ async def subnets_list(
         tao_emission_percentage: str,
         total_tao_flow_ema: float,
     ):
-        defined_table = Table(
+        defined_table = create_table(
             title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         defined_table.add_column(
@@ -602,7 +592,7 @@ async def subnets_list(
             tao_flow_ema = None
             if netuid in ema_tao_inflow:
                 tao_flow_ema = ema_tao_inflow[netuid].tao
-                total_tao_flow_ema += tao_flow_ema.tao
+                total_tao_flow_ema += tao_flow_ema
             subnet_rows[netuid] = {
                 "netuid": netuid,
                 "subnet_name": subnet_name,
@@ -1095,17 +1085,9 @@ async def show(
 
         tao_sum = sum(root_state.tao_stake).tao
 
-        table = Table(
+        table = create_table(
             title=f"[{COLOR_PALETTE.G.HEADER}]Root Network\n[{COLOR_PALETTE.G.SUBHEAD}]"
             f"Network: {subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         table.add_column("[bold white]Position", style="white", justify="center")
@@ -1340,18 +1322,10 @@ async def show(
         # Define table properties
         mechanism_label = f"Mechanism {selected_mechanism_id}"
 
-        table = Table(
+        table = create_table(
             title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}"
             f"{': ' + get_subnet_name(subnet_info)}"
             f"\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network} • {mechanism_label}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         # For table footers
@@ -1892,22 +1866,13 @@ async def register(
         return
 
     if prompt and not json_output:
-        # TODO make this a reusable function, also used in subnets list
         # Show creation table.
-        table = Table(
+        table = create_table(
             title=(
                 f"\n[{COLOR_PALETTE.G.HEADER}]"
                 f"Register to [{COLOR_PALETTE.G.SUBHEAD}]netuid: {netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
                 f"\nNetwork: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n"
             ),
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
         table.add_column(
             "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
@@ -2476,16 +2441,8 @@ async def metagraph_cmd(
                 table_cols_indices.append(idx)
                 table_cols.append(v)
 
-        table = Table(
+        table = create_table(
             *table_cols,
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_style="bold white",
-            title_justify="center",
-            show_lines=False,
             expand=True,
             title=(
                 f"[underline dark_orange]Metagraph[/underline dark_orange]\n\n"
@@ -2496,7 +2453,6 @@ async def metagraph_cmd(
                 f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
                 f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
             ),
-            pad_edge=True,
         )
 
         if all(x is False for x in display_cols.values()):
@@ -2521,7 +2477,7 @@ def create_identity_table(title: str = None):
     if not title:
         title = "Subnet Identity"
 
-    table = Table(
+    table = create_table(
         Column(
             "Item",
             justify="right",
@@ -2530,14 +2486,6 @@ def create_identity_table(title: str = None):
         ),
         Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     return table
 

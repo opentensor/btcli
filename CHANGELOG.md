@@ -1,5 +1,53 @@
 # Changelog
 
+## 9.19.0 /2026-03-02
+
+## What's Changed
+* fix: JSON output empty for `btcli subnets list --json-out` command by @GlobalStar117 in https://github.com/opentensor/btcli/pull/800
+* fix: disable wallet history command due to external API deprecation by @jose-blockchain in https://github.com/opentensor/btcli/pull/811
+* Reusable `create_table()` Utility for Consistent Table Styling by @eureka928 in https://github.com/opentensor/btcli/pull/790
+* fix: replace broad exception catches with specific exception types by @Achieve3318 in https://github.com/opentensor/btcli/pull/773
+* Improve disk caching by @thewhaleking in https://github.com/opentensor/btcli/pull/682
+* Feat/rework ck swap by @ibraheem-abe in https://github.com/opentensor/btcli/pull/792
+* Error message handled properly by @thewhaleking in https://github.com/opentensor/btcli/pull/814
+* Backmerge/9181 by @ibraheem-abe in https://github.com/opentensor/btcli/pull/816
+* Adds more to the debug section of the readme by @thewhaleking in https://github.com/opentensor/btcli/pull/817
+* Fix/proxy stake add remove by @ibraheem-abe in https://github.com/opentensor/btcli/pull/819
+* Fix/update proxy usage stuff by @ibraheem-abe in https://github.com/opentensor/btcli/pull/820
+* Feat: Add help cmd alias by @ibraheem-abe in https://github.com/opentensor/btcli/pull/821
+* Backmerge/9.18.1 by @ibraheem-abe in https://github.com/opentensor/btcli/pull/823
+* Feat/balancer swap updates by @ibraheem-abe in https://github.com/opentensor/btcli/pull/813
+* Handle different types in `sudo set` with arbitrary hyperparams by @thewhaleking in https://github.com/opentensor/btcli/pull/825
+* Update: Python 3.9 End of Life by @ibraheem-abe in https://github.com/opentensor/btcli/pull/829
+* Optimises the workflow for ruff. by @thewhaleking in https://github.com/opentensor/btcli/pull/831
+* Optimises the workflow for ruff. by @thewhaleking in https://github.com/opentensor/btcli/pull/832
+* feat: Add hyperparams: sudo_set_sn_owner_hotkey, sudo_set_subnet_owner_hotkey, sudo_set_recycle_or_burn by @MkDev11 in https://github.com/opentensor/btcli/pull/827
+* subnet buyback / stake-burn by @ibraheem-abe in https://github.com/opentensor/btcli/pull/818
+* Fix: Update test_stake_burn by @ibraheem-abe in https://github.com/opentensor/btcli/pull/837
+* Feat: Updated MevShield mechanics  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/828
+* docs: fix typo in README (pacakge → package) by @GeObts in https://github.com/opentensor/btcli/pull/839
+* Fix: Remove old mev_shield artifact from stake_burn by @ibraheem-abe in https://github.com/opentensor/btcli/pull/842
+* Revert "Feat/balancer swap updates" by @ibraheem-abe in https://github.com/opentensor/btcli/pull/836
+* Update/CK swap error handling by @ibraheem-abe in https://github.com/opentensor/btcli/pull/844
+* Tests: Add custom tags for docker images in e2e  by @ibraheem-abe in https://github.com/opentensor/btcli/pull/848
+* Update: Cap MeV shield txs era to 8 by @ibraheem-abe in https://github.com/opentensor/btcli/pull/850
+* Update: Enforce era 'always' for mev_shield txs by @ibraheem-abe in https://github.com/opentensor/btcli/pull/851
+* Adds max_allowed_uids hyperparam for setting by @thewhaleking in https://github.com/opentensor/btcli/pull/852
+* Applies type hint to to `process_nested` by @thewhaleking in https://github.com/opentensor/btcli/pull/856
+* Update/runtime update by @ibraheem-abe in https://github.com/opentensor/btcli/pull/857
+* feat: add support for the `--all` to proxy remove by @eureka928 in https://github.com/opentensor/btcli/pull/834
+* Adds signed commits info to docs by @thewhaleking in https://github.com/opentensor/btcli/pull/859
+* Add better typing by @thewhaleking in https://github.com/opentensor/btcli/pull/858
+* Update: Pin btwallet requirement by @ibraheem-abe in https://github.com/opentensor/btcli/pull/864
+
+## New Contributors
+* @GlobalStar117 made their first contribution in https://github.com/opentensor/btcli/pull/800
+* @jose-blockchain made their first contribution in https://github.com/opentensor/btcli/pull/811
+* @Achieve3318 made their first contribution in https://github.com/opentensor/btcli/pull/773
+* @GeObts made their first contribution in https://github.com/opentensor/btcli/pull/839
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.18.1...v9.19.0
+
 ## 9.18.1 /2026-02-05
 
 ## What's Changed
