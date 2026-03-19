@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 from enum import Enum
 from typing import Optional, Any, Union, Callable, Hashable
+from typing_extensions import Self
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
@@ -134,17 +135,17 @@ class InfoBase:
     """Base dataclass for info objects."""
 
     @abstractmethod
-    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+    def _fix_decoded(self, decoded: Any) -> Self:
         raise NotImplementedError(
             "This is an abstract method and must be implemented in a subclass."
         )
 
     @classmethod
-    def from_any(cls, data: Any) -> "InfoBase":
+    def from_any(cls, data: Any) -> Self:
         return cls._fix_decoded(data)
 
     @classmethod
-    def list_from_any(cls, data_list: list[Any]) -> list["InfoBase"]:
+    def list_from_any(cls, data_list: list[Any]) -> list[Self]:
         return [cls.from_any(data) for data in data_list]
 
     def __getitem__(self, item):

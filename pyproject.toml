@@ -42,6 +42,7 @@ dependencies = [
     "rich>=13.7,<15.0",
     "scalecodec==1.2.12",
     "typer>=0.16",
+    "typing_extensions>4.0.0",
     "bittensor-wallet>=4.0.0",
     "packaging",
     "plotille>=5.0.0",
