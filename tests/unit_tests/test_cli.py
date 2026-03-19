@@ -807,13 +807,75 @@ def test_new_hyperparams_owner_settable_true():
 # ============================================================================
 
 
+@patch("bittensor_cli.cli.print_error")
+def test_proxy_remove_errors_without_delegate_or_all_no_prompt(mock_print_error):
+    """Test that proxy_remove errors when neither --delegate nor --all is provided and prompt is disabled"""
+    cli_manager = CLIManager()
+
+    cli_manager.proxy_remove(
+        delegate=None,
+        all_=False,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=False,
+    )
+
+    mock_print_error.assert_called_once_with(
+        "Either --delegate must be provided or --all flag must be used."
+    )
+
+
+@patch("bittensor_cli.cli.json_console")
+def test_proxy_remove_errors_without_delegate_or_all_json(mock_json_console):
+    """Test that proxy_remove returns JSON error when neither --delegate nor --all and json_output"""
+    cli_manager = CLIManager()
+
+    cli_manager.proxy_remove(
+        delegate=None,
+        all_=False,
+        network=None,
+        proxy_type="Transfer",
+        delay=0,
+        wallet_name="test_wallet",
+        wallet_path="/tmp/test",
+        wallet_hotkey="test_hotkey",
+        prompt=False,
+        decline=False,
+        wait_for_inclusion=False,
+        wait_for_finalization=False,
+        period=100,
+        quiet=True,
+        verbose=False,
+        json_output=True,
+    )
+
+    mock_json_console.print_json.assert_called_once()
+    call_args = mock_json_console.print_json.call_args[1]["data"]
+    assert call_args["success"] is False
+    assert (
+        "Either --delegate must be provided or --all flag must be used."
+        in call_args["message"]
+    )
+
+
 @patch("bittensor_cli.cli.is_valid_ss58_address_param")
 @patch("bittensor_cli.cli.Prompt")
 @patch("bittensor_cli.cli.proxy_commands")
 def test_proxy_remove_prompts_delegate_when_not_provided(
     mock_proxy_commands, mock_prompt, mock_validate
 ):
-    """Test that proxy_remove prompts for delegate when neither --delegate nor --all is used"""
+    """Test that proxy_remove prompts for delegate when prompt is enabled and neither --delegate nor --all is used"""
     cli_manager = CLIManager()
     valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
     mock_prompt.ask.return_value = valid_ss58
@@ -836,7 +898,7 @@ def test_proxy_remove_prompts_delegate_when_not_provided(
             wallet_name="test_wallet",
             wallet_path="/tmp/test",
             wallet_hotkey="test_hotkey",
-            prompt=False,
+            prompt=True,
             decline=False,
             wait_for_inclusion=False,
             wait_for_finalization=False,
@@ -856,7 +918,7 @@ def test_proxy_remove_prompts_delegate_when_not_provided(
             delegate=valid_ss58,
             proxy_type="Transfer",
             delay=0,
-            prompt=False,
+            prompt=True,
             decline=False,
             quiet=True,
             wait_for_inclusion=False,

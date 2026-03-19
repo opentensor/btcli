@@ -9870,8 +9870,22 @@ class CLIManager:
                 )
             return
 
-        # If --all is not used and delegate is not provided, prompt for it
+        # If --all is not used and delegate is not provided, prompt or error
         if not all_ and not delegate:
+            if not prompt:
+                if not json_output:
+                    print_error(
+                        "Either --delegate must be provided or --all flag must be used."
+                    )
+                else:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": "Either --delegate must be provided or --all flag must be used.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                return
             delegate = Prompt.ask(
                 "Enter the SS58 address of the delegate to remove, e.g. 5dxds..."
             )
