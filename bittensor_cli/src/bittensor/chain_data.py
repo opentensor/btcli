@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 from enum import Enum
 from typing import Optional, Any, Union, Callable, Hashable
-from typing_extensions import Self
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
@@ -17,6 +16,11 @@ from bittensor_cli.src.bittensor.utils import (
     decode_account_id,
     get_netuid_and_subuid_by_storage_index,
 )
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class ChainDataType(Enum):
