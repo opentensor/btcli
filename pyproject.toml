@@ -43,7 +43,7 @@ dependencies = [
     "scalecodec==1.2.12",
     "typer>=0.16",
     "typing_extensions>4.0.0; python_version<'3.11'",
-    "bittensor-wallet>=4.0.0",
+    "bittensor-wallet==4.0.1",
     "packaging",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
