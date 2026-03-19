@@ -34,7 +34,6 @@
 * Update: Enforce era 'always' for mev_shield txs by @ibraheem-abe in https://github.com/opentensor/btcli/pull/851
 * Adds max_allowed_uids hyperparam for setting by @thewhaleking in https://github.com/opentensor/btcli/pull/852
 * Applies type hint to to `process_nested` by @thewhaleking in https://github.com/opentensor/btcli/pull/856
-* chore: add 11 return type hints in cli.py by @travellingsoldier85 in https://github.com/opentensor/btcli/pull/854
 * Update/runtime update by @ibraheem-abe in https://github.com/opentensor/btcli/pull/857
 * feat: add support for the `--all` to proxy remove by @eureka928 in https://github.com/opentensor/btcli/pull/834
 * Adds signed commits info to docs by @thewhaleking in https://github.com/opentensor/btcli/pull/859
@@ -46,7 +45,6 @@
 * @jose-blockchain made their first contribution in https://github.com/opentensor/btcli/pull/811
 * @Achieve3318 made their first contribution in https://github.com/opentensor/btcli/pull/773
 * @GeObts made their first contribution in https://github.com/opentensor/btcli/pull/839
-* @travellingsoldier85 made their first contribution in https://github.com/opentensor/btcli/pull/854
 
 **Full Changelog**: https://github.com/opentensor/btcli/compare/v9.18.1...v9.19.0
 
