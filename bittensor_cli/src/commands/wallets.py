@@ -506,24 +506,30 @@ async def wallet_create(
             f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
         )
     else:
-        try:
-            wallet.create_new_coldkey(
-                n_words=n_words,
-                use_password=use_password,
-                overwrite=overwrite,
+        if wallet.coldkey_file.exists_on_device() and not overwrite:
+            console.print(
+                "[dark_sea_green]Coldkey already exists, skipping coldkey "
+                "creation. Use --overwrite to force recreation.[/dark_sea_green]"
             )
-            console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
-            output_dict["success"] = True
-            output_dict["data"] = {
-                "name": wallet.name,
-                "path": wallet.path,
-                "hotkey": wallet.hotkey_str,
-                "coldkey_ss58": wallet.coldkeypub.ss58_address,
-            }
-        except KeyFileError as error:
-            err = str(error)
-            print_error(err)
-            output_dict["error"] = err
+        else:
+            try:
+                wallet.create_new_coldkey(
+                    n_words=n_words,
+                    use_password=use_password,
+                    overwrite=overwrite,
+                )
+                console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
+                output_dict["success"] = True
+                output_dict["data"] = {
+                    "name": wallet.name,
+                    "path": wallet.path,
+                    "hotkey": wallet.hotkey_str,
+                    "coldkey_ss58": wallet.coldkeypub.ss58_address,
+                }
+            except KeyFileError as error:
+                err = str(error)
+                print_error(err)
+                output_dict["error"] = err
         try:
             wallet.create_new_hotkey(
                 n_words=n_words,
