@@ -9807,13 +9807,18 @@ class CLIManager:
     def proxy_remove(
         self,
         delegate: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 callback=is_valid_ss58_address_param,
-                prompt="Enter the SS58 address of the delegate to remove, e.g. 5dxds...",
-                help="The SS58 address of the delegate to remove",
+                prompt=False,
+                help="The SS58 address of the delegate to remove (required if --all is not used)",
             ),
-        ] = "",
+        ] = None,
+        all_: bool = typer.Option(
+            False,
+            "--all",
+            help="Remove all proxies associated with this account",
+        ),
         network: Optional[list[str]] = Options.network,
         proxy_type: ProxyType = Options.proxy_type,
         delay: int = typer.Option(0, help="Delay, in number of blocks"),
@@ -9840,10 +9845,10 @@ class CLIManager:
         [green]$[/green] btcli proxy remove --delegate 5GDel... --proxy-type Transfer
 
         """
-        # TODO should add a --all flag to call Proxy.remove_proxies ?
         logger.debug(
             "args:\n"
             f"delegate: {delegate}\n"
+            f"all: {all_}\n"
             f"network: {network}\n"
             f"proxy_type: {proxy_type}\n"
             f"delay: {delay}\n"
@@ -9851,6 +9856,41 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"era: {period}\n"
         )
+        # Validate that --delegate and --all are not used together
+        if all_ and delegate:
+            if not json_output:
+                print_error("--delegate cannot be used together with --all flag.")
+            else:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "message": "--delegate cannot be used together with --all flag.",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return
+
+        # If --all is not used and delegate is not provided, prompt or error
+        if not all_ and not delegate:
+            if not prompt:
+                if not json_output:
+                    print_error(
+                        "Either --delegate must be provided or --all flag must be used."
+                    )
+                else:
+                    json_console.print_json(
+                        data={
+                            "success": False,
+                            "message": "Either --delegate must be provided or --all flag must be used.",
+                            "extrinsic_identifier": None,
+                        }
+                    )
+                return
+            delegate = Prompt.ask(
+                "Enter the SS58 address of the delegate to remove, e.g. 5dxds..."
+            )
+            delegate = is_valid_ss58_address_param(delegate)
+
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         wallet = self.wallet_ask(
             wallet_name=wallet_name,
@@ -9873,6 +9913,7 @@ class CLIManager:
                 wait_for_finalization=wait_for_finalization,
                 period=period,
                 json_output=json_output,
+                remove_all=all_,
             )
         )
 
