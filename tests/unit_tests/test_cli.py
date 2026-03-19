@@ -807,71 +807,66 @@ def test_new_hyperparams_owner_settable_true():
 # ============================================================================
 
 
-@patch("bittensor_cli.cli.print_error")
-def test_proxy_remove_requires_delegate_or_all(mock_print_error):
-    """Test that proxy_remove requires either --delegate or --all flag"""
+@patch("bittensor_cli.cli.is_valid_ss58_address_param")
+@patch("bittensor_cli.cli.Prompt")
+@patch("bittensor_cli.cli.proxy_commands")
+def test_proxy_remove_prompts_delegate_when_not_provided(
+    mock_proxy_commands, mock_prompt, mock_validate
+):
+    """Test that proxy_remove prompts for delegate when neither --delegate nor --all is used"""
     cli_manager = CLIManager()
+    valid_ss58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+    mock_prompt.ask.return_value = valid_ss58
+    mock_validate.return_value = valid_ss58
+    mock_wallet = Mock()
+    mock_subtensor = Mock()
 
-    # Test without delegate and without --all (should fail)
-    cli_manager.proxy_remove(
-        delegate=None,
-        all=False,
-        network=None,
-        proxy_type="Transfer",
-        delay=0,
-        wallet_name="test_wallet",
-        wallet_path="/tmp/test",
-        wallet_hotkey="test_hotkey",
-        prompt=False,
-        decline=False,
-        wait_for_inclusion=False,
-        wait_for_finalization=False,
-        period=100,
-        quiet=True,
-        verbose=False,
-        json_output=False,
-    )
+    with (
+        patch.object(cli_manager, "verbosity_handler"),
+        patch.object(cli_manager, "wallet_ask", return_value=mock_wallet),
+        patch.object(cli_manager, "initialize_chain", return_value=mock_subtensor),
+        patch.object(cli_manager, "_run_command") as mock_run_command,
+    ):
+        cli_manager.proxy_remove(
+            delegate=None,
+            all_=False,
+            network=None,
+            proxy_type="Transfer",
+            delay=0,
+            wallet_name="test_wallet",
+            wallet_path="/tmp/test",
+            wallet_hotkey="test_hotkey",
+            prompt=False,
+            decline=False,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=100,
+            quiet=True,
+            verbose=False,
+            json_output=False,
+        )
 
-    # Should print error message
-    mock_print_error.assert_called_once_with(
-        "Either --delegate must be provided or --all flag must be used."
-    )
+        # Should prompt for delegate
+        mock_prompt.ask.assert_called_once()
 
+        # Should call remove_proxy with the prompted delegate
+        mock_proxy_commands.remove_proxy.assert_called_once_with(
+            subtensor=mock_subtensor,
+            wallet=mock_wallet,
+            delegate=valid_ss58,
+            proxy_type="Transfer",
+            delay=0,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            wait_for_inclusion=False,
+            wait_for_finalization=False,
+            period=100,
+            json_output=False,
+            remove_all=False,
+        )
 
-@patch("bittensor_cli.cli.json_console")
-def test_proxy_remove_requires_delegate_or_all_json(mock_json_console):
-    """Test that proxy_remove requires either --delegate or --all flag (JSON output)"""
-    cli_manager = CLIManager()
-
-    # Test without delegate and without --all (should fail with JSON output)
-    cli_manager.proxy_remove(
-        delegate=None,
-        all=False,
-        network=None,
-        proxy_type="Transfer",
-        delay=0,
-        wallet_name="test_wallet",
-        wallet_path="/tmp/test",
-        wallet_hotkey="test_hotkey",
-        prompt=False,
-        decline=False,
-        wait_for_inclusion=False,
-        wait_for_finalization=False,
-        period=100,
-        quiet=True,
-        verbose=False,
-        json_output=True,
-    )
-
-    # Should print JSON error
-    mock_json_console.print_json.assert_called_once()
-    call_args = mock_json_console.print_json.call_args[1]["data"]
-    assert call_args["success"] is False
-    assert (
-        "Either --delegate must be provided or --all flag must be used."
-        in call_args["message"]
-    )
-    assert call_args["extrinsic_identifier"] is None
+        mock_run_command.assert_called_once()
 
 
 @patch("bittensor_cli.cli.print_error")
@@ -882,7 +877,7 @@ def test_proxy_remove_with_all_and_delegate_errors(mock_print_error):
 
     cli_manager.proxy_remove(
         delegate=valid_ss58,
-        all=True,
+        all_=True,
         network=None,
         proxy_type="Transfer",
         delay=0,
@@ -920,7 +915,7 @@ def test_proxy_remove_with_all_flag(mock_proxy_commands):
     ):
         cli_manager.proxy_remove(
             delegate=None,
-            all=True,
+            all_=True,
             network=None,
             proxy_type="Transfer",
             delay=0,
@@ -974,7 +969,7 @@ def test_proxy_remove_with_delegate_calls_remove_proxy(mock_proxy_commands):
     ):
         cli_manager.proxy_remove(
             delegate=valid_delegate,
-            all=False,
+            all_=False,
             network=None,
             proxy_type="Transfer",
             delay=10,

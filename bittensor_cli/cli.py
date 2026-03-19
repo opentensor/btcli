@@ -9814,7 +9814,7 @@ class CLIManager:
                 help="The SS58 address of the delegate to remove (required if --all is not used)",
             ),
         ] = None,
-        all: bool = typer.Option(
+        all_: bool = typer.Option(
             False,
             "--all",
             help="Remove all proxies associated with this account",
@@ -9848,7 +9848,7 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"delegate: {delegate}\n"
-            f"all: {all}\n"
+            f"all: {all_}\n"
             f"network: {network}\n"
             f"proxy_type: {proxy_type}\n"
             f"delay: {delay}\n"
@@ -9856,23 +9856,8 @@ class CLIManager:
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"era: {period}\n"
         )
-        # Validate that either delegate is provided or --all is used, but not both
-        if not all and not delegate:
-            if not json_output:
-                print_error(
-                    "Either --delegate must be provided or --all flag must be used."
-                )
-            else:
-                json_console.print_json(
-                    data={
-                        "success": False,
-                        "message": "Either --delegate must be provided or --all flag must be used.",
-                        "extrinsic_identifier": None,
-                    }
-                )
-            return
-
-        if all and delegate:
+        # Validate that --delegate and --all are not used together
+        if all_ and delegate:
             if not json_output:
                 print_error("--delegate cannot be used together with --all flag.")
             else:
@@ -9884,6 +9869,13 @@ class CLIManager:
                     }
                 )
             return
+
+        # If --all is not used and delegate is not provided, prompt for it
+        if not all_ and not delegate:
+            delegate = Prompt.ask(
+                "Enter the SS58 address of the delegate to remove, e.g. 5dxds..."
+            )
+            delegate = is_valid_ss58_address_param(delegate)
 
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         wallet = self.wallet_ask(
@@ -9907,7 +9899,7 @@ class CLIManager:
                 wait_for_finalization=wait_for_finalization,
                 period=period,
                 json_output=json_output,
-                remove_all=all,
+                remove_all=all_,
             )
         )
 
