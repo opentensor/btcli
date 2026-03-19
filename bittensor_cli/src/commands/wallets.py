@@ -1634,7 +1634,7 @@ def _make_neuron_rows(
     coldkey_name: str,
     all_netuids: list[int],
     neuron_state_dict: dict,
-    hotkeys: list = None,
+    hotkeys: Optional[list[Optional[Wallet]]] = None,
 ) -> Generator[list[str], None, None]:
     """Yield hotkey table rows for each neuron registered under the given coldkey."""
     hotkeys = hotkeys or []
@@ -1702,9 +1702,7 @@ async def inspect(
         wallets = get_coldkey_wallets_for_path(wallet.path)
         wallets_with_ckp = [w for w in wallets if w.coldkeypub_file.exists_on_device()]
         coldkey_addresses = [w.coldkeypub.ss58_address for w in wallets_with_ckp]
-        coldkey_names = {
-            w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp
-        }
+        coldkey_names = {w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp}
         hotkeys_by_coldkey = {
             w.coldkeypub.ss58_address: get_hotkey_wallets_for_wallet(w)
             for w in wallets_with_ckp
@@ -1714,10 +1712,8 @@ async def inspect(
         print_verbose(f"Fetching data for wallet: {wallet.name}")
         wallets_with_ckp = [wallet] if wallet.coldkeypub_file.exists_on_device() else []
         coldkey_addresses = [w.coldkeypub.ss58_address for w in wallets_with_ckp]
-        coldkey_names = {
-            w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp
-        }
-        hotkeys_by_coldkey = {
+        coldkey_names = {w.coldkeypub.ss58_address: w.name for w in wallets_with_ckp}
+        hotkeys_by_coldkey: dict[str, list[Optional[Wallet]]] = {
             w.coldkeypub.ss58_address: get_hotkey_wallets_for_wallet(w)
             for w in wallets_with_ckp
         }
@@ -1755,6 +1751,10 @@ async def inspect(
 
     all_delegates: list[list[tuple[DelegateInfo, Balance]]]
     with console.status("Pulling balance data...", spinner="aesthetic"):
+        balances: dict[str, Balance]
+        all_neurons: list[NeuronInfoLite]
+        all_delegates: list[tuple[DelegateInfo, Balance]]
+
         balances, all_neurons, all_delegates = await asyncio.gather(
             subtensor.get_balances(*coldkey_addresses, block_hash=block_hash),
             asyncio.gather(
@@ -1764,13 +1764,10 @@ async def inspect(
                 ]
             ),
             asyncio.gather(
-                *[
-                    subtensor.get_delegated(addr)
-                    for addr in coldkey_addresses
-                ]
+                *[subtensor.get_delegated(addr) for addr in coldkey_addresses]
             ),
         )
-    neuron_state_dict = {}
+    neuron_state_dict: dict[int, list | NeuronInfoLite] = {}
     for netuid, neuron in zip(all_netuids, all_neurons):
         neuron_state_dict[netuid] = neuron if neuron else []
 
@@ -1778,15 +1775,17 @@ async def inspect(
     hotkey_rows = []
     for addr, delegates in zip(coldkey_addresses, all_delegates):
         name = coldkey_names[addr]
-        coldkey_rows.append(
-            [name, str(balances.get(addr, Balance(0))), "", "", ""]
-        )
+        coldkey_rows.append([name, str(balances.get(addr, Balance(0))), "", "", ""])
         for row in _make_delegate_rows(delegates, registered_delegate_info):
             coldkey_rows.append(row)
 
         hotkeys = hotkeys_by_coldkey.get(addr, [])
         for row in _make_neuron_rows(
-            addr, name, all_netuids, neuron_state_dict, hotkeys
+            coldkey_ss58=addr,
+            coldkey_name=name,
+            all_netuids=all_netuids,
+            neuron_state_dict=neuron_state_dict,
+            hotkeys=hotkeys,
         ):
             hotkey_rows.append(row)
 

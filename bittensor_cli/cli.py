@@ -2913,6 +2913,11 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
+        wallet_hotkey: str = Options.edit_help(
+            "wallet_hotkey",
+            help_text="Deprecated option, "
+            "preserved for backwards compatibility to not break workflows which utilise it.",
+        ),
         ss58_address: Optional[str] = typer.Option(
             None,
             "--ss58-address",
@@ -2977,13 +2982,11 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
-        self.initialize_chain(network)
-
         if ss58_address:
             return self._run_command(
                 wallets.inspect(
                     None,
-                    self.subtensor,
+                    self.initialize_chain(network),
                     netuids_filter=netuids,
                     all_wallets=False,
                     ss58_address=ss58_address,
