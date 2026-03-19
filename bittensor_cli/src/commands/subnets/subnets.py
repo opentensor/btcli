@@ -20,7 +20,6 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
-    extract_mev_shield_id,
     wait_for_extrinsic_by_hash,
 )
 from rich.live import Live
@@ -272,11 +271,9 @@ async def register_subnetwork_extrinsic(
             # Check for MEV shield execution
             if mev_protection:
                 inner_hash = err_msg
-                mev_shield_id = await extract_mev_shield_id(response)
                 mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
                     subtensor=subtensor,
                     extrinsic_hash=inner_hash,
-                    shield_id=mev_shield_id,
                     submit_block_hash=response.block_hash,
                     status=status,
                 )

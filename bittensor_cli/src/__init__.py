@@ -692,6 +692,7 @@ HYPERPARAMS = {
     "alpha_low": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
     "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
     "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
+    "max_allowed_uids": ("sudo_set_max_allowed_uids", RootSudoOnly.FALSE),
 }
 
 HYPERPARAMS_MODULE = {
@@ -940,6 +941,12 @@ HYPERPARAMS_METADATA = {
         "side_effects": "Changing the version affects which Yuma consensus features are active. Use yuma3_enabled to toggle Yuma3.",
         "owner_settable": True,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#yuma3",
+    },
+    "max_allowed_uids": {
+        "description": "Maximum number of UIDs (neurons) on the subnet, essentially 'untrimming'.",
+        "side_effects": "See description for min_allowed_uids",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxalloweduids",
     },
 }
 
