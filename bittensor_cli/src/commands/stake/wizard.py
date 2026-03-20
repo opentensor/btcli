@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 from rich.prompt import Prompt
-from rich.table import Table
 from rich.panel import Panel
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
     console,
+    create_table,
     print_error,
     is_valid_ss58_address,
     get_hotkey_pub_ss58,
@@ -159,12 +159,11 @@ def _display_available_stakes(
             return old_identity.display
         return "~"
 
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Your Available Stakes[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        title_justify="center",
+        show_footer=False,
+        show_lines=True,
+        pad_edge=False,
     )
 
     table.add_column("Hotkey Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])

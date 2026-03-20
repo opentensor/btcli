@@ -1,7 +1,8 @@
 from abc import abstractmethod
 from dataclasses import dataclass
+from collections.abc import Sequence
 from enum import Enum
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, Callable, Hashable
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
@@ -15,6 +16,11 @@ from bittensor_cli.src.bittensor.utils import (
     decode_account_id,
     get_netuid_and_subuid_by_storage_index,
 )
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class ChainDataType(Enum):
@@ -69,9 +75,12 @@ def _chr_str(codes: tuple[int]) -> str:
     return "".join(map(chr, codes))
 
 
-def process_nested(data: Union[tuple, dict], chr_transform):
+def process_nested(
+    data: Sequence[dict[Hashable, tuple[int]]] | dict,
+    chr_transform: Callable[[tuple[int]], str],
+) -> list[dict[Hashable, str]] | dict[Hashable, str]:
     """Processes nested data structures by applying a transformation function to their elements."""
-    if isinstance(data, (list, tuple)):
+    if isinstance(data, Sequence):
         if len(data) > 0 and isinstance(data[0], dict):
             return [
                 {k: chr_transform(v) for k, v in item.items()}
@@ -79,9 +88,12 @@ def process_nested(data: Union[tuple, dict], chr_transform):
                 else None
                 for item in data
             ]
+        # TODO @abe why do we kind of silently fail here?
         return {}
     elif isinstance(data, dict):
         return {k: chr_transform(v) for k, v in data.items()}
+    else:
+        raise TypeError(f"Unsupported data type {type(data)}")
 
 
 @dataclass
@@ -127,17 +139,17 @@ class InfoBase:
     """Base dataclass for info objects."""
 
     @abstractmethod
-    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+    def _fix_decoded(self, decoded: Any) -> Self:
         raise NotImplementedError(
             "This is an abstract method and must be implemented in a subclass."
         )
 
     @classmethod
-    def from_any(cls, data: Any) -> "InfoBase":
+    def from_any(cls, data: Any) -> Self:
         return cls._fix_decoded(data)
 
     @classmethod
-    def list_from_any(cls, data_list: list[Any]) -> list["InfoBase"]:
+    def list_from_any(cls, data_list: list[Any]) -> list[Self]:
         return [cls.from_any(data) for data in data_list]
 
     def __getitem__(self, item):
@@ -884,20 +896,34 @@ class DynamicInfo(InfoBase):
 
 
 @dataclass
-class ScheduledColdkeySwapInfo(InfoBase):
-    """Dataclass for scheduled coldkey swap information."""
+class ColdkeySwapAnnouncementInfo(InfoBase):
+    """
+    Information about a coldkey swap announcement.
 
-    old_coldkey: str
-    new_coldkey: str
-    arbitration_block: int
+    Contains information about a pending coldkey swap announcement when a coldkey
+    wants to declare its intent to swap to a new coldkey address.
+    The announcement is made before the actual swap can be executed,
+    allowing time for verification and security checks.
+
+    The destination coldkey address is stored as a hash.
+    This is to prevent the actual coldkey address from being exposed
+    to the network. The hash is computed using the BlakeTwo256 hashing algorithm.
+    """
+
+    coldkey: str
+    execution_block: int
+    new_coldkey_hash: str
 
     @classmethod
-    def _fix_decoded(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
-        """Fixes the decoded values."""
+    def _fix_decoded(
+        cls, coldkey: str, decoded: tuple
+    ) -> "ColdkeySwapAnnouncementInfo":
+        execution_block, new_coldkey_hash = decoded
+        hash_str = "0x" + bytes(new_coldkey_hash[0]).hex()
         return cls(
-            old_coldkey=decode_account_id(decoded.get("old_coldkey")),
-            new_coldkey=decode_account_id(decoded.get("new_coldkey")),
-            arbitration_block=decoded.get("arbitration_block"),
+            coldkey=coldkey,
+            execution_block=int(execution_block),
+            new_coldkey_hash=hash_str,
         )
 
 
