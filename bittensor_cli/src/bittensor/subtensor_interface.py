@@ -1271,8 +1271,8 @@ class SubtensorInterface:
             err_msg = format_error_message(e)
             if mev_protection and "'result': 'invalid'" in str(e).lower():
                 err_msg = (
-                    f"MEV Shield extrinsic rejected as invalid. "
-                    f"This usually means the MEV Shield NextKey changed between fetching and submission."
+                    "MEV Shield extrinsic rejected as invalid. "
+                    "This usually means the MEV Shield NextKey changed between fetching and submission."
                 )
             if proxy and "Invalid Transaction" in err_msg:
                 extrinsic_fee, signer_balance = await asyncio.gather(
@@ -1288,6 +1288,84 @@ class SubtensorInterface:
                         f"{extrinsic_fee}."
                     )
             return False, err_msg, None
+
+    async def sign_and_send_batch_extrinsic(
+        self,
+        calls: list[GenericCall],
+        wallet: Wallet,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        era: Optional[dict[str, int]] = None,
+        proxy: Optional[str] = None,
+        nonce: Optional[int] = None,
+        sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
+        announce_only: bool = False,
+        mev_protection: bool = False,
+        block_hash: Optional[str] = None,
+    ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
+        """
+        Wraps multiple extrinsic calls into a single Utility.batch_all transaction
+        and submits it. This reduces fees by combining N separate transactions into one.
+
+        batch_all is atomic: if any call in the batch fails, the entire batch reverts.
+
+        For a single call, this delegates directly to sign_and_send_extrinsic without
+        wrapping, so there's no overhead for non-batch use cases.
+
+        :param calls: list of prepared GenericCall objects to batch together.
+        :param wallet: the wallet whose key will sign the extrinsic.
+        :param wait_for_inclusion: wait until the extrinsic is included on chain.
+        :param wait_for_finalization: wait until the extrinsic is finalized on chain.
+        :param era: validity period in blocks for the transaction.
+        :param proxy: the real account if using a proxy. None otherwise.
+        :param nonce: explicit nonce for submission. Fetched automatically if None.
+        :param sign_with: which wallet keypair signs the extrinsic.
+        :param announce_only: make the call as a proxy announcement.
+        :param mev_protection: encrypt the extrinsic via MEV Shield.
+        :param block_hash: cached block hash for compose_call. Fetched if None.
+
+        :return: (success, error message or inner hash, extrinsic receipt | None)
+        """
+        if not calls:
+            return False, "No calls to batch", None
+
+        # No need to wrap a single call in a batch
+        if len(calls) == 1:
+            return await self.sign_and_send_extrinsic(
+                call=calls[0],
+                wallet=wallet,
+                wait_for_inclusion=wait_for_inclusion,
+                wait_for_finalization=wait_for_finalization,
+                era=era,
+                proxy=proxy,
+                nonce=nonce,
+                sign_with=sign_with,
+                announce_only=announce_only,
+                mev_protection=mev_protection,
+            )
+
+        if block_hash is None:
+            block_hash = await self.substrate.get_chain_head()
+
+        batch_call = await self.substrate.compose_call(
+            call_module="Utility",
+            call_function="batch_all",
+            call_params={"calls": calls},
+            block_hash=block_hash,
+        )
+
+        return await self.sign_and_send_extrinsic(
+            call=batch_call,
+            wallet=wallet,
+            wait_for_inclusion=wait_for_inclusion,
+            wait_for_finalization=wait_for_finalization,
+            era=era,
+            proxy=proxy,
+            nonce=nonce,
+            sign_with=sign_with,
+            announce_only=announce_only,
+            mev_protection=mev_protection,
+        )
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:
         """
