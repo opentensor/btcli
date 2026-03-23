@@ -76,9 +76,9 @@ def _chr_str(codes: tuple[int]) -> str:
 
 
 def process_nested(
-    data: Sequence[dict[Hashable, tuple[int]]] | dict,
+    data: Sequence[dict[Hashable, tuple[int]]] | dict | Any,
     chr_transform: Callable[[tuple[int]], str],
-) -> list[dict[Hashable, str]] | dict[Hashable, str]:
+) -> list[dict[Hashable, str]] | dict[Hashable, str] | Any:
     """Processes nested data structures by applying a transformation function to their elements."""
     if isinstance(data, Sequence):
         if len(data) > 0 and isinstance(data[0], dict):
@@ -93,7 +93,7 @@ def process_nested(
     elif isinstance(data, dict):
         return {k: chr_transform(v) for k, v in data.items()}
     else:
-        raise TypeError(f"Unsupported data type {type(data)}")
+        return data
 
 
 @dataclass
