@@ -4147,7 +4147,7 @@ class CLIManager:
             help=(
                 "Action to perform: 'announce' to announce intent, "
                 "'execute' to complete swap after delay, 'dispute' to freeze the swap, "
-                "'clear' to withdraw announcement."
+                "'clear' to withdraw announcement, 'check' to view status."
             ),
         ),
         wallet_name: Optional[str] = Options.wallet_name,
@@ -4201,9 +4201,9 @@ class CLIManager:
 
         [green]$[/green] btcli wallet swap-coldkey clear
 
-        Check status of pending swaps:
+        Check status of your swap:
 
-        [green]$[/green] btcli wallet swap-check
+        [green]$[/green] btcli wallet swap-coldkey check
         """
         self.verbosity_handler(quiet, verbose, prompt=False, json_output=False)
 
@@ -4213,18 +4213,18 @@ class CLIManager:
                 "  [dark_sea_green3]announce[/dark_sea_green3] - Start the swap process (pays fee, starts delay timer)\n"
                 "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n"
                 "  [dark_sea_green3]dispute[/dark_sea_green3]  - Freeze the swap process if you suspect compromise\n"
-                "  [dark_sea_green3]clear[/dark_sea_green3]    - Withdraw your swap announcement\n\n"
-                "  [dim]You can check the current status of your swap with 'btcli wallet swap-check'.[/dim]\n"
+                "  [dark_sea_green3]clear[/dark_sea_green3]    - Withdraw your swap announcement\n"
+                "  [dark_sea_green3]check[/dark_sea_green3]    - Check the status of your swap\n\n"
             )
             action = Prompt.ask(
                 "Select action",
-                choices=["announce", "execute", "dispute", "clear"],
+                choices=["announce", "execute", "dispute", "clear", "check"],
                 default="announce",
             )
 
-        if action.lower() not in ("announce", "execute", "dispute", "clear"):
+        if action.lower() not in ("announce", "execute", "dispute", "clear", "check"):
             print_error(
-                f"Invalid action: {action}. Must be 'announce', 'execute', 'dispute', or 'clear'."
+                f"Invalid action: {action}. Must be 'announce', 'execute', 'dispute', 'clear', or 'check'."
             )
             raise typer.Exit(1)
 
@@ -4245,7 +4245,7 @@ class CLIManager:
         )
 
         new_wallet_coldkey_ss58 = None
-        if action not in ("dispute", "clear"):
+        if action not in ("dispute", "clear", "check"):
             if not new_wallet_or_ss58:
                 new_wallet_or_ss58 = Prompt.ask(
                     "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
@@ -4306,6 +4306,13 @@ class CLIManager:
                     quiet=quiet,
                     prompt=prompt,
                     mev_protection=mev_protection,
+                )
+            )
+        elif action == "check":
+            return self._run_command(
+                wallets.check_swap_status(
+                    subtensor=self.initialize_chain(network),
+                    origin_ss58=wallet.coldkeypub.ss58_address,
                 )
             )
         else:
