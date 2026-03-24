@@ -2345,6 +2345,134 @@ async def dispute_coldkey_swap(
     return True
 
 
+async def clear_coldkey_swap_announcement(
+    wallet: Wallet,
+    subtensor: SubtensorInterface,
+    decline: bool = False,
+    quiet: bool = False,
+    prompt: bool = True,
+    mev_protection: bool = False,
+) -> bool:
+    """Clear (withdraw) a pending coldkey swap announcement.
+
+    The announcement can only be cleared after the reannouncement delay has elapsed
+    past the execution block, and the swap must not be disputed.
+
+    Args:
+        wallet: Wallet that owns the announcement (must be the announcing coldkey).
+        subtensor: Connection to the Bittensor network.
+        decline: If True, default to declining at confirmation prompt.
+        quiet: If True, skip confirmation prompts and proceed.
+        prompt: If True, show confirmation prompts.
+        mev_protection: If True, encrypt the extrinsic with MEV protection.
+
+    Returns:
+        bool: True if the clear extrinsic was included successfully, else False.
+    """
+    block_hash = await subtensor.substrate.get_chain_head()
+    announcement, dispute, current_block, reannounce_delay = await asyncio.gather(
+        subtensor.get_coldkey_swap_announcement(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+        subtensor.get_coldkey_swap_dispute(
+            wallet.coldkeypub.ss58_address, block_hash=block_hash
+        ),
+        subtensor.substrate.get_block_number(block_hash=block_hash),
+        subtensor.get_coldkey_swap_reannouncement_delay(block_hash=block_hash),
+    )
+
+    if not announcement:
+        print_error(
+            f"No coldkey swap announcement found for {wallet.coldkeypub.ss58_address}.\n"
+            "Nothing to clear."
+        )
+        return False
+
+    if dispute is not None:
+        console.print(
+            f"[yellow]Swap is disputed at block {dispute}.[/yellow] "
+            "Cannot clear a disputed announcement."
+        )
+        return False
+
+    clear_block = announcement.execution_block + reannounce_delay
+    if current_block < clear_block:
+        remaining = clear_block - current_block
+        console.print(
+            f"[yellow]Cannot clear yet.[/yellow] "
+            f"You can clear after block {clear_block} ({blocks_to_duration(remaining)} from now).\n"
+            f"Current block: {current_block}"
+        )
+        return False
+
+    info = create_key_value_table("Clear Coldkey Swap Announcement\n")
+    info.add_row(
+        "Coldkey", f"[{COLORS.G.CK}]{wallet.coldkeypub.ss58_address}[/{COLORS.G.CK}]"
+    )
+    info.add_row("Announced Hash", f"[dim]{announcement.new_coldkey_hash}[/dim]")
+    info.add_row("Execution Block", str(announcement.execution_block))
+    info.add_row(
+        "Status",
+        "[yellow]Pending[/yellow]"
+        if current_block < announcement.execution_block
+        else "[green]Ready[/green]",
+    )
+    console.print(info)
+
+    if prompt and not confirm_action(
+        "Proceed with clearing this swap announcement?",
+        decline=decline,
+        quiet=quiet,
+    ):
+        return False
+
+    if not unlock_key(wallet).success:
+        return False
+
+    with console.status(
+        ":satellite: Clearing coldkey swap announcement on-chain..."
+    ) as status:
+        call = await subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function="clear_coldkey_swap_announcement",
+            call_params={},
+        )
+        success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
+            call,
+            wallet,
+            wait_for_inclusion=True,
+            wait_for_finalization=True,
+            mev_protection=mev_protection,
+        )
+
+        if not success:
+            print_error(f"Failed to clear coldkey swap announcement: {err_msg}")
+            return False
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_success, mev_error, ext_receipt = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                submit_block_hash=ext_receipt.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                print_error(
+                    f"Failed to clear coldkey swap announcement: {mev_error}",
+                    status=status,
+                )
+                return False
+
+        print_success("[dark_sea_green3]Coldkey swap announcement cleared.")
+        await print_extrinsic_id(ext_receipt)
+
+    console.print(
+        "\n[dim]Your coldkey is no longer locked by a pending swap announcement.[/dim]"
+    )
+    return True
+
+
 async def execute_coldkey_swap(
     wallet: Wallet,
     subtensor: SubtensorInterface,
