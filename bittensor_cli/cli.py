@@ -4144,7 +4144,11 @@ class CLIManager:
         self,
         action: str = typer.Argument(
             None,
-            help="Action to perform: 'announce' to announce intent, 'execute' to complete swap after delay, 'dispute' to freeze the swap.",
+            help=(
+                "Action to perform: 'announce' to announce intent, "
+                "'execute' to complete swap after delay, 'dispute' to freeze the swap, "
+                "'clear' to withdraw announcement."
+            ),
         ),
         wallet_name: Optional[str] = Options.wallet_name,
         wallet_path: Optional[str] = Options.wallet_path,
@@ -4176,6 +4180,9 @@ class CLIManager:
         If you suspect compromise, you can [bold]Dispute[/bold] an active announcement to freeze
         all activity for the coldkey until the triumvirate can intervene.
 
+        If you want to withdraw your announcement, you can [bold]Clear[/bold] (withdraw) an announcement once the
+        reannouncement delay has elapsed.
+
         EXAMPLES
 
         Step 1 - Announce your intent to swap:
@@ -4190,6 +4197,10 @@ class CLIManager:
 
         [green]$[/green] btcli wallet swap-coldkey dispute
 
+        Clear (withdraw) an announcement:
+
+        [green]$[/green] btcli wallet swap-coldkey clear
+
         Check status of pending swaps:
 
         [green]$[/green] btcli wallet swap-check
@@ -4201,18 +4212,19 @@ class CLIManager:
                 "\n[bold][blue]Coldkey Swap Actions:[/blue][/bold]\n"
                 "  [dark_sea_green3]announce[/dark_sea_green3] - Start the swap process (pays fee, starts delay timer)\n"
                 "  [dark_sea_green3]execute[/dark_sea_green3]  - Complete the swap (after delay period)\n"
-                "  [dark_sea_green3]dispute[/dark_sea_green3]  - Freeze the swap process if you suspect compromise\n\n"
+                "  [dark_sea_green3]dispute[/dark_sea_green3]  - Freeze the swap process if you suspect compromise\n"
+                "  [dark_sea_green3]clear[/dark_sea_green3]    - Withdraw your swap announcement\n\n"
                 "  [dim]You can check the current status of your swap with 'btcli wallet swap-check'.[/dim]\n"
             )
             action = Prompt.ask(
                 "Select action",
-                choices=["announce", "execute", "dispute"],
+                choices=["announce", "execute", "dispute", "clear"],
                 default="announce",
             )
 
-        if action.lower() not in ("announce", "execute", "dispute"):
+        if action.lower() not in ("announce", "execute", "dispute", "clear"):
             print_error(
-                f"Invalid action: {action}. Must be 'announce', 'execute', or 'dispute'."
+                f"Invalid action: {action}. Must be 'announce', 'execute', 'dispute', or 'clear'."
             )
             raise typer.Exit(1)
 
@@ -4233,7 +4245,7 @@ class CLIManager:
         )
 
         new_wallet_coldkey_ss58 = None
-        if action != "dispute":
+        if action not in ("dispute", "clear"):
             if not new_wallet_or_ss58:
                 new_wallet_or_ss58 = Prompt.ask(
                     "Enter the [blue]new wallet name[/blue] or [blue]SS58 address[/blue] of the new coldkey",
@@ -4277,6 +4289,17 @@ class CLIManager:
         elif action == "dispute":
             return self._run_command(
                 wallets.dispute_coldkey_swap(
+                    wallet=wallet,
+                    subtensor=self.initialize_chain(network),
+                    decline=decline,
+                    quiet=quiet,
+                    prompt=prompt,
+                    mev_protection=mev_protection,
+                )
+            )
+        elif action == "clear":
+            return self._run_command(
+                wallets.clear_coldkey_swap_announcement(
                     wallet=wallet,
                     subtensor=self.initialize_chain(network),
                     decline=decline,
