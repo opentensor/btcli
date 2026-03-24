@@ -2634,10 +2634,11 @@ async def check_swap_status(
     """
     block_hash = await subtensor.substrate.get_chain_head()
     if origin_ss58:
-        announcement, dispute, current_block = await asyncio.gather(
+        announcement, dispute, current_block, reannounce_delay = await asyncio.gather(
             subtensor.get_coldkey_swap_announcement(origin_ss58, block_hash=block_hash),
             subtensor.get_coldkey_swap_dispute(origin_ss58, block_hash=block_hash),
             subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_coldkey_swap_reannouncement_delay(block_hash=block_hash),
         )
         if not announcement:
             console.print(
@@ -2649,10 +2650,11 @@ async def check_swap_status(
         disputes = [(origin_ss58, dispute)] if dispute is not None else []
 
     else:
-        announcements, disputes, current_block = await asyncio.gather(
+        announcements, disputes, current_block, reannounce_delay = await asyncio.gather(
             subtensor.get_coldkey_swap_announcements(block_hash=block_hash),
             subtensor.get_coldkey_swap_disputes(block_hash=block_hash),
             subtensor.substrate.get_block_number(block_hash=block_hash),
+            subtensor.get_coldkey_swap_reannouncement_delay(block_hash=block_hash),
         )
         if not announcements:
             console.print(
@@ -2691,6 +2693,7 @@ async def check_swap_status(
         Column("Execution Block", justify="right", style="dark_sea_green3"),
         Column("Time Remaining", justify="right", style="yellow"),
         Column("Status", justify="center", style="green"),
+        Column("Clear Announcement", justify="right", style="yellow"),
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Pending Coldkey Swap Announcements\nCurrent Block: {current_block}\n",
         show_header=True,
         show_edge=False,
@@ -2705,18 +2708,28 @@ async def check_swap_status(
     for announcement in announcements:
         dispute_block = dispute_map.get(announcement.coldkey)
         remaining_blocks = announcement.execution_block - current_block
+        clear_block = announcement.execution_block + reannounce_delay
+        clear_remaining = clear_block - current_block
         if dispute_block is not None:
             status = "[red]Disputed[/red]"
             time_str = f"Disputed @ {dispute_block}"
             status_label = "disputed"
+            clear_str = "[red]Disputed[/red]"
         elif remaining_blocks <= 0:
             status = "Ready"
             time_str = "[green]Ready[/green]"
             status_label = "ready"
+            if clear_remaining <= 0:
+                clear_str = "[green]Ready[/green]"
+            else:
+                clear_str = (
+                    f"Block {clear_block} ({blocks_to_duration(clear_remaining)})"
+                )
         else:
             status = "Pending"
             time_str = blocks_to_duration(remaining_blocks)
             status_label = "pending"
+            clear_str = f"Block {clear_block} ({blocks_to_duration(clear_remaining)})"
         hash_display = f"{announcement.new_coldkey_hash[:12]}...{announcement.new_coldkey_hash[-6:]}"
 
         table.add_row(
@@ -2725,6 +2738,7 @@ async def check_swap_status(
             str(announcement.execution_block),
             time_str,
             status,
+            clear_str,
         )
 
         payload["announcements"].append(
@@ -2735,6 +2749,8 @@ async def check_swap_status(
                 "status": status_label,
                 "time_remaining_blocks": max(0, remaining_blocks),
                 "disputed_block": dispute_block,
+                "clear_block": clear_block,
+                "clear_remaining_blocks": max(0, clear_remaining),
             }
         )
 
@@ -2745,5 +2761,7 @@ async def check_swap_status(
     console.print(table)
     console.print(
         "\n[dim]To execute a ready swap:[/dim] "
-        "[green]btcli wallet swap-coldkey execute[/green]"
+        "[green]btcli wallet swap-coldkey execute[/green]\n"
+        "[dim]To clear (withdraw) an announcement:[/dim] "
+        "[green]btcli wallet swap-coldkey clear[/green]"
     )
