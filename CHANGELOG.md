@@ -1,6 +1,18 @@
 # Changelog
 
-## 9.19.0 /2026-03-02
+## 9.20.0 /2026-03-24
+
+## What's Changed
+* feat: Add batch extrinsic support to reduce transaction fees by @bittoby in https://github.com/opentensor/btcli/pull/863
+* Fixes an issue (my fault) where `process_nested` can really be `Any`,… by @thewhaleking in https://github.com/opentensor/btcli/pull/869
+* Feat/coldkey swap clear by @ibraheem-abe in https://github.com/opentensor/btcli/pull/871
+
+## New Contributors
+* @bittoby made their first contribution in https://github.com/opentensor/btcli/pull/863
+
+**Full Changelog**: https://github.com/opentensor/btcli/compare/v9.19.0...v9.20.0
+
+## 9.19.0 /2026-03-19
 
 ## What's Changed
 * fix: JSON output empty for `btcli subnets list --json-out` command by @GlobalStar117 in https://github.com/opentensor/btcli/pull/800
