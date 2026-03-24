@@ -2224,7 +2224,7 @@ async def announce_coldkey_swap(
         console.print(details_table)
         console.print(
             f"\n[dim]After the delay, run:"
-            f"\n[green]btcli wallet swap-coldkey execute --new-coldkey {new_coldkey_ss58}[/green]"
+            f"\n[green]btcli wallet swap-coldkey execute --new-coldkey {new_coldkey_ss58} --wallet-name {wallet.name}[/green]"
         )
 
     return True
