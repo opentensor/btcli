@@ -1451,9 +1451,11 @@ class SubtensorInterface:
             storage_function="MechanismCountCurrent",
             params=[],
             block_hash=block_hash,
+            fully_exhaust=True,
+            page_size=200,
         )
         res = {}
-        async for netuid, count in results:
+        for netuid, count in results.records:
             res[int(netuid)] = int(count.value)
         return res
 
