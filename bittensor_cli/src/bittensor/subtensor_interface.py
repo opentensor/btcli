@@ -285,14 +285,14 @@ class SubtensorInterface:
             params=[coldkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+            page_size=200,
         )
-
         destinations: dict[int, str] = {}
-        async for netuid, destination in query:
+        for netuid, destination in query.records:
             hotkey_ss58 = decode_account_id(destination.value[0])
             if hotkey_ss58:
                 destinations[int(netuid)] = hotkey_ss58
-
         return destinations
 
     async def get_stake_for_coldkey_and_hotkey(
