@@ -2239,10 +2239,11 @@ class SubtensorInterface:
             params=[],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
         )
 
         root_claim_types = {}
-        async for coldkey, claim_type_data in result:
+        for coldkey, claim_type_data in result.records:
             coldkey_ss58 = decode_account_id(coldkey[0])
 
             claim_type_key = next(iter(claim_type_data.value.keys()))
