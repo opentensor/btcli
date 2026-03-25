@@ -2350,9 +2350,11 @@ class SubtensorInterface:
             params=[hotkey_ss58, coldkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+            page_size=200,
         )
         total_claimed = {}
-        async for netuid, claimed in query:
+        for netuid, claimed in query.records:
             total_claimed[netuid] = Balance.from_rao(claimed.value).set_unit(
                 netuid=netuid
             )
