@@ -1988,7 +1988,7 @@ class SubtensorInterface:
             fully_exhaust=True,
         )
         crowdloans = {}
-        async for fund_id, fund_info in crowdloans_data:
+        for fund_id, fund_info in crowdloans_data.records:
             decoded_call = await self._decode_inline_call(
                 fund_info["call"],
                 block_hash=block_hash,
