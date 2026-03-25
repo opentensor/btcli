@@ -2240,6 +2240,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
             fully_exhaust=True,
+            page_size=1_000,
         )
 
         root_claim_types = {}
