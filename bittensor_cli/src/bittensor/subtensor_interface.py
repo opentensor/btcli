@@ -229,9 +229,11 @@ class SubtensorInterface:
             storage_function="NetworksAdded",
             block_hash=block_hash,
             reuse_block_hash=True,
+            fully_exhaust=True,
+            page_size=200,
         )
         res = []
-        async for netuid, exists in result:
+        for netuid, exists in result.records:
             if exists.value:
                 res.append(netuid)
         return res
