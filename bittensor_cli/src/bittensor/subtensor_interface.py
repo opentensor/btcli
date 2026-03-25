@@ -1930,10 +1930,12 @@ class SubtensorInterface:
             storage_function="ColdkeySwapDisputes",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+            page_size=200,
         )
 
         disputes: list[tuple[str, int]] = []
-        async for ss58, data in result:
+        for ss58, data in result.records:
             coldkey = decode_account_id(ss58)
             disputes.append((coldkey, data.value))
         return disputes
