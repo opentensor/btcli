@@ -1872,10 +1872,12 @@ class SubtensorInterface:
             storage_function="ColdkeySwapAnnouncements",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+            page_size=200,
         )
 
         announcements = []
-        async for ss58, data in result:
+        for ss58, data in result.records:
             coldkey = decode_account_id(ss58)
             announcements.append(
                 ColdkeySwapAnnouncementInfo._fix_decoded(coldkey, data)
