@@ -2585,7 +2585,7 @@ class SubtensorInterface:
         return Balance.from_rao(int(current_price * 1e9))
 
     async def get_subnet_prices(
-        self, block_hash: Optional[str] = None, page_size: int = 100
+        self, block_hash: Optional[str] = None, page_size: int = 200
     ) -> dict[int, Balance]:
         """
         Gets the current Alpha prices in TAO for all subnets.
@@ -2600,10 +2600,11 @@ class SubtensorInterface:
             storage_function="AlphaSqrtPrice",
             page_size=page_size,
             block_hash=block_hash,
+            fully_exhaust=True,
         )
 
         map_ = {}
-        async for netuid_, current_sqrt_price in query:
+        for netuid_, current_sqrt_price in query.records:
             current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
             current_price = current_sqrt_price_**2
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
