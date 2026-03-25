@@ -2089,7 +2089,7 @@ class SubtensorInterface:
         )
 
         contributor_contributions = {}
-        async for contributor_key, contribution_amount in contributors_data:
+        for contributor_key, contribution_amount in contributors_data.records:
             try:
                 contributor_address = decode_account_id(contributor_key[0])
                 contribution_balance = Balance.from_rao(contribution_amount.value)
