@@ -2613,7 +2613,7 @@ class SubtensorInterface:
     async def get_all_subnet_ema_tao_inflow(
         self,
         block_hash: Optional[str] = None,
-        page_size: int = 100,
+        page_size: int = 200,
     ) -> dict[int, Balance]:
         """
         Query EMA TAO inflow for all subnets.
@@ -2633,9 +2633,10 @@ class SubtensorInterface:
             storage_function="SubnetEmaTaoFlow",
             page_size=page_size,
             block_hash=block_hash,
+            fully_exhaust=True,
         )
         ema_map = {}
-        async for netuid, value in query:
+        for netuid, value in query.records:
             if not value:
                 ema_map[netuid] = Balance.from_rao(0)
             else:
