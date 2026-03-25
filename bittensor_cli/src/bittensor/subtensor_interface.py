@@ -575,9 +575,11 @@ class SubtensorInterface:
             params=[hotkey_ss58],
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
+            fully_exhaust=True,
+            page_size=200,
         )
         res = []
-        async for record in result:
+        for record in result.records:
             if record[1].value:
                 res.append(record[0])
         return res
