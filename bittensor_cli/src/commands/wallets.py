@@ -1571,10 +1571,13 @@ async def inspect(
         for d_, staked in delegates_:
             if not staked.tao > 0:
                 continue
-            if d_.hotkey_ss58 in registered_delegate_info:
-                delegate_name = registered_delegate_info[d_.hotkey_ss58].display
-            else:
-                delegate_name = d_.hotkey_ss58
+            hotkey_identity = delegate_identity_map["hotkeys"].get(d_.hotkey_ss58, {})
+            identity_data = hotkey_identity.get("identity", {})
+            delegate_name = (
+                identity_data.get("name")
+                or identity_data.get("display")
+                or d_.hotkey_ss58
+            )
             yield (
                 [""] * 2
                 + [
@@ -1634,12 +1637,15 @@ async def inspect(
             block_hash=block_hash,
         )
     # bittensor.logging.debug(f"Netuids to check: {all_netuids}")
-    with console.status("Pulling delegates info...", spinner="aesthetic"):
-        registered_delegate_info = await subtensor.get_delegate_identities()
-        if not registered_delegate_info:
+    with console.status("Pulling identity info...", spinner="aesthetic"):
+        delegate_identity_map = await subtensor.fetch_coldkey_hotkey_identities(
+            block_hash=block_hash
+        )
+        if not delegate_identity_map:
             console.print(
-                ":warning:[yellow]Could not get delegate info from chain.[/yellow]"
+                ":warning:[yellow]Could not get identity info from chain.[/yellow]"
             )
+        delegate_identity_map = delegate_identity_map or {"hotkeys": {}, "coldkeys": {}}
 
     table = Table(
         Column("[bold white]Coldkey", style="dark_orange"),
