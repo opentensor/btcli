@@ -22,6 +22,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -352,13 +353,7 @@ async def stake_move_transfer_selection(
 
     hotkeys_info = []
     for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
-        if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58):
-            identity_data = hk_identity.get("identity", {})
-            hotkey_name = (
-                identity_data.get("name") or identity_data.get("display") or "~"
-            )
-        else:
-            hotkey_name = "~"
+        hotkey_name = get_hotkey_identity_name(ck_hk_identities, hotkey_ss58) or "~"
         hotkeys_info.append(
             {
                 "index": idx,

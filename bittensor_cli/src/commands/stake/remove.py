@@ -29,6 +29,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -1603,8 +1604,6 @@ def get_hotkey_identity(
     Returns:
         str: Identity name or truncated address
     """
-    if hk_identity := identities["hotkeys"].get(hotkey_ss58):
-        identity_data = hk_identity.get("identity", {})
-        return identity_data.get("name") or identity_data.get("display") or "~"
-    else:
-        return f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    return get_hotkey_identity_name(identities, hotkey_ss58) or (
+        f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    )
