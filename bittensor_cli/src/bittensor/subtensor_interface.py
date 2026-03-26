@@ -32,7 +32,6 @@ from bittensor_cli.src.bittensor.chain_data import (
     CrowdloanData,
     ColdkeySwapAnnouncementInfo,
 )
-from bittensor_cli.src import DelegatesDetails
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
 from bittensor_cli.src import Constants, defaults, TYPE_REGISTRY
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import encrypt_extrinsic
@@ -40,7 +39,6 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     console,
     print_error,
-    decode_hex_identity_dict,
     validate_chain_endpoint,
     u16_normalized_float,
     MEV_SHIELD_PUBLIC_KEY_SIZE,
@@ -1517,39 +1515,6 @@ class SubtensorInterface:
             return None
         else:
             return ProposalVoteData(vote_data)
-
-    async def get_delegate_identities(
-        self, block_hash: Optional[str] = None
-    ) -> dict[str, DelegatesDetails]:
-        """
-        Fetches delegates identities from the chain and GitHub. Preference is given to chain data, and missing info
-        is filled-in by the info from GitHub. At some point, we want to totally move away from fetching this info
-        from GitHub, but chain data is still limited in that regard.
-
-        :param block_hash: the hash of the blockchain block for the query
-
-        :return: {ss58: DelegatesDetails, ...}
-
-        """
-        identities_info = await self.substrate.query_map(
-            module="Registry",
-            storage_function="IdentityOf",
-            block_hash=block_hash,
-        )
-
-        all_delegates_details = {}
-        async for ss58_address, identity in identities_info:
-            all_delegates_details.update(
-                {
-                    decode_account_id(
-                        ss58_address[0]
-                    ): DelegatesDetails.from_chain_data(
-                        decode_hex_identity_dict(identity.value["info"])
-                    )
-                }
-            )
-
-        return all_delegates_details
 
     async def get_mechagraph_info(
         self, netuid: int, mech_id: int, block_hash: Optional[str] = None
