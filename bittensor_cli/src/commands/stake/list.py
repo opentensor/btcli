@@ -20,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     millify_tao,
     get_subnet_name,
     json_console,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -68,9 +69,7 @@ async def stake_list(
         )
 
     def format_hotkey_name(hotkey_ss58_: str, hotkey_identity_map_: dict) -> str:
-        hotkey_identity = hotkey_identity_map_.get("hotkeys", {}).get(hotkey_ss58_, {})
-        identity_data = hotkey_identity.get("identity", {})
-        display_name = identity_data.get("name") or identity_data.get("display")
+        display_name = get_hotkey_identity_name(hotkey_identity_map_, hotkey_ss58_)
         return f"{display_name} ({hotkey_ss58_})" if display_name else hotkey_ss58_
 
     def define_table(
