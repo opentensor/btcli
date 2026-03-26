@@ -1571,11 +1571,8 @@ async def inspect(
         for d_, staked in delegates_:
             if not staked.tao > 0:
                 continue
-            hotkey_identity = delegate_identity_map["hotkeys"].get(d_.hotkey_ss58, {})
-            identity_data = hotkey_identity.get("identity", {})
             delegate_name = (
-                identity_data.get("name")
-                or identity_data.get("display")
+                utils.get_hotkey_identity_name(delegate_identity_map, d_.hotkey_ss58)
                 or d_.hotkey_ss58
             )
             yield (
