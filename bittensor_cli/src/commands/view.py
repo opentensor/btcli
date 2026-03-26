@@ -7,7 +7,13 @@ from typing import Any
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.bittensor.utils import console, WalletLike, jinja_env
+from bittensor_cli.src.bittensor.utils import (
+    console,
+    WalletLike,
+    jinja_env,
+    get_hotkey_identity_name,
+    get_coldkey_identity_name,
+)
 from bittensor_wallet import Wallet
 from bittensor_cli.src import defaults
 
@@ -97,13 +103,11 @@ def get_identity(
 ) -> str:
     """Fetch identity from the V2-backed coldkey/hotkey identity map."""
     if lookup_hk:
-        if hk_identity := identities["hotkeys"].get(hotkey_ss58):
-            identity_data = hk_identity.get("identity", {})
-            return identity_data.get("name") or identity_data.get("display") or "~"
+        if display_name := get_hotkey_identity_name(identities, hotkey_ss58):
+            return display_name
     else:
-        if ck_identity := identities["coldkeys"].get(hotkey_ss58):
-            identity_data = ck_identity.get("identity", {})
-            return identity_data.get("name") or identity_data.get("display") or "~"
+        if display_name := get_coldkey_identity_name(identities, hotkey_ss58):
+            return display_name
 
     if return_bool:
         return False

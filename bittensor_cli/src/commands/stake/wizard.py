@@ -21,6 +21,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     group_subnets,
     get_hotkey_wallets_for_wallet,
+    get_hotkey_identity_name,
 )
 from bittensor_cli.src.commands.stake.move import (
     stake_move_transfer_selection,
@@ -149,10 +150,7 @@ def _display_available_stakes(
 
     # Get identities
     def get_identity(hotkey_ss58_: str) -> str:
-        if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58_):
-            identity_data = hk_identity.get("identity", {})
-            return identity_data.get("name") or identity_data.get("display") or "~"
-        return "~"
+        return get_hotkey_identity_name(ck_hk_identities, hotkey_ss58_) or "~"
 
     table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Your Available Stakes[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n",
