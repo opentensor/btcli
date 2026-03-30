@@ -3,6 +3,16 @@ import subprocess
 import sys
 from typing import Optional
 
+_GIT_AVAILABLE: Optional[bool] = None
+
+
+def _check_git() -> bool:
+    """Check if git is available on the system."""
+    global _GIT_AVAILABLE
+    if _GIT_AVAILABLE is None:
+        _GIT_AVAILABLE = shutil.which("git") is not None
+    return _GIT_AVAILABLE
+
 from rich import box
 from rich.table import Table
 
@@ -37,6 +47,13 @@ async def ext_add(repo_url: str) -> None:
         err_console.print(
             f"[red]Error:[/red] Directory '{repo_name}' already exists. "
             f"Use [bold]btcli ext update {repo_name}[/bold] to update it."
+        )
+        return
+
+    if not _check_git():
+        err_console.print(
+            "[red]Error:[/red] git is not installed. "
+            "Please install git and try again."
         )
         return
 
@@ -93,6 +110,13 @@ async def ext_update(name: Optional[str] = None) -> None:
         if not extensions:
             console.print("No extensions installed.")
             return
+
+    if not _check_git():
+        err_console.print(
+            "[red]Error:[/red] git is not installed. "
+            "Please install git and try again."
+        )
+        return
 
     for path, manifest in extensions:
         console.print(f"Updating [bold]{manifest.name}[/bold] ...")
