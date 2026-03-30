@@ -23,9 +23,7 @@ class ExtensionManifest:
     def from_yaml(cls, path: Path) -> "ExtensionManifest":
         manifest_file = path / "extension.yaml"
         if not manifest_file.exists():
-            raise FileNotFoundError(
-                f"No extension.yaml found in {path}"
-            )
+            raise FileNotFoundError(f"No extension.yaml found in {path}")
         with open(manifest_file, "r") as f:
             data = safe_load(f) or {}
 

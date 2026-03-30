@@ -1,7 +1,6 @@
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 from typing import Optional
 
 from rich import box
@@ -168,9 +167,7 @@ def ext_create(name: str) -> None:
     tests_dir.mkdir()
 
     # Write extension.yaml
-    (target / "extension.yaml").write_text(
-        EXTENSION_YAML_TEMPLATE.format(name=name)
-    )
+    (target / "extension.yaml").write_text(EXTENSION_YAML_TEMPLATE.format(name=name))
 
     # Write main.py
     (target / "main.py").write_text(MAIN_PY_TEMPLATE.format(name=name))
