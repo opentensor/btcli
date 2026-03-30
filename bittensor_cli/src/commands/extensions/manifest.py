@@ -56,7 +56,7 @@ class ExtensionManifest:
             data["author"] = self.author
         if self.repository:
             data["repository"] = self.repository
-        with open(path / "extension.yaml", "w") as f:
+        with open(path / "extension.yaml", "w+") as f:
             safe_dump(data, f, default_flow_style=False, sort_keys=False)
 
 
