@@ -1,3 +1,6 @@
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +12,7 @@ from bittensor_cli.src.commands.extensions.manifest import (
     get_extension_by_name,
 )
 from bittensor_cli.src.commands.extensions.ext_commands import (
+    _check_git,
     ext_create,
     ext_list,
     ext_remove,
@@ -183,3 +187,50 @@ class TestExtRemove:
 
     def test_remove_nonexistent(self, tmp_extensions_dir):
         ext_remove("nonexistent")
+
+
+class TestCheckGit:
+    def test_git_available(self):
+        import bittensor_cli.src.commands.extensions.ext_commands as mod
+        mod._GIT_AVAILABLE = None  # reset cache
+        assert _check_git() is True
+
+    def test_git_not_available(self):
+        import bittensor_cli.src.commands.extensions.ext_commands as mod
+        mod._GIT_AVAILABLE = None  # reset cache
+        with patch("shutil.which", return_value=None):
+            assert _check_git() is False
+        mod._GIT_AVAILABLE = None  # reset cache for other tests
+
+
+class TestSampleExtension:
+    """Integration tests using the sample extension in examples/."""
+
+    SAMPLE_EXT = Path(__file__).parent.parent.parent / "examples" / "sample-extension"
+
+    def test_sample_extension_has_valid_manifest(self):
+        manifest = ExtensionManifest.from_yaml(self.SAMPLE_EXT)
+        assert manifest.name == "sample-extension"
+        assert manifest.version == "0.1.0"
+        assert manifest.entry_point == "main.py"
+
+    def test_sample_extension_runs(self):
+        entry = self.SAMPLE_EXT / "main.py"
+        result = subprocess.run(
+            [sys.executable, str(entry)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "Sample btcli Extension" in result.stdout
+        assert "Extension loaded successfully!" in result.stdout
+
+    def test_sample_extension_tests_pass(self):
+        tests_dir = self.SAMPLE_EXT / "tests"
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", str(tests_dir), "-v"],
+            capture_output=True,
+            text=True,
+            cwd=str(self.SAMPLE_EXT),
+        )
+        assert result.returncode == 0
