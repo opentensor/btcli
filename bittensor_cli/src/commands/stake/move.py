@@ -561,6 +561,7 @@ async def move_stake(
     quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, str]:
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if interactive_selection:
@@ -691,6 +692,8 @@ async def move_stake(
     # Perform moving operation.
     if not unlock_key(wallet).success:
         return False, ""
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return False, ""
     with console.status(
         f"\n:satellite: Moving [blue]{amount_to_move_as_balance}[/blue] from [blue]{origin_hotkey}[/blue] on netuid: "
         f"[blue]{origin_netuid}[/blue] \nto "
@@ -703,6 +706,7 @@ async def move_stake(
             proxy=proxy,
             mev_protection=mev_protection,
             nonce=next_nonce,
+            relay_wallet=relay_wallet,
         )
 
         ext_id = await response.get_extrinsic_identifier() if response else ""
@@ -774,6 +778,7 @@ async def transfer_stake(
     quiet: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, str]:
     """Transfers stake from one network to another.
 
@@ -912,6 +917,8 @@ async def transfer_stake(
     # Perform transfer operation
     if not unlock_key(wallet).success:
         return False, ""
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return False, ""
 
     with console.status("\n:satellite: Transferring stake ...") as status:
         success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
@@ -921,6 +928,7 @@ async def transfer_stake(
             proxy=proxy,
             mev_protection=mev_protection,
             nonce=next_nonce,
+            relay_wallet=relay_wallet,
         )
 
         if success_:
@@ -990,6 +998,7 @@ async def swap_stake(
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, str]:
     """Swaps stake between subnets while keeping the same coldkey-hotkey pair ownership.
 
@@ -1143,6 +1152,8 @@ async def swap_stake(
     # Perform swap operation
     if not unlock_key(wallet).success:
         return False, ""
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return False, ""
 
     with console.status(
         f"\n:satellite: Swapping stake from netuid [blue]{origin_netuid}[/blue] "
@@ -1157,6 +1168,7 @@ async def swap_stake(
             wait_for_inclusion=wait_for_inclusion,
             mev_protection=mev_protection,
             nonce=next_nonce,
+            relay_wallet=relay_wallet,
         )
 
         ext_id = await response.get_extrinsic_identifier()

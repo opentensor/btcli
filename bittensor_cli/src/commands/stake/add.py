@@ -53,6 +53,7 @@ async def stake_add(
     era: int,
     mev_protection: bool,
     proxy: Optional[str],
+    relay_wallet: Optional[Wallet] = None,
 ):
     """
     Args:
@@ -72,6 +73,7 @@ async def stake_add(
         era: Blocks for which the transaction should be valid.
         proxy: Optional proxy to use for staking.
         mev_protection: If true, will encrypt the extrinsic behind the mev protection shield.
+        relay_wallet: If set with MEV protection, signs the outer MEV Shield extrinsic with this coldkey.
 
     Returns:
         bool: True if stake operation is successful, False otherwise
@@ -150,6 +152,7 @@ async def stake_add(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            relay_wallet=relay_wallet,
         )
         if not success_:
             if "Custom error: 8" in err_msg:
@@ -248,6 +251,7 @@ async def stake_add(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            relay_wallet=relay_wallet,
         )
         if not success_:
             err_msg = f"{failure_prelude} with error: {err_msg}"
@@ -481,6 +485,8 @@ async def stake_add(
             return
     if not unlock_key(wallet).success:
         return
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return
 
     total_ops = len(operations)
     use_batch = total_ops > 1
@@ -538,6 +544,7 @@ async def stake_add(
                 proxy=proxy,
                 mev_protection=mev_protection,
                 block_hash=batch_block_hash,
+                relay_wallet=relay_wallet,
             )
 
             if success and mev_protection:

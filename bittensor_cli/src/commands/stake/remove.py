@@ -57,6 +57,7 @@ async def unstake(
     era: int,
     proxy: Optional[str],
     mev_protection: bool,
+    relay_wallet: Optional[Wallet] = None,
 ):
     """Unstake from hotkey(s)."""
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
@@ -102,6 +103,13 @@ async def unstake(
                 hotkey_ss58_address=hotkey_to_unstake_all[1],
                 unstake_all_alpha=unstake_all_alpha,
                 prompt=prompt,
+                decline=decline,
+                quiet=quiet,
+                json_output=json_output,
+                era=era,
+                proxy=proxy,
+                mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
 
         if not hotkeys_to_unstake_from:
@@ -325,6 +333,8 @@ async def unstake(
     # Execute extrinsics
     if not unlock_key(wallet).success:
         return False
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return False
 
     total_ops = len(unstake_operations)
     use_batch = total_ops > 1
@@ -379,6 +389,7 @@ async def unstake(
                 proxy=proxy,
                 mev_protection=mev_protection,
                 block_hash=batch_block_hash,
+                relay_wallet=relay_wallet,
             )
 
             if success and mev_protection:
@@ -459,6 +470,7 @@ async def unstake(
                     "era": era,
                     "proxy": proxy,
                     "mev_protection": mev_protection,
+                    "relay_wallet": relay_wallet,
                 }
 
                 if safe_staking and op["netuid"] != 0:
@@ -507,6 +519,7 @@ async def unstake_all(
     json_output: bool = False,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
@@ -667,6 +680,8 @@ async def unstake_all(
 
     if not unlock_key(wallet).success:
         return
+    if relay_wallet is not None and not unlock_key(relay_wallet).success:
+        return
     successes = {}
     use_batch = len(hotkey_ss58s) > 1
 
@@ -696,6 +711,7 @@ async def unstake_all(
                 proxy=proxy,
                 mev_protection=mev_protection,
                 block_hash=batch_block_hash,
+                relay_wallet=relay_wallet,
             )
 
             if success and mev_protection:
@@ -755,6 +771,7 @@ async def unstake_all(
                     era=era,
                     proxy=proxy,
                     mev_protection=mev_protection,
+                    relay_wallet=relay_wallet,
                 )
                 ext_id = (
                     await ext_receipt.get_extrinsic_identifier() if success else None
@@ -779,6 +796,7 @@ async def _unstake_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
@@ -828,6 +846,7 @@ async def _unstake_extrinsic(
         proxy=proxy,
         mev_protection=mev_protection,
         nonce=next_nonce,
+        relay_wallet=relay_wallet,
     )
     if success:
         if mev_protection:
@@ -880,6 +899,7 @@ async def _safe_unstake_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -938,6 +958,7 @@ async def _safe_unstake_extrinsic(
         era={"period": era},
         proxy=proxy,
         mev_protection=mev_protection,
+        relay_wallet=relay_wallet,
     )
     if success:
         if mev_protection:
@@ -1005,6 +1026,7 @@ async def _unstake_all_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    relay_wallet: Optional[Wallet] = None,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
@@ -1062,6 +1084,7 @@ async def _unstake_all_extrinsic(
             nonce=next_nonce,
             proxy=proxy,
             mev_protection=mev_protection,
+            relay_wallet=relay_wallet,
         )
 
         if not success_:

@@ -1159,6 +1159,7 @@ class SubtensorInterface:
         sign_with: Literal["coldkey", "hotkey", "coldkeypub"] = "coldkey",
         announce_only: bool = False,
         mev_protection: bool = False,
+        relay_wallet: Optional[Wallet] = None,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Helper method to sign and submit an extrinsic call to chain.
@@ -1175,14 +1176,17 @@ class SubtensorInterface:
             be used with `mev_protection=True`.
         :param mev_protection: If set, uses Mev Protection on the extrinsic, thus encrypting it. Cannot be
             used with `announce_only=True`.
+        :param relay_wallet: If set with ``mev_protection``, signs the outer ``MevShield.submit_encrypted``
+            extrinsic with this wallet's coldkey instead of ``wallet``.
 
         :return: (success, error message or inner extrinsic hash (if using mev_protection), extrinsic receipt | None)
         """
 
-        async def create_signed(call_to_sign, n):
+        async def create_signed(call_to_sign, n, signing_keypair: Optional[Keypair] = None):
+            kp = signing_keypair if signing_keypair is not None else keypair
             kwargs = {
                 "call": call_to_sign,
-                "keypair": keypair,
+                "keypair": kp,
                 "nonce": n,
             }
             if era is not None:
@@ -1193,6 +1197,10 @@ class SubtensorInterface:
             raise ValueError(
                 "Cannot use announce-only and mev-protection. Calls should be announced without mev protection,"
                 "and executed with them."
+            )
+        if relay_wallet is not None and not mev_protection:
+            raise ValueError(
+                "Relay requires MEV protection; remove relay or enable MEV protection."
             )
         if proxy is not None:
             if announce_only:
@@ -1236,7 +1244,17 @@ class SubtensorInterface:
             inner_extrinsic = await create_signed(call, next_nonce)
             inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
             shield_call = await encrypt_extrinsic(self, inner_extrinsic)
-            extrinsic = await create_signed(shield_call, nonce)
+            if relay_wallet is not None:
+                relay_keypair = relay_wallet.coldkey
+                outer_nonce = await self.substrate.get_account_next_index(
+                    relay_keypair.ss58_address
+                )
+                extrinsic = await create_signed(
+                    shield_call, outer_nonce, signing_keypair=relay_keypair
+                )
+            else:
+                outer_nonce = nonce if nonce is not None else call_args["nonce"]
+                extrinsic = await create_signed(shield_call, outer_nonce)
         else:
             extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
@@ -1304,6 +1322,7 @@ class SubtensorInterface:
         announce_only: bool = False,
         mev_protection: bool = False,
         block_hash: Optional[str] = None,
+        relay_wallet: Optional[Wallet] = None,
     ) -> tuple[bool, str, Optional[AsyncExtrinsicReceipt]]:
         """
         Wraps multiple extrinsic calls into a single Utility.batch_all transaction
@@ -1325,6 +1344,7 @@ class SubtensorInterface:
         :param announce_only: make the call as a proxy announcement.
         :param mev_protection: encrypt the extrinsic via MEV Shield.
         :param block_hash: cached block hash for compose_call. Fetched if None.
+        :param relay_wallet: If set with ``mev_protection``, signs the outer MEV Shield extrinsic with this wallet.
 
         :return: (success, error message or inner hash, extrinsic receipt | None)
         """
@@ -1344,6 +1364,7 @@ class SubtensorInterface:
                 sign_with=sign_with,
                 announce_only=announce_only,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
 
         if block_hash is None:
@@ -1367,6 +1388,7 @@ class SubtensorInterface:
             sign_with=sign_with,
             announce_only=announce_only,
             mev_protection=mev_protection,
+            relay_wallet=relay_wallet,
         )
 
     async def get_children(self, hotkey, netuid) -> tuple[bool, list, str]:

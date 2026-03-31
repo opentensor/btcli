@@ -417,6 +417,11 @@ class Options:
         show_default=False,
         help="Enable or disable MEV protection [dim](default: enabled)[/dim].",
     )
+    relay = typer.Option(
+        None,
+        "--relay",
+        help="Coldkey wallet name or SS58 that signs the outer MEV Shield transaction (requires MEV protection).",
+    )
     json_output = typer.Option(
         False,
         "--json-output",
@@ -2278,6 +2283,38 @@ class CLIManager:
         elif not btwallet_is_valid_ss58_address(address):
             raise typer.BadParameter(f"Invalid SS58 address: {address}")
         return address
+
+    def resolve_relay_wallet(
+        self, relay: Optional[str], wallet_base_path: str
+    ) -> Wallet:
+        """
+        Resolve ``--relay`` to a Wallet whose coldkey signs the outer MEV Shield extrinsic.
+
+        ``relay`` may be a coldkey SS58 present under ``wallet_base_path`` or a wallet directory name.
+        """
+        relay = relay.strip() if relay else ""
+        if not relay:
+            print_error("Relay wallet name or SS58 is empty.")
+            raise typer.Exit(1)
+        if is_valid_ss58_address(relay):
+            from bittensor_cli.src.commands.wallets import _get_wallet_by_ss58
+
+            w = _get_wallet_by_ss58(wallet_base_path, relay)
+            if w is None:
+                print_error(
+                    f"No wallet under {wallet_base_path} has coldkey {relay}. "
+                    "Import the relay coldkey or pass a wallet name."
+                )
+                raise typer.Exit(1)
+            return w
+        w = Wallet(name=relay, path=wallet_base_path)
+        valid = utils.is_valid_wallet(w)
+        if not valid[0]:
+            print_error(
+                f"Relay wallet '{relay}' does not exist under {wallet_base_path}."
+            )
+            raise typer.Exit(1)
+        return w
 
     def ask_rate_tolerance(
         self,
@@ -4772,6 +4809,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        relay: Optional[str] = Options.relay,
     ):
         """
         Stake TAO to one or more hotkeys on specific netuids with your coldkey.
@@ -4812,6 +4850,11 @@ class CLIManager:
         """
         netuids = netuids or []
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        if relay and not mev_protection:
+            print_error(
+                "Cannot use --relay without MEV protection (--mev-protection)."
+            )
+            raise typer.Exit(1)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         safe_staking = self.ask_safe_staking(safe_staking)
         if safe_staking:
@@ -5021,6 +5064,7 @@ class CLIManager:
             f"period: {period}\n"
             f"mev_protection: {mev_protection}\n"
         )
+        relay_wallet = self.resolve_relay_wallet(relay, wallet.path) if relay else None
         return self._run_command(
             add_stake.stake_add(
                 wallet=wallet,
@@ -5041,6 +5085,7 @@ class CLIManager:
                 era=period,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
         )
 
@@ -5106,6 +5151,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        relay: Optional[str] = Options.relay,
     ):
         """
         Unstake TAO from one or more hotkeys and transfer them back to the user's coldkey wallet.
@@ -5141,6 +5187,11 @@ class CLIManager:
         • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        if relay and not mev_protection:
+            print_error(
+                "Cannot use --relay without MEV protection (--mev-protection)."
+            )
+            raise typer.Exit(1)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         if not unstake_all and not unstake_all_alpha:
             safe_staking = self.ask_safe_staking(safe_staking)
@@ -5315,6 +5366,9 @@ class CLIManager:
                 f"era: {period}\n"
                 f"mev_protection: {mev_protection}"
             )
+            relay_wallet = (
+                self.resolve_relay_wallet(relay, wallet.path) if relay else None
+            )
             return self._run_command(
                 remove_stake.unstake_all(
                     wallet=wallet,
@@ -5331,6 +5385,7 @@ class CLIManager:
                     era=period,
                     mev_protection=mev_protection,
                     proxy=proxy,
+                    relay_wallet=relay_wallet,
                 )
             )
         elif (
@@ -5387,6 +5442,7 @@ class CLIManager:
             f"mev_protection: {mev_protection}\n"
         )
 
+        relay_wallet = self.resolve_relay_wallet(relay, wallet.path) if relay else None
         return self._run_command(
             remove_stake.unstake(
                 wallet=wallet,
@@ -5408,6 +5464,7 @@ class CLIManager:
                 era=period,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
         )
 
@@ -5460,6 +5517,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        relay: Optional[str] = Options.relay,
     ):
         """
         Move staked TAO between hotkeys while keeping the same coldkey ownership.
@@ -5486,6 +5544,11 @@ class CLIManager:
             [green]$[/green] btcli stake move --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        if relay and not mev_protection:
+            print_error(
+                "Cannot use --relay without MEV protection (--mev-protection)."
+            )
+            raise typer.Exit(1)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         print_protection_warnings(
             mev_protection=mev_protection,
@@ -5595,6 +5658,7 @@ class CLIManager:
             f"proxy: {proxy}\n"
             f"mev_protection: {mev_protection}\n"
         )
+        relay_wallet = self.resolve_relay_wallet(relay, wallet.path) if relay else None
         result, ext_id = self._run_command(
             move_stake.move_stake(
                 subtensor=self.initialize_chain(network),
@@ -5612,6 +5676,7 @@ class CLIManager:
                 quiet=quiet,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
         )
         if json_output:
@@ -5660,6 +5725,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        relay: Optional[str] = Options.relay,
     ):
         """
         Transfer stake between coldkeys while keeping the same hotkey ownership.
@@ -5697,6 +5763,11 @@ class CLIManager:
         [green]$[/green] btcli stake transfer --origin-netuid 1 --dest-netuid 2 --amount 100 --no-mev-protection
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        if relay and not mev_protection:
+            print_error(
+                "Cannot use --relay without MEV protection (--mev-protection)."
+            )
+            raise typer.Exit(1)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         print_protection_warnings(
             mev_protection=mev_protection,
@@ -5802,6 +5873,7 @@ class CLIManager:
             f"mev_protection: {mev_protection}"
             f"proxy: {proxy}"
         )
+        relay_wallet = self.resolve_relay_wallet(relay, wallet.path) if relay else None
         result, ext_id = self._run_command(
             move_stake.transfer_stake(
                 wallet=wallet,
@@ -5819,6 +5891,7 @@ class CLIManager:
                 quiet=quiet,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
         )
         if json_output:
@@ -5872,6 +5945,7 @@ class CLIManager:
         quiet: bool = Options.quiet,
         verbose: bool = Options.verbose,
         json_output: bool = Options.json_output,
+        relay: Optional[str] = Options.relay,
     ):
         """
         Swap stake between different subnets while keeping the same coldkey-hotkey pair ownership.
@@ -5903,6 +5977,11 @@ class CLIManager:
             [green]$[/green] btcli stake swap --origin-netuid 1 --dest-netuid 2 --amount 100 --unsafe
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
+        if relay and not mev_protection:
+            print_error(
+                "Cannot use --relay without MEV protection (--mev-protection)."
+            )
+            raise typer.Exit(1)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         console.print(
             "[dim]This command moves stake from one subnet to another subnet while keeping "
@@ -5959,6 +6038,7 @@ class CLIManager:
             f"wait_for_finalization: {wait_for_finalization}\n"
             f"mev_protection: {mev_protection}\n"
         )
+        relay_wallet = self.resolve_relay_wallet(relay, wallet.path) if relay else None
         result, ext_id = self._run_command(
             move_stake.swap_stake(
                 wallet=wallet,
@@ -5979,6 +6059,7 @@ class CLIManager:
                 wait_for_inclusion=wait_for_inclusion,
                 wait_for_finalization=wait_for_finalization,
                 mev_protection=mev_protection,
+                relay_wallet=relay_wallet,
             )
         )
         if json_output:
