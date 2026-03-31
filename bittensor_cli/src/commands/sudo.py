@@ -1481,14 +1481,14 @@ async def trim(
     """
     Trims a subnet's UIDs to a specified amount
     """
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     print_verbose("Confirming subnet owner")
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    # TODO should this check proxy also?
-    if subnet_owner != wallet.coldkeypub.ss58_address:
+    if subnet_owner != coldkey_ss58:
         err_msg = "This wallet doesn't own the specified subnet."
         if json_output:
             json_console.print_json(data={"success": False, "message": err_msg})
