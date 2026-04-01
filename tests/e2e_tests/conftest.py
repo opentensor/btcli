@@ -43,7 +43,9 @@ async def _ping_substrate_head(substrate: AsyncSubstrateInterface) -> None:
     await substrate.get_chain_head()
 
 
-def wait_until_substrate_rpc_ready(url: str, timeout: float = 120.0) -> AsyncSubstrateInterface:
+def wait_until_substrate_rpc_ready(
+    url: str, timeout: float = 120.0
+) -> AsyncSubstrateInterface:
     """Poll until a substrate client can complete an RPC (retries on transient WS errors)."""
     deadline = time.time() + timeout
     delay = 0.5
