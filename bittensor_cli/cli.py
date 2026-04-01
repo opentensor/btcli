@@ -3003,7 +3003,7 @@ class CLIManager:
         return self._run_command(
             wallets.inspect(
                 wallet,
-                self.subtensor,
+                self.initialize_chain(network),
                 netuids_filter=netuids,
                 all_wallets=all_wallets,
             )
