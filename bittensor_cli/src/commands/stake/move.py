@@ -540,6 +540,7 @@ async def move_stake(
     proxy: Optional[str] = None,
     mev_protection: bool = True,
 ) -> tuple[bool, str]:
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if interactive_selection:
         try:
             selection = await stake_move_transfer_selection(subtensor, wallet)
@@ -553,16 +554,15 @@ async def move_stake(
 
     # Get the wallet stake balances.
     block_hash = await subtensor.substrate.get_chain_head()
-    # TODO should this use `proxy if proxy else wallet.coldkeypub.ss58_address`?
     origin_stake_balance, destination_stake_balance = await asyncio.gather(
         subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
             block_hash=block_hash,
         ),
         subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=destination_hotkey,
             netuid=destination_netuid,
             block_hash=block_hash,
@@ -705,13 +705,13 @@ async def move_stake(
                 new_destination_stake_balance,
             ) = await asyncio.gather(
                 subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     hotkey_ss58=origin_hotkey,
                     netuid=origin_netuid,
                     block_hash=block_hash,
                 ),
                 subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     hotkey_ss58=destination_hotkey,
                     netuid=destination_netuid,
                     block_hash=block_hash,
@@ -771,6 +771,7 @@ async def transfer_stake(
             bool: True if transfer was successful, False otherwise.
             str: error message
     """
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if interactive_selection:
         selection = await stake_move_transfer_selection(subtensor, wallet)
         origin_netuid = selection["origin_netuid"]
@@ -795,9 +796,8 @@ async def transfer_stake(
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
-        # TODO should use proxy for these checks?
         current_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
         )
@@ -918,7 +918,7 @@ async def transfer_stake(
                 # Get and display new stake balances
                 new_stake, new_dest_stake = await asyncio.gather(
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=origin_hotkey,
                         netuid=origin_netuid,
                     ),
@@ -989,6 +989,7 @@ async def swap_stake(
             success is True if the swap was successful, False otherwise.
             extrinsic_identifier if the extrinsic was successfully included
     """
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if interactive_selection:
         try:
@@ -1016,12 +1017,12 @@ async def swap_stake(
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
         current_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=hotkey_ss58,
             netuid=origin_netuid,
         )
         current_dest_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=hotkey_ss58,
             netuid=destination_netuid,
         )
@@ -1153,12 +1154,12 @@ async def swap_stake(
                 # Get and display new stake balances
                 new_stake, new_dest_stake = await asyncio.gather(
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=hotkey_ss58,
                         netuid=origin_netuid,
                     ),
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=hotkey_ss58,
                         netuid=destination_netuid,
                     ),
