@@ -864,10 +864,7 @@ async def _unstake_extrinsic(
         )
         return True, response
     else:
-        err_out(
-            f"{failure_prelude} with error: "
-            f"{format_error_message(await response.error_message)}"
-        )
+        err_out(f"{failure_prelude} with error: {err_msg}")
         return False, None
 
 
