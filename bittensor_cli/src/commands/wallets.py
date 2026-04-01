@@ -1605,9 +1605,10 @@ def _make_delegate_rows(
     for delegate_info, staked in delegates:
         if not staked.tao > 0:
             continue
-        delegate_name = _resolve_delegate_name(
-            delegate_info.hotkey_ss58, registered_delegate_info
-        ) or delegate_info.hotkey_ss58
+        delegate_name = (
+            _resolve_delegate_name(delegate_info.hotkey_ss58, registered_delegate_info)
+            or delegate_info.hotkey_ss58
+        )
         daily_return = _calculate_daily_return(delegate_info, staked)
         yield ["", "", str(delegate_name), str(staked), str(daily_return)]
 
