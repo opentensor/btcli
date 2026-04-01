@@ -50,6 +50,7 @@ from bittensor_cli.src.bittensor.utils import (
     WalletLike,
     blocks_to_duration,
     get_hotkey_pub_ss58,
+    get_hotkey_identity_name,
     print_extrinsic_id,
 )
 
@@ -1599,25 +1600,24 @@ def _build_hotkey_table(network: str) -> Table:
 
 def _make_delegate_rows(
     delegates: list[tuple[DelegateInfo, Balance]],
-    registered_delegate_info: dict,
+    delegate_identity_map: dict,
 ) -> Generator[list[str], None, None]:
     """Yield coldkey table rows for each delegate with a positive stake."""
     for delegate_info, staked in delegates:
         if not staked.tao > 0:
             continue
         delegate_name = (
-            _resolve_delegate_name(delegate_info.hotkey_ss58, registered_delegate_info)
+            _resolve_delegate_name(delegate_info.hotkey_ss58, delegate_identity_map)
             or delegate_info.hotkey_ss58
         )
         daily_return = _calculate_daily_return(delegate_info, staked)
         yield ["", "", str(delegate_name), str(staked), str(daily_return)]
 
 
-def _resolve_delegate_name(hotkey_ss58: str, registered_delegate_info: dict) -> str:
+def _resolve_delegate_name(hotkey_ss58: str, delegate_identity_map: dict) -> str:
     """Look up the display name for a delegate, falling back to the SS58 address."""
-    if hotkey_ss58 in registered_delegate_info:
-        return registered_delegate_info[hotkey_ss58].display
-    return hotkey_ss58
+    name = get_hotkey_identity_name(delegate_identity_map, hotkey_ss58)
+    return name if name else hotkey_ss58
 
 
 def _calculate_daily_return(delegate_info: DelegateInfo, staked: Balance) -> float:
@@ -1779,7 +1779,7 @@ async def inspect(
     for addr, delegates in zip(coldkey_addresses, all_delegates):
         name = coldkey_names[addr]
         coldkey_rows.append([name, str(balances.get(addr, Balance(0))), "", "", ""])
-        for row in _make_delegate_rows(delegates, registered_delegate_info):
+        for row in _make_delegate_rows(delegates, delegate_identity_map):
             coldkey_rows.append(row)
 
         hotkeys = hotkeys_by_coldkey.get(addr, [])
