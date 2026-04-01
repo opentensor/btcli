@@ -35,6 +35,35 @@ def wait_for_node_start(process, pattern, timestamp: int = None):
             break
 
 
+LOCAL_CHAIN_WS_URL = os.getenv("E2E_LOCAL_CHAIN_WS_URL", "ws://127.0.0.1:9945")
+
+
+async def _ping_substrate_head(substrate: AsyncSubstrateInterface) -> None:
+    """Ensure JSON-RPC/WebSocket accepts requests (avoids flaky handshakes right after block #1)."""
+    await substrate.get_chain_head()
+
+
+def wait_until_substrate_rpc_ready(url: str, timeout: float = 120.0) -> AsyncSubstrateInterface:
+    """Poll until a substrate client can complete an RPC (retries on transient WS errors)."""
+    deadline = time.time() + timeout
+    delay = 0.5
+    last_exc: Exception | None = None
+    while time.time() < deadline:
+        substrate = AsyncSubstrateInterface(url=url)
+        try:
+            asyncio.run(_ping_substrate_head(substrate))
+            return substrate
+        except Exception as exc:
+            last_exc = exc
+            try:
+                asyncio.run(substrate.close())
+            except Exception:
+                pass
+            time.sleep(delay)
+            delay = min(delay * 1.2, 5.0)
+    pytest.fail(f"Local chain RPC did not become ready at {url}: {last_exc!r}")
+
+
 # Fixture for setting up and tearing down a localnet.sh chain between tests
 @pytest.fixture(scope="function")
 def local_chain(request) -> Iterator[AsyncSubstrateInterface]:
@@ -93,7 +122,7 @@ def legacy_runner(request) -> Iterator[AsyncSubstrateInterface]:
     wait_for_node_start(process, pattern)
 
     # Run the test, passing in substrate interface
-    yield AsyncSubstrateInterface(url="ws://127.0.0.1:9945")
+    yield wait_until_substrate_rpc_ready(LOCAL_CHAIN_WS_URL)
 
     # Terminate the process group (includes all child processes)
     os.killpg(os.getpgid(process.pid), signal.SIGTERM)
@@ -199,7 +228,8 @@ def docker_runner(params) -> Iterator[AsyncSubstrateInterface]:
             )
             if not result.stdout.strip():
                 raise RuntimeError("Docker container failed to start.")
-            substrate = AsyncSubstrateInterface(url="ws://127.0.0.1:9944")
+            # Use 9945 like legacy_runner and all btcli e2e `--chain` URLs; wait for RPC readiness.
+            substrate = wait_until_substrate_rpc_ready(LOCAL_CHAIN_WS_URL)
             yield substrate
 
         finally:
