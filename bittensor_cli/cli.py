@@ -5515,7 +5515,7 @@ class CLIManager:
         interactive_selection = False
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]ss58 address[/blue] of the hotkey to stake to, leave blank for other options"
+                "Enter the [blue]ss58 address[/blue] of the hotkey to move the stake to, leave blank for other options"
             )
             if is_valid_ss58_address(dest_wallet_or_ss58):
                 destination_hotkey = dest_wallet_or_ss58
