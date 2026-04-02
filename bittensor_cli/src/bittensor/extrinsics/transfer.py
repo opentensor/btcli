@@ -156,10 +156,10 @@ async def transfer_extrinsic(
                 f"   would bring you under the existential deposit: [bright_cyan]{existential_deposit}[/bright_cyan].\n"
             )
             return False, None
-        if account_balance < amount and allow_death:
+        if proxy_balance < amount and allow_death:
             print_error(
                 "[bold red]Not enough balance[/bold red]:\n\n"
-                f"  balance: [bright_red]{account_balance}[/bright_red]\n"
+                f"  balance: [bright_red]{proxy_balance}[/bright_red]\n"
                 f"  amount: [bright_red]{amount}[/bright_red]\n"
             )
             return False, None
