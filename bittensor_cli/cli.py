@@ -5512,33 +5512,20 @@ class CLIManager:
             console.print(
                 "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
             )
+        interactive_selection = False
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
-                "[blue]ss58 address[/blue]"
+                "Enter the [blue]ss58 address[/blue] of the hotkey to move the stake to, leave blank for other options"
             )
             if is_valid_ss58_address(dest_wallet_or_ss58):
                 destination_hotkey = dest_wallet_or_ss58
+            elif dest_wallet_or_ss58.strip() == "":
+                interactive_selection = True
             else:
-                dest_wallet = self.wallet_ask(
-                    dest_wallet_or_ss58,
-                    wallet_path,
-                    None,
-                    ask_for=[WO.NAME, WO.PATH],
-                    validate=WV.WALLET,
+                print_error(
+                    "Invalid destination hotkey ss58 address. Please enter a valid ss58 address."
                 )
-                destination_hotkey = Prompt.ask(
-                    "Enter the [blue]destination hotkey[/blue] name",
-                    default=dest_wallet.hotkey_str,
-                )
-                destination_wallet = self.wallet_ask(
-                    dest_wallet_or_ss58,
-                    wallet_path,
-                    destination_hotkey,
-                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-                    validate=WV.WALLET_AND_HOTKEY,
-                )
-                destination_hotkey = get_hotkey_pub_ss58(destination_wallet)
+                raise typer.Exit()
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -5557,7 +5544,6 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
 
-        interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or "
