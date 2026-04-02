@@ -22,7 +22,7 @@ MODULE = "bittensor_cli.src.commands.stake.move"
 
 HOTKEY_A = "5CiQ1cV1MmMwsep7YP37QZKEgBgaVXeSPnETB5JBgwYRoXbP"
 HOTKEY_B = "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw"
-COLDKEY  = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+COLDKEY = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
 
 
 def _make_stake(hotkey_ss58: str, netuid: int, tao: float):
@@ -76,15 +76,18 @@ class TestStakeMoveTransferSelection:
         """When destination_hotkey is pre-filled, the dest table/prompt is skipped
         and the provided value is returned as-is."""
         prompt_responses = [
-            "0",   # origin hotkey index
-            "1",   # origin netuid
+            "0",  # origin hotkey index
+            "1",  # origin netuid
             "10",  # amount
-            "2",   # destination netuid
+            "2",  # destination netuid
         ]
         with (
             patch(f"{MODULE}.Prompt.ask", side_effect=prompt_responses),
             patch(f"{MODULE}.console"),
-            patch(f"{MODULE}.prompt_stake_amount", return_value=(Balance.from_tao(10), False)),
+            patch(
+                f"{MODULE}.prompt_stake_amount",
+                return_value=(Balance.from_tao(10), False),
+            ),
         ):
             result = await stake_move_transfer_selection(
                 subtensor, wallet, destination_hotkey=HOTKEY_B
@@ -93,21 +96,22 @@ class TestStakeMoveTransferSelection:
         assert result["destination_hotkey"] == HOTKEY_B
 
     @pytest.mark.asyncio
-    async def test_destination_hotkey_none_prompts_for_dest(
-        self, wallet, subtensor
-    ):
+    async def test_destination_hotkey_none_prompts_for_dest(self, wallet, subtensor):
         """When destination_hotkey is None, the user is prompted to pick one
         from the table and the selected hotkey is returned."""
         prompt_responses = [
-            "0",   # origin hotkey index
-            "1",   # origin netuid
-            "1",   # destination hotkey index (HOTKEY_B is index 1)
-            "2",   # destination netuid
+            "0",  # origin hotkey index
+            "1",  # origin netuid
+            "1",  # destination hotkey index (HOTKEY_B is index 1)
+            "2",  # destination netuid
         ]
         with (
             patch(f"{MODULE}.Prompt.ask", side_effect=prompt_responses),
             patch(f"{MODULE}.console"),
-            patch(f"{MODULE}.prompt_stake_amount", return_value=(Balance.from_tao(5), False)),
+            patch(
+                f"{MODULE}.prompt_stake_amount",
+                return_value=(Balance.from_tao(5), False),
+            ),
         ):
             result = await stake_move_transfer_selection(subtensor, wallet)
 
@@ -142,9 +146,9 @@ class TestStakeMoveTransferSelection:
     async def test_origin_hotkey_and_netuid_set_correctly(self, wallet, subtensor):
         """origin_hotkey and origin_netuid in the result match user selection."""
         prompt_responses = [
-            "0",   # origin hotkey index → HOTKEY_A
-            "1",   # origin netuid
-            "2",   # destination netuid
+            "0",  # origin hotkey index → HOTKEY_A
+            "1",  # origin netuid
+            "2",  # destination netuid
         ]
         with (
             patch(f"{MODULE}.Prompt.ask", side_effect=prompt_responses),
@@ -193,7 +197,8 @@ class TestMoveStakeInteractiveSelection:
             "destination_hotkey": HOTKEY_B,
         }
         with patch(
-            f"{MODULE}.stake_move_transfer_selection", new_callable=AsyncMock,
+            f"{MODULE}.stake_move_transfer_selection",
+            new_callable=AsyncMock,
             return_value=selection,
         ) as mock_sel:
             # Patch the rest of move_stake so it doesn't try to do chain calls
