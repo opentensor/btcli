@@ -101,7 +101,9 @@ class TestGetHotkeysToUnstake:
         stake_info_chain = SimpleNamespace(hotkey_ss58="5CHAIN_HOTKEY_ADDRESS")
 
         with (
-            patch(f"{MODULE}.get_hotkey_wallets_for_wallet", return_value=[wallet_hotkey]),
+            patch(
+                f"{MODULE}.get_hotkey_wallets_for_wallet", return_value=[wallet_hotkey]
+            ),
             patch(f"{MODULE}.get_hotkey_pub_ss58", return_value=_HOTKEY_SS58),
             patch(f"{MODULE}.get_hotkey_identity", return_value="chain_hk"),
         ):
@@ -126,7 +128,9 @@ class TestGetHotkeysToUnstake:
         wallet_hotkey.hotkey_str = "to_exclude"
 
         with (
-            patch(f"{MODULE}.get_hotkey_wallets_for_wallet", return_value=[wallet_hotkey]),
+            patch(
+                f"{MODULE}.get_hotkey_wallets_for_wallet", return_value=[wallet_hotkey]
+            ),
             patch(f"{MODULE}.get_hotkey_pub_ss58", return_value=_HOTKEY_SS58),
         ):
             result = _get_hotkeys_to_unstake(
@@ -170,10 +174,10 @@ class TestGetHotkeyIdentity:
     def test_returns_identity_name_when_present(self):
         """If identities map has a name for the hotkey, return it."""
         identities = {"hotkeys": {_HOTKEY_SS58: {"name": "MyValidator"}}}
-        with patch(
-            f"{MODULE}.get_hotkey_identity_name", return_value="MyValidator"
-        ):
-            result = get_hotkey_identity(hotkey_ss58=_HOTKEY_SS58, identities=identities)
+        with patch(f"{MODULE}.get_hotkey_identity_name", return_value="MyValidator"):
+            result = get_hotkey_identity(
+                hotkey_ss58=_HOTKEY_SS58, identities=identities
+            )
         assert result == "MyValidator"
 
     def test_returns_truncated_address_when_no_identity(self):

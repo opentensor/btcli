@@ -20,7 +20,9 @@ from bittensor_cli.src.bittensor.balances import Balance
 # Common SS58 addresses (valid Substrate SS58, format 42)
 # These replace per-file inline literals and per-file constant blocks.
 # ---------------------------------------------------------------------------
-COLDKEY_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"  # signer / default coldkey
+COLDKEY_SS58 = (
+    "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"  # signer / default coldkey
+)
 HOTKEY_SS58 = "5CiQ1cV1MmMwsep7YP37QZKEgBgaVXeSPnETB5JBgwYRoXbP"  # default hotkey
 PROXY_SS58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"  # proxy account
 DEST_SS58 = "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"  # transfer destination
@@ -30,6 +32,7 @@ ALT_HOTKEY_SS58 = "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw"  # secondar
 # ---------------------------------------------------------------------------
 # Receipt helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_successful_receipt(identifier: str = "0x123-1") -> MagicMock:
     """
@@ -95,6 +98,7 @@ def failed_receipt() -> MagicMock:
 # Wallet fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_wallet() -> MagicMock:
     """
@@ -137,6 +141,7 @@ def mock_wallet_spec() -> MagicMock:
 # ---------------------------------------------------------------------------
 # Subtensor fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_subtensor() -> MagicMock:

@@ -45,7 +45,9 @@ class TestResetAxonExtrinsic:
     """Tests for reset_axon_extrinsic function."""
 
     @pytest.mark.asyncio
-    async def test_reset_axon_success(self, mock_subtensor, mock_wallet_spec, successful_receipt):
+    async def test_reset_axon_success(
+        self, mock_subtensor, mock_wallet_spec, successful_receipt
+    ):
         """Test successful axon reset."""
         mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 
@@ -129,7 +131,9 @@ class TestResetAxonExtrinsic:
             assert ext_id is None
 
     @pytest.mark.asyncio
-    async def test_reset_axon_extrinsic_failure(self, mock_subtensor, mock_wallet_spec, failed_receipt):
+    async def test_reset_axon_extrinsic_failure(
+        self, mock_subtensor, mock_wallet_spec, failed_receipt
+    ):
         """Test axon reset when extrinsic submission fails."""
         mock_subtensor.substrate.submit_extrinsic.return_value = failed_receipt
 
@@ -154,7 +158,9 @@ class TestSetAxonExtrinsic:
     """Tests for set_axon_extrinsic function."""
 
     @pytest.mark.asyncio
-    async def test_set_axon_success(self, mock_subtensor, mock_wallet_spec, successful_receipt):
+    async def test_set_axon_success(
+        self, mock_subtensor, mock_wallet_spec, successful_receipt
+    ):
         """Test successful axon set."""
         mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 
@@ -293,7 +299,9 @@ class TestSetAxonExtrinsic:
             assert "cancelled" in message.lower()
 
     @pytest.mark.asyncio
-    async def test_set_axon_with_ipv6(self, mock_subtensor, mock_wallet_spec, successful_receipt):
+    async def test_set_axon_with_ipv6(
+        self, mock_subtensor, mock_wallet_spec, successful_receipt
+    ):
         """Test axon set with IPv6 address."""
         mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 

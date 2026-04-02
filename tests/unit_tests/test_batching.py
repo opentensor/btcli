@@ -12,7 +12,6 @@ def subtensor():
     return st
 
 
-
 @pytest.mark.asyncio
 async def test_batch_empty_calls_returns_error(subtensor, mock_wallet):
     """Passing an empty call list should return failure without touching the chain."""

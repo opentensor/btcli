@@ -215,7 +215,10 @@ class TestIsValidSS58Address:
 
     def test_another_valid_address(self):
         # Another well-known valid SS58 address
-        assert is_valid_ss58_address("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY") is True
+        assert (
+            is_valid_ss58_address("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+            is True
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +273,11 @@ class TestIsValidBittensorAddressOrPublicKey:
 
 class TestFormatErrorMessage:
     def test_dict_with_type_name_docs(self):
-        err = {"type": "ModuleError", "name": "StakeNotEnough", "docs": ["Stake too low"]}
+        err = {
+            "type": "ModuleError",
+            "name": "StakeNotEnough",
+            "docs": ["Stake too low"],
+        }
         result = format_error_message(err)
         assert "StakeNotEnough" in result
 

@@ -170,17 +170,13 @@ class TestGenerateWeightHash:
         assert hash1 == hash2
 
     def test_different_salt_produces_different_hash(self):
-        base = dict(
-            address=_SS58, netuid=1, uids=[0], values=[U16_MAX], version_key=0
-        )
+        base = dict(address=_SS58, netuid=1, uids=[0], values=[U16_MAX], version_key=0)
         hash1 = generate_weight_hash(**base, salt=[1])
         hash2 = generate_weight_hash(**base, salt=[2])
         assert hash1 != hash2
 
     def test_different_netuid_produces_different_hash(self):
-        base = dict(
-            address=_SS58, uids=[0], values=[U16_MAX], version_key=0, salt=[1]
-        )
+        base = dict(address=_SS58, uids=[0], values=[U16_MAX], version_key=0, salt=[1])
         hash1 = generate_weight_hash(**base, netuid=1)
         hash2 = generate_weight_hash(**base, netuid=2)
         assert hash1 != hash2
@@ -194,9 +190,7 @@ class TestGenerateWeightHash:
 class TestGetCurrentWeightsForUid:
     async def test_returns_weights_for_matching_uid(self, mock_subtensor):
         # Return [(uid, [(dest, raw_weight), ...])]
-        mock_subtensor.weights = AsyncMock(
-            return_value=[(5, [(0, 65535), (1, 32767)])]
-        )
+        mock_subtensor.weights = AsyncMock(return_value=[(5, [(0, 65535), (1, 32767)])])
         result = await get_current_weights_for_uid(
             subtensor=mock_subtensor, netuid=0, uid=5
         )
@@ -206,9 +200,7 @@ class TestGetCurrentWeightsForUid:
         assert 0.4 < result[1] < 0.6
 
     async def test_returns_empty_for_nonmatching_uid(self, mock_subtensor):
-        mock_subtensor.weights = AsyncMock(
-            return_value=[(3, [(0, 65535)])]
-        )
+        mock_subtensor.weights = AsyncMock(return_value=[(3, [(0, 65535)])])
         result = await get_current_weights_for_uid(
             subtensor=mock_subtensor, netuid=0, uid=99
         )

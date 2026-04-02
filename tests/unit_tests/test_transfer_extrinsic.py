@@ -19,12 +19,18 @@ _INVALID_DEST = "not_a_valid_address"
 MODULE = "bittensor_cli.src.bittensor.extrinsics.transfer"
 
 
-def _setup_transfer(mock_subtensor, balance_tao=100, fee_tao=0.01, existential_tao=0.001):
+def _setup_transfer(
+    mock_subtensor, balance_tao=100, fee_tao=0.01, existential_tao=0.001
+):
     """Configure mock_subtensor for a standard successful transfer scenario."""
     mock_subtensor.get_balance = AsyncMock(return_value=Balance.from_tao(balance_tao))
-    mock_subtensor.get_existential_deposit = AsyncMock(return_value=Balance.from_tao(existential_tao))
+    mock_subtensor.get_existential_deposit = AsyncMock(
+        return_value=Balance.from_tao(existential_tao)
+    )
     mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(fee_tao))
-    mock_subtensor.sign_and_send_extrinsic = AsyncMock(return_value=(True, "", AsyncMock()))
+    mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+        return_value=(True, "", AsyncMock())
+    )
 
 
 class TestTransferExtrinsicValidation:
@@ -55,7 +61,9 @@ class TestTransferExtrinsicValidation:
 
 
 class TestTransferExtrinsicCallFunction:
-    async def test_transfer_all_uses_transfer_all_function(self, mock_wallet, mock_subtensor):
+    async def test_transfer_all_uses_transfer_all_function(
+        self, mock_wallet, mock_subtensor
+    ):
         """transfer_all=True must use 'transfer_all' call_function."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):
@@ -72,7 +80,9 @@ class TestTransferExtrinsicCallFunction:
         call_functions = [c.kwargs.get("call_function") for c in calls]
         assert "transfer_all" in call_functions
 
-    async def test_allow_death_uses_transfer_allow_death(self, mock_wallet, mock_subtensor):
+    async def test_allow_death_uses_transfer_allow_death(
+        self, mock_wallet, mock_subtensor
+    ):
         """allow_death=True must use 'transfer_allow_death' call_function."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):
@@ -103,7 +113,9 @@ class TestTransferExtrinsicCallFunction:
         call_functions = [c.kwargs.get("call_function") for c in calls]
         assert "transfer_keep_alive" in call_functions
 
-    async def test_transfer_all_keep_alive_when_allow_death_false(self, mock_wallet, mock_subtensor):
+    async def test_transfer_all_keep_alive_when_allow_death_false(
+        self, mock_wallet, mock_subtensor
+    ):
         """transfer_all=True, allow_death=False → keep_alive param must be True."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):
@@ -117,19 +129,27 @@ class TestTransferExtrinsicCallFunction:
                 prompt=False,
             )
         calls = mock_subtensor.substrate.compose_call.call_args_list
-        transfer_all_calls = [c for c in calls if c.kwargs.get("call_function") == "transfer_all"]
+        transfer_all_calls = [
+            c for c in calls if c.kwargs.get("call_function") == "transfer_all"
+        ]
         assert len(transfer_all_calls) >= 1
         params = transfer_all_calls[0].kwargs.get("call_params", {})
         assert params.get("keep_alive") is True
 
 
 class TestTransferExtrinsicBalanceChecks:
-    async def test_insufficient_balance_no_proxy_returns_false(self, mock_wallet, mock_subtensor):
+    async def test_insufficient_balance_no_proxy_returns_false(
+        self, mock_wallet, mock_subtensor
+    ):
         """Insufficient balance without proxy should return (False, None)."""
         # Balance is only 0.1 tao, trying to transfer 10 tao
         mock_subtensor.get_balance = AsyncMock(return_value=Balance.from_tao(0.1))
-        mock_subtensor.get_existential_deposit = AsyncMock(return_value=Balance.from_tao(0.001))
-        mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(0.01))
+        mock_subtensor.get_existential_deposit = AsyncMock(
+            return_value=Balance.from_tao(0.001)
+        )
+        mock_subtensor.get_extrinsic_fee = AsyncMock(
+            return_value=Balance.from_tao(0.01)
+        )
 
         result = await transfer_extrinsic(
             subtensor=mock_subtensor,
@@ -157,7 +177,9 @@ class TestTransferExtrinsicUnlockKey:
 
 
 class TestTransferExtrinsicSuccess:
-    async def test_successful_transfer_returns_true_and_receipt(self, mock_wallet, mock_subtensor):
+    async def test_successful_transfer_returns_true_and_receipt(
+        self, mock_wallet, mock_subtensor
+    ):
         """Successful transfer should return (True, receipt)."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):
@@ -171,7 +193,9 @@ class TestTransferExtrinsicSuccess:
         assert success is True
         assert receipt is not None
 
-    async def test_successful_transfer_calls_get_balance_twice(self, mock_wallet, mock_subtensor):
+    async def test_successful_transfer_calls_get_balance_twice(
+        self, mock_wallet, mock_subtensor
+    ):
         """After success, get_balance should be called again for balance display."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):
@@ -187,7 +211,9 @@ class TestTransferExtrinsicSuccess:
 
 
 class TestTransferExtrinsicAnnounceOnly:
-    async def test_announce_only_passed_to_sign_and_send(self, mock_wallet, mock_subtensor):
+    async def test_announce_only_passed_to_sign_and_send(
+        self, mock_wallet, mock_subtensor
+    ):
         """announce_only=True should be forwarded to sign_and_send_extrinsic."""
         _setup_transfer(mock_subtensor)
         with patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)):

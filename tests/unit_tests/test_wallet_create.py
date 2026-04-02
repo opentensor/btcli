@@ -150,7 +150,9 @@ class TestWalletCreateMnemonicColdkeyFailure:
         """wallet_create must not attempt hotkey creation if coldkey creation fails."""
         from bittensor_cli.src.commands.wallets import wallet_create
 
-        mock_wallet.create_new_coldkey = MagicMock(side_effect=KeyFileError("not writable"))
+        mock_wallet.create_new_coldkey = MagicMock(
+            side_effect=KeyFileError("not writable")
+        )
         mock_wallet.create_new_hotkey = MagicMock()
 
         await wallet_create(wallet=mock_wallet, json_output=False)
@@ -163,7 +165,9 @@ class TestWalletCreateMnemonicColdkeyFailure:
         """wallet_create JSON must report failure, not success, when coldkey fails."""
         from bittensor_cli.src.commands.wallets import wallet_create
 
-        mock_wallet.create_new_coldkey = MagicMock(side_effect=KeyFileError("not writable"))
+        mock_wallet.create_new_coldkey = MagicMock(
+            side_effect=KeyFileError("not writable")
+        )
 
         with patch(f"{MODULE}.json_console") as mock_json:
             await wallet_create(wallet=mock_wallet, json_output=True)

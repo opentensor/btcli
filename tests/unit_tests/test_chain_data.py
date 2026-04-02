@@ -124,7 +124,9 @@ def _make_neuron_decoded(emission_rao: int = 1_000_000_000) -> dict:
 class TestDynamicInfoFixDecoded:
     def test_normal_case_returns_dynamic_info(self):
         """Standard decoding should return a DynamicInfo with correct fields."""
-        decoded = _make_dynamic_decoded(netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO)
+        decoded = _make_dynamic_decoded(
+            netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO
+        )
         info = DynamicInfo._fix_decoded(decoded)
         assert isinstance(info, DynamicInfo)
         assert info.netuid == 1
@@ -148,14 +150,18 @@ class TestDynamicInfoFixDecoded:
         """price = tao_in / alpha_in — verify the ratio is computed correctly."""
         tao_in = 50 * TAO
         alpha_in = 100 * TAO
-        decoded = _make_dynamic_decoded(netuid=1, alpha_in_rao=alpha_in, tao_in_rao=tao_in)
+        decoded = _make_dynamic_decoded(
+            netuid=1, alpha_in_rao=alpha_in, tao_in_rao=tao_in
+        )
         info = DynamicInfo._fix_decoded(decoded)
         expected = Balance.from_rao(tao_in).tao / Balance.from_rao(alpha_in).tao
         assert info.price.tao == pytest.approx(expected, rel=1e-6)
 
     def test_k_is_tao_rao_times_alpha_rao(self):
         """k = tao_in.rao * alpha_in.rao."""
-        decoded = _make_dynamic_decoded(netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO)
+        decoded = _make_dynamic_decoded(
+            netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO
+        )
         info = DynamicInfo._fix_decoded(decoded)
         assert info.k == (50 * TAO) * (100 * TAO)
 
@@ -187,9 +193,13 @@ class TestDynamicInfoFixDecoded:
 
 
 class TestDynamicInfoConversions:
-    def _make_info(self, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO, netuid=1) -> DynamicInfo:
+    def _make_info(
+        self, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO, netuid=1
+    ) -> DynamicInfo:
         return DynamicInfo._fix_decoded(
-            _make_dynamic_decoded(netuid=netuid, alpha_in_rao=alpha_in_rao, tao_in_rao=tao_in_rao)
+            _make_dynamic_decoded(
+                netuid=netuid, alpha_in_rao=alpha_in_rao, tao_in_rao=tao_in_rao
+            )
         )
 
     def test_tao_to_alpha_converts_at_price(self):
@@ -202,7 +212,9 @@ class TestDynamicInfoConversions:
     def test_tao_to_alpha_zero_price_returns_zero(self):
         """With price=0 guard, tao_to_alpha should return 0 without dividing by zero."""
         # Force price to 0 by direct construction (not via _fix_decoded, which guards it)
-        decoded = _make_dynamic_decoded(netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO)
+        decoded = _make_dynamic_decoded(
+            netuid=1, alpha_in_rao=100 * TAO, tao_in_rao=50 * TAO
+        )
         info = DynamicInfo._fix_decoded(decoded)
         info.price = Balance.from_tao(0)
         result = info.tao_to_alpha(Balance.from_tao(1.0))
@@ -241,12 +253,16 @@ class TestTaoToAlphaWithSlippage:
 
     def test_alpha_returned_is_positive(self):
         info = self._make_dynamic_info()
-        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(Balance.from_tao(1.0))
+        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(
+            Balance.from_tao(1.0)
+        )
         assert alpha_returned.tao > 0
 
     def test_slippage_is_non_negative(self):
         info = self._make_dynamic_info()
-        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(Balance.from_tao(1.0))
+        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(
+            Balance.from_tao(1.0)
+        )
         assert slippage.tao >= 0
 
     def test_slippage_pct_between_0_and_100(self):
@@ -265,7 +281,9 @@ class TestTaoToAlphaWithSlippage:
         info = DynamicInfo._fix_decoded(
             _make_dynamic_decoded(netuid=0, alpha_in_rao=0, tao_in_rao=0)
         )
-        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(Balance.from_tao(5.0))
+        alpha_returned, slippage, pct = info.tao_to_alpha_with_slippage(
+            Balance.from_tao(5.0)
+        )
         assert slippage.tao == pytest.approx(0.0)
         assert pct == pytest.approx(0.0)
 
@@ -295,7 +313,9 @@ class TestAlphaToTaoWithSlippage:
 
     def test_tao_returned_is_positive(self):
         info = self._make_dynamic_info()
-        tao_returned, slippage, pct = info.alpha_to_tao_with_slippage(Balance.from_tao(1.0))
+        tao_returned, slippage, pct = info.alpha_to_tao_with_slippage(
+            Balance.from_tao(1.0)
+        )
         assert tao_returned.tao > 0
 
     def test_slippage_pct_between_0_and_100(self):
@@ -308,7 +328,9 @@ class TestAlphaToTaoWithSlippage:
         info = DynamicInfo._fix_decoded(
             _make_dynamic_decoded(netuid=0, alpha_in_rao=0, tao_in_rao=0)
         )
-        tao_returned, slippage, pct = info.alpha_to_tao_with_slippage(Balance.from_tao(5.0))
+        tao_returned, slippage, pct = info.alpha_to_tao_with_slippage(
+            Balance.from_tao(5.0)
+        )
         assert slippage.tao == pytest.approx(0.0)
         assert pct == pytest.approx(0.0)
 
@@ -357,7 +379,9 @@ class TestStakeInfoFixDecoded:
 
     def test_list_from_any_decodes_multiple(self):
         """list_from_any should decode a list of stake dicts."""
-        decoded_list = [_make_stake_decoded(netuid=i, stake_rao=i * TAO) for i in range(3)]
+        decoded_list = [
+            _make_stake_decoded(netuid=i, stake_rao=i * TAO) for i in range(3)
+        ]
         infos = StakeInfo.list_from_any(decoded_list)
         assert len(infos) == 3
         for i, info in enumerate(infos):
