@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from tests.unit_tests.conftest import DEST_SS58 as _DEST_SS58
+from tests.unit_tests.conftest import PROXY_SS58 as _PROXY_SS58
 
 # An invalid destination
 _INVALID_DEST = "not_a_valid_address"
@@ -158,6 +159,88 @@ class TestTransferExtrinsicBalanceChecks:
             prompt=False,
         )
         assert result == (False, None)
+
+    async def test_proxy_allow_death_uses_proxy_balance_for_amount_check(
+        self, mock_wallet, mock_subtensor
+    ):
+        """
+        With proxy + allow_death, transfer amount should be validated against
+        proxy balance (not signer balance).
+        """
+        proxy_balance = Balance.from_tao(1000)
+        signer_balance = Balance.from_tao(1)
+        new_proxy_balance = Balance.from_tao(900)
+        amount = Balance.from_tao(100)
+
+        mock_subtensor.get_balance = AsyncMock(
+            side_effect=[proxy_balance, signer_balance, new_proxy_balance]
+        )
+        mock_subtensor.get_existential_deposit = AsyncMock(
+            return_value=Balance.from_tao(1)
+        )
+        mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(0.1))
+        mock_subtensor.sign_and_send_extrinsic = AsyncMock(
+            return_value=(True, "", AsyncMock())
+        )
+
+        with (
+            patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)),
+            patch(f"{MODULE}.print_error") as mock_error,
+        ):
+            success, receipt = await transfer_extrinsic(
+                subtensor=mock_subtensor,
+                wallet=mock_wallet,
+                destination=_DEST_SS58,
+                amount=amount,
+                allow_death=True,
+                proxy=_PROXY_SS58,
+                prompt=False,
+                wait_for_inclusion=False,
+                wait_for_finalization=False,
+            )
+
+        assert success is True
+        assert receipt is not None
+        mock_error.assert_not_called()
+        mock_subtensor.sign_and_send_extrinsic.assert_awaited_once()
+
+    async def test_proxy_allow_death_insufficient_proxy_balance_returns_false(
+        self, mock_wallet, mock_subtensor
+    ):
+        """With proxy + allow_death, low proxy balance should fail the transfer."""
+        proxy_balance = Balance.from_tao(50)
+        signer_balance = Balance.from_tao(10)
+        amount = Balance.from_tao(100)
+
+        mock_subtensor.get_balance = AsyncMock(
+            side_effect=[proxy_balance, signer_balance]
+        )
+        mock_subtensor.get_existential_deposit = AsyncMock(
+            return_value=Balance.from_tao(1)
+        )
+        mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(0.1))
+
+        with (
+            patch(f"{MODULE}.unlock_key", return_value=MagicMock(success=True)),
+            patch(f"{MODULE}.print_error") as mock_error,
+        ):
+            success, receipt = await transfer_extrinsic(
+                subtensor=mock_subtensor,
+                wallet=mock_wallet,
+                destination=_DEST_SS58,
+                amount=amount,
+                allow_death=True,
+                proxy=_PROXY_SS58,
+                prompt=False,
+                wait_for_inclusion=False,
+                wait_for_finalization=False,
+            )
+
+        assert success is False
+        assert receipt is None
+        mock_subtensor.sign_and_send_extrinsic.assert_not_awaited()
+        mock_error.assert_called_once()
+        assert str(proxy_balance) in mock_error.call_args.args[0]
 
 
 class TestTransferExtrinsicUnlockKey:
