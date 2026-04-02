@@ -17,9 +17,7 @@ from bittensor_cli.src.bittensor.extrinsics.root import (
     get_current_weights_for_uid,
     get_limits,
 )
-
-# A valid SS58 address for generate_weight_hash (needs real Keypair lookup)
-_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+from tests.unit_tests.conftest import COLDKEY_SS58 as _SS58
 
 U16_MAX = 65535
 

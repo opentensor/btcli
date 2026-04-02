@@ -24,9 +24,7 @@ from bittensor_cli.src.bittensor.utils import (
     format_error_message,
     validate_netuid,
 )
-
-# A known-valid SS58 address (format 42, Substrate default)
-_VALID_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+from tests.unit_tests.conftest import COLDKEY_SS58 as _VALID_SS58
 
 
 # ---------------------------------------------------------------------------
