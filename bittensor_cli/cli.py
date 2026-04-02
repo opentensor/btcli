@@ -2913,7 +2913,17 @@ class CLIManager:
         ),
         wallet_name: str = Options.wallet_name,
         wallet_path: str = Options.wallet_path,
-        wallet_hotkey: str = Options.wallet_hotkey,
+        wallet_hotkey: str = Options.edit_help(
+            "wallet_hotkey",
+            help_text="Deprecated option, "
+            "preserved for backwards compatibility to not break workflows which utilise it.",
+        ),
+        ss58_address: Optional[str] = typer.Option(
+            None,
+            "--ss58-address",
+            "--ss58",
+            help="SS58 address of the coldkey to inspect. Allows inspecting any coldkey without a local wallet file.",
+        ),
         network: Optional[list[str]] = Options.network,
         netuids: str = Options.netuids,
         quiet: bool = Options.quiet,
@@ -2921,9 +2931,11 @@ class CLIManager:
         json_output: bool = Options.json_output,
     ):
         """
-        Displays the details of the user's wallet pairs (coldkey, hotkey) on the Bittensor network.
+        Displays the details of the user's wallet (coldkey) on the Bittensor network.
 
-        The output is presented as a table with the below columns:
+        The output is presented as two separate tables:
+
+        [bold]Coldkey Overview[/bold]:
 
         - [blue bold]Coldkey[/blue bold]: The coldkey associated with the user's wallet.
 
@@ -2931,13 +2943,21 @@ class CLIManager:
 
         - [blue bold]Delegate[/blue bold]: The name of the delegate to which the coldkey has staked TAO.
 
-        - [blue bold]Stake[/blue bold]: The amount of stake held by both the coldkey and hotkey.
+        - [blue bold]Stake[/blue bold]: The amount of stake delegated.
 
-        - [blue bold]Emission[/blue bold]: The emission or rewards earned from staking.
+        - [blue bold]Emission[/blue bold]: The daily emission earned from delegation.
 
-        - [blue bold]Netuid[/blue bold]: The network unique identifier of the subnet where the hotkey is active (i.e., validating).
+        [bold]Hotkey Details[/bold]:
+
+        - [blue bold]Coldkey[/blue bold]: The parent coldkey of the hotkey.
+
+        - [blue bold]Netuid[/blue bold]: The network unique identifier of the subnet where the hotkey is active.
 
         - [blue bold]Hotkey[/blue bold]: The hotkey associated with the neuron on the network.
+
+        - [blue bold]Stake[/blue bold]: The amount of stake held by the hotkey.
+
+        - [blue bold]Emission[/blue bold]: The emission or rewards earned from staking.
 
         USAGE
 
@@ -2949,10 +2969,10 @@ class CLIManager:
 
         [green]$[/green] btcli wallet inspect --all -n 1 -n 2 -n 3
 
+        [green]$[/green] btcli wallet inspect --ss58-address 5FHneW46...
+
         [bold]Note[/bold]: The `inspect` command is for displaying information only and does not perform any transactions or state changes on the blockchain. It is intended to be used with Bittensor CLI and not as a standalone function in user code.
         """
-        print_error("This command is disabled on the 'rao' network.")
-        raise typer.Exit()
         self.verbosity_handler(quiet, verbose, json_output, False)
 
         if netuids:
@@ -2962,18 +2982,28 @@ class CLIManager:
                 "Netuids must be a comma-separated list of ints, e.g., `--netuids 1,2,3,4`.",
             )
 
+        if ss58_address:
+            return self._run_command(
+                wallets.inspect(
+                    None,
+                    self.initialize_chain(network),
+                    netuids_filter=netuids,
+                    all_wallets=False,
+                    ss58_address=ss58_address,
+                )
+            )
+
         # if all-wallets is entered, ask for path
         ask_for = [WO.NAME, WO.PATH] if not all_wallets else [WO.PATH]
         validate = WV.WALLET if not all_wallets else WV.NONE
         wallet = self.wallet_ask(
-            wallet_name, wallet_path, wallet_hotkey, ask_for=ask_for, validate=validate
+            wallet_name, wallet_path, None, ask_for=ask_for, validate=validate
         )
 
-        self.initialize_chain(network)
         return self._run_command(
             wallets.inspect(
                 wallet,
-                self.subtensor,
+                self.initialize_chain(network),
                 netuids_filter=netuids,
                 all_wallets=all_wallets,
             )
@@ -5482,33 +5512,20 @@ class CLIManager:
             console.print(
                 "[dim]This command moves stake from one hotkey to another hotkey while keeping the same coldkey.[/dim]"
             )
+        interactive_selection = False
         if not destination_hotkey:
             dest_wallet_or_ss58 = Prompt.ask(
-                "Enter the [blue]destination wallet[/blue] where destination hotkey is located or "
-                "[blue]ss58 address[/blue]"
+                "Enter the [blue]ss58 address[/blue] of the hotkey to move the stake to, leave blank for other options"
             )
             if is_valid_ss58_address(dest_wallet_or_ss58):
                 destination_hotkey = dest_wallet_or_ss58
+            elif dest_wallet_or_ss58.strip() == "":
+                interactive_selection = True
             else:
-                dest_wallet = self.wallet_ask(
-                    dest_wallet_or_ss58,
-                    wallet_path,
-                    None,
-                    ask_for=[WO.NAME, WO.PATH],
-                    validate=WV.WALLET,
+                print_error(
+                    "Invalid destination hotkey ss58 address. Please enter a valid ss58 address."
                 )
-                destination_hotkey = Prompt.ask(
-                    "Enter the [blue]destination hotkey[/blue] name",
-                    default=dest_wallet.hotkey_str,
-                )
-                destination_wallet = self.wallet_ask(
-                    dest_wallet_or_ss58,
-                    wallet_path,
-                    destination_hotkey,
-                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-                    validate=WV.WALLET_AND_HOTKEY,
-                )
-                destination_hotkey = get_hotkey_pub_ss58(destination_wallet)
+                raise typer.Exit()
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -5527,7 +5544,6 @@ class CLIManager:
             wallet_name, wallet_path, wallet_hotkey, ask_for=[WO.NAME, WO.PATH]
         )
 
-        interactive_selection = False
         if not wallet_hotkey:
             origin_hotkey = Prompt.ask(
                 "Enter the [blue]origin hotkey[/blue] name or "

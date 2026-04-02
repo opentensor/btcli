@@ -15,6 +15,7 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_table,
+    is_valid_ss58_address,
     print_error,
     group_subnets,
     get_subnet_name,
@@ -22,6 +23,7 @@ from bittensor_cli.src.bittensor.utils import (
     unlock_key,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -322,12 +324,12 @@ def prompt_stake_amount(
 async def stake_move_transfer_selection(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
+    destination_hotkey: Optional[str] = None,
 ):
     """Selection interface for moving stakes between hotkeys and subnets."""
-    stakes, ck_hk_identities, old_identities = await asyncio.gather(
+    stakes, ck_hk_identities = await asyncio.gather(
         subtensor.get_stake_for_coldkey(coldkey_ss58=wallet.coldkeypub.ss58_address),
         subtensor.fetch_coldkey_hotkey_identities(),
-        subtensor.get_delegate_identities(),
     )
 
     hotkey_stakes = {}
@@ -342,49 +344,47 @@ async def stake_move_transfer_selection(
         print_error("You have no stakes to move.")
         raise ValueError
 
-    # Display hotkeys with stakes
-    table = create_table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes\n",
-    )
-    table.add_column("Index", justify="right")
-    table.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
-    table.add_column("Netuids", style=COLOR_PALETTE["GENERAL"]["NETUID"])
-    table.add_column("Hotkey Address", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
-
-    hotkeys_info = []
-    for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
-        if hk_identity := ck_hk_identities["hotkeys"].get(hotkey_ss58):
-            hotkey_name = hk_identity.get("identity", {}).get(
-                "name", ""
-            ) or hk_identity.get("display", "~")
-        elif old_identity := old_identities.get(hotkey_ss58):
-            hotkey_name = old_identity.display
-        else:
-            hotkey_name = "~"
-        hotkeys_info.append(
-            {
-                "index": idx,
-                "identity": hotkey_name,
-                "hotkey_ss58": hotkey_ss58,
-                "netuids": list(netuid_stakes.keys()),
-                "stakes": netuid_stakes,
-            }
+    def _display_hotkey_table() -> list[
+        dict[str, int | str | list[str] | dict[str, dict[int, Balance]]]
+    ]:
+        # Display hotkeys with stakes
+        table_ = create_table(
+            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes\n",
         )
-        table.add_row(
-            str(idx),
-            hotkey_name,
-            group_subnets([n for n in netuid_stakes.keys()]),
-            hotkey_ss58,
-        )
+        table_.add_column("Index", justify="right")
+        table_.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
+        table_.add_column("Netuids", style=COLOR_PALETTE["GENERAL"]["NETUID"])
+        table_.add_column("Hotkey Address", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
 
-    console.print("\n", table)
+        hotkeys_info = []
+        for idx, (hotkey_ss58, netuid_stakes) in enumerate(hotkey_stakes.items()):
+            hotkey_name = get_hotkey_identity_name(ck_hk_identities, hotkey_ss58) or "~"
+            hotkeys_info.append(
+                {
+                    "index": idx,
+                    "identity": hotkey_name,
+                    "hotkey_ss58": hotkey_ss58,
+                    "netuids": list(netuid_stakes.keys()),
+                    "stakes": netuid_stakes,
+                }
+            )
+            table_.add_row(
+                str(idx),
+                hotkey_name,
+                group_subnets([n for n in netuid_stakes.keys()]),
+                hotkey_ss58,
+            )
 
+        console.print("\n", table_)
+        return hotkeys_info
+
+    hks_info = _display_hotkey_table()
     # Select origin hotkey
     origin_idx = Prompt.ask(
         "\nEnter the index of the hotkey you want to move stake from",
-        choices=[str(i) for i in range(len(hotkeys_info))],
+        choices=[str(i) for i in range(len(hks_info))],
     )
-    origin_hotkey_info = hotkeys_info[int(origin_idx)]
+    origin_hotkey_info = hks_info[int(origin_idx)]
     origin_hotkey_ss58 = origin_hotkey_info["hotkey_ss58"]
 
     # Display available netuids for selected hotkey
@@ -416,6 +416,16 @@ async def stake_move_transfer_selection(
     origin_netuid = int(origin_netuid)
     origin_stake = origin_hotkey_info["stakes"][origin_netuid]
 
+    if not destination_hotkey:
+        hks_info = _display_hotkey_table()
+        # Select destination hotkey
+        dest_idx = Prompt.ask(
+            "\nEnter the index of the hotkey you want to move stake to",
+            choices=[str(i) for i in range(len(hks_info))],
+        )
+        dest_hotkey_info = hks_info[int(dest_idx)]
+        destination_hotkey = dest_hotkey_info["hotkey_ss58"]
+
     # Ask for amount to move
     amount, stake_all = prompt_stake_amount(origin_stake, origin_netuid, "move")
 
@@ -433,6 +443,7 @@ async def stake_move_transfer_selection(
         "amount": amount.tao,
         "stake_all": stake_all,
         "destination_netuid": int(destination_netuid),
+        "destination_hotkey": destination_hotkey,
     }
 
 
@@ -533,11 +544,11 @@ async def stake_swap_selection(
 async def move_stake(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
-    origin_netuid: int,
-    origin_hotkey: str,
-    destination_netuid: int,
-    destination_hotkey: str,
-    amount: float,
+    origin_netuid: Optional[int],
+    origin_hotkey: Optional[str],
+    destination_netuid: Optional[int],
+    destination_hotkey: Optional[str],
+    amount: Optional[float],
     stake_all: bool,
     era: int,
     interactive_selection: bool = False,
@@ -547,9 +558,12 @@ async def move_stake(
     proxy: Optional[str] = None,
     mev_protection: bool = True,
 ) -> tuple[bool, str]:
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if interactive_selection:
         try:
-            selection = await stake_move_transfer_selection(subtensor, wallet)
+            selection = await stake_move_transfer_selection(
+                subtensor, wallet, destination_hotkey
+            )
         except ValueError:
             return False, ""
         origin_hotkey = selection["origin_hotkey"]
@@ -557,19 +571,19 @@ async def move_stake(
         amount = selection["amount"]
         stake_all = selection["stake_all"]
         destination_netuid = selection["destination_netuid"]
+        destination_hotkey = selection["destination_hotkey"]
 
     # Get the wallet stake balances.
     block_hash = await subtensor.substrate.get_chain_head()
-    # TODO should this use `proxy if proxy else wallet.coldkeypub.ss58_address`?
     origin_stake_balance, destination_stake_balance = await asyncio.gather(
         subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
             block_hash=block_hash,
         ),
         subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=destination_hotkey,
             netuid=destination_netuid,
             block_hash=block_hash,
@@ -712,13 +726,13 @@ async def move_stake(
                 new_destination_stake_balance,
             ) = await asyncio.gather(
                 subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     hotkey_ss58=origin_hotkey,
                     netuid=origin_netuid,
                     block_hash=block_hash,
                 ),
                 subtensor.get_stake(
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     hotkey_ss58=destination_hotkey,
                     netuid=destination_netuid,
                     block_hash=block_hash,
@@ -778,6 +792,7 @@ async def transfer_stake(
             bool: True if transfer was successful, False otherwise.
             str: error message
     """
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if interactive_selection:
         selection = await stake_move_transfer_selection(subtensor, wallet)
         origin_netuid = selection["origin_netuid"]
@@ -802,9 +817,8 @@ async def transfer_stake(
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
-        # TODO should use proxy for these checks?
         current_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=origin_hotkey,
             netuid=origin_netuid,
         )
@@ -925,7 +939,7 @@ async def transfer_stake(
                 # Get and display new stake balances
                 new_stake, new_dest_stake = await asyncio.gather(
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=origin_hotkey,
                         netuid=origin_netuid,
                     ),
@@ -996,6 +1010,7 @@ async def swap_stake(
             success is True if the swap was successful, False otherwise.
             extrinsic_identifier if the extrinsic was successfully included
     """
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     hotkey_ss58 = get_hotkey_pub_ss58(wallet)
     if interactive_selection:
         try:
@@ -1023,12 +1038,12 @@ async def swap_stake(
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
         current_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=hotkey_ss58,
             netuid=origin_netuid,
         )
         current_dest_stake = await subtensor.get_stake(
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             hotkey_ss58=hotkey_ss58,
             netuid=destination_netuid,
         )
@@ -1160,12 +1175,12 @@ async def swap_stake(
                 # Get and display new stake balances
                 new_stake, new_dest_stake = await asyncio.gather(
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=hotkey_ss58,
                         netuid=origin_netuid,
                     ),
                     subtensor.get_stake(
-                        coldkey_ss58=wallet.coldkeypub.ss58_address,
+                        coldkey_ss58=coldkey_ss58,
                         hotkey_ss58=hotkey_ss58,
                         netuid=destination_netuid,
                     ),

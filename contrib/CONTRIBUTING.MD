@@ -60,3 +60,8 @@ git config --global commit.gpgsign true
 For instructions on setting up GPG key signing, see [GitHub's documentation on signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 > **Note:** Pull requests containing unsigned commits will not be merged.
+
+### Tests
+Try to cover with unit/e2e tests any changes you're making. 
+Make strong use of the `conftest.py` file (e.g. do not recreate test fixtures unless they're not there). 
+If you need a test fixture that is not there, add it in a reusable way to `conftest.py`. 

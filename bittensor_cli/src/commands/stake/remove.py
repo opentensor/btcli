@@ -29,6 +29,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -67,12 +68,10 @@ async def unstake(
         (
             all_sn_dynamic_info_,
             ck_hk_identities,
-            old_identities,
             stake_infos,
         ) = await asyncio.gather(
             subtensor.all_subnets(block_hash=chain_head),
             subtensor.fetch_coldkey_hotkey_identities(block_hash=chain_head),
-            subtensor.get_delegate_identities(block_hash=chain_head),
             subtensor.get_stake_for_coldkey(coldkey_ss58, block_hash=chain_head),
         )
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
@@ -82,7 +81,6 @@ async def unstake(
             hotkeys_to_unstake_from, unstake_all_from_hk = await _unstake_selection(
                 all_sn_dynamic_info,
                 ck_hk_identities,
-                old_identities,
                 stake_infos,
                 netuid=netuid,
             )
@@ -125,7 +123,6 @@ async def unstake(
             exclude_hotkeys=exclude_hotkeys,
             stake_infos=stake_infos,
             identities=ck_hk_identities,
-            old_identities=old_identities,
         )
 
     with console.status(
@@ -522,13 +519,11 @@ async def unstake_all(
         (
             stake_info,
             ck_hk_identities,
-            old_identities,
             all_sn_dynamic_info_,
             current_wallet_balance,
         ) = await asyncio.gather(
             subtensor.get_stake_for_coldkey(coldkey_ss58),
             subtensor.fetch_coldkey_hotkey_identities(),
-            subtensor.get_delegate_identities(),
             subtensor.all_subnets(),
             subtensor.get_balance(coldkey_ss58),
         )
@@ -542,7 +537,6 @@ async def unstake_all(
                 exclude_hotkeys=exclude_hotkeys,
                 stake_infos=stake_info,
                 identities=ck_hk_identities,
-                old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
             hotkeys = [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
@@ -870,10 +864,7 @@ async def _unstake_extrinsic(
         )
         return True, response
     else:
-        err_out(
-            f"{failure_prelude} with error: "
-            f"{format_error_message(await response.error_message)}"
-        )
+        err_out(f"{failure_prelude} with error: {err_msg}")
         return False, None
 
 
@@ -1196,7 +1187,6 @@ async def _get_extrinsic_fee(
 async def _unstake_selection(
     dynamic_info,
     identities,
-    old_identities,
     stake_infos,
     netuid: Optional[int] = None,
 ) -> tuple[list[tuple[str, str, int]], bool]:
@@ -1226,7 +1216,6 @@ async def _unstake_selection(
         hotkey_name = get_hotkey_identity(
             hotkey_ss58=hotkey_ss58,
             identities=identities,
-            old_identities=old_identities,
         )
         hotkeys_info.append(
             {
@@ -1418,7 +1407,6 @@ def _get_hotkeys_to_unstake(
     exclude_hotkeys: list[str],
     stake_infos: list,
     identities: dict,
-    old_identities: dict,
 ) -> list[tuple[Optional[str], str, None]]:
     """Get list of hotkeys to unstake from based on input parameters.
 
@@ -1449,7 +1437,7 @@ def _get_hotkeys_to_unstake(
         wallet_hotkey_addresses = {hk[1] for hk in wallet_hotkeys}
         chain_hotkeys = [
             (
-                get_hotkey_identity(stake_info.hotkey_ss58, identities, old_identities),
+                get_hotkey_identity(stake_info.hotkey_ss58, identities),
                 stake_info.hotkey_ss58,
                 None,
             )
@@ -1603,23 +1591,16 @@ The columns are as follows:
 def get_hotkey_identity(
     hotkey_ss58: str,
     identities: dict,
-    old_identities: dict,
 ) -> str:
-    """Get identity name for a hotkey from identities or old_identities.
+    """Get identity name for a hotkey from the V2-backed identity map.
 
     Args:
         hotkey_ss58 (str): The hotkey SS58 address
         identities (dict): Current identities from fetch_coldkey_hotkey_identities
-        old_identities (dict): Old identities from get_delegate_identities
 
     Returns:
         str: Identity name or truncated address
     """
-    if hk_identity := identities["hotkeys"].get(hotkey_ss58):
-        return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
-            "display", "~"
-        )
-    elif old_identity := old_identities.get(hotkey_ss58):
-        return old_identity.display
-    else:
-        return f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    return get_hotkey_identity_name(identities, hotkey_ss58) or (
+        f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    )

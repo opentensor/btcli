@@ -391,14 +391,14 @@ async def stake_add(
 
             # Temporary workaround - calculations without slippage
             current_price_float = float(subnet_info.price.tao)
-            rate = 1.0 / current_price_float
+            rate = _safe_inverse_rate(current_price_float)
 
             # If we are staking safe, add price tolerance
             if safe_staking:
                 if subnet_info.is_dynamic:
                     price_with_tolerance = current_price_float * (1 + rate_tolerance)
-                    _rate_with_tolerance = (
-                        1.0 / price_with_tolerance
+                    _rate_with_tolerance = _safe_inverse_rate(
+                        price_with_tolerance
                     )  # Rate only for display
                     rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
                     price_with_tolerance = Balance.from_tao(
@@ -849,6 +849,11 @@ The columns are as follows:
     console.print(base_description + (safe_staking_description if safe_staking else ""))
 
 
+def _safe_inverse_rate(value: float) -> float:
+    """Returns the inverse of a positive rate, otherwise zero."""
+    return 1.0 / value if value > 0 else 0.0
+
+
 def _calculate_slippage(
     subnet_info, amount: Balance, stake_fee: Balance
 ) -> tuple[Balance, str, float, str]:
@@ -882,7 +887,7 @@ def _calculate_slippage(
         total_slippage = ideal_amount - received_amount
         slippage_pct_float = 100 * (total_slippage.tao / ideal_amount.tao)
         slippage_str = f"{slippage_pct_float:.4f} %"
-        rate = f"{(1 / subnet_info.price.tao or 1):.4f}"
+        rate = f"{_safe_inverse_rate(float(subnet_info.price.tao)):.4f}"
     else:
         # TODO: Fix this. Slippage is always zero for static networks.
         slippage_pct_float = (
