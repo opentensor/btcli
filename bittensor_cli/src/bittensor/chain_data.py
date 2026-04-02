@@ -37,24 +37,6 @@ class ChainDataType(Enum):
     SubnetIdentity = 11
 
 
-def decode_hex_identity(info_dictionary):
-    decoded_info = {}
-    for k, v in info_dictionary.items():
-        if isinstance(v, dict):
-            item = next(iter(v.values()))
-        else:
-            item = v
-
-        if isinstance(item, tuple):
-            try:
-                decoded_info[k] = bytes(item).decode()
-            except UnicodeDecodeError:
-                print(f"Could not decode: {k}: {item}")
-        else:
-            decoded_info[k] = item
-    return decoded_info
-
-
 def process_stake_data(stake_data, netuid):
     decoded_stake_data = {}
     for account_id_bytes, stake_ in stake_data:

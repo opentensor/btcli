@@ -24,7 +24,6 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfo,
     SubnetHyperparameters,
     decode_account_id,
-    decode_hex_identity,
     DynamicInfo,
     SubnetState,
     MetagraphInfo,
@@ -953,11 +952,10 @@ class SubtensorInterface:
             reuse_block_hash=reuse_block,
             fully_exhaust=True,
         )
-        all_identities = {}
-        for ss58_address, identity in identities.records:
-            all_identities[decode_account_id(ss58_address[0])] = decode_hex_identity(
-                identity.value
-            )
+        all_identities = {
+            ss58_address: identity.value
+            for (ss58_address, identity) in identities.records
+        }
 
         return all_identities
 
@@ -995,7 +993,7 @@ class SubtensorInterface:
         if not identity_info:
             return {}
         try:
-            return decode_hex_identity(identity_info)
+            return identity_info
         except TypeError:
             return {}
 
