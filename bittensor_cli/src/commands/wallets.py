@@ -427,8 +427,19 @@ async def new_coldkey(
                 keypair = Keypair.create_from_uri(uri)
             except TypeError as e:
                 print_error(f"Failed to create keypair from URI {uri}: {str(e)}")
-            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=False)
-            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=False)
+                if json_output:
+                    json_console.print(
+                        json.dumps(
+                            {
+                                "success": False,
+                                "error": f"Failed to create keypair from URI: {e}",
+                                "data": None,
+                            }
+                        )
+                    )
+                return
+            wallet.set_coldkey(keypair=keypair, encrypt=False, overwrite=overwrite)
+            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
             console.print(
                 f"[dark_sea_green]Coldkey created from URI: {uri}[/dark_sea_green]"
             )
@@ -489,7 +500,6 @@ async def wallet_create(
             wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
             wallet.set_hotkey(keypair=keypair, encrypt=False, overwrite=overwrite)
             wallet.set_hotkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
-            wallet.set_coldkeypub(keypair=keypair, encrypt=False, overwrite=overwrite)
             output_dict["success"] = True
             output_dict["data"] = {
                 "name": wallet.name,
@@ -498,13 +508,13 @@ async def wallet_create(
                 "hotkey_ss58": wallet.hotkeypub.ss58_address,
                 "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
+            console.print(
+                f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
+            )
         except (ValueError, TypeError, KeyFileError) as e:
             err = f"Failed to create keypair from URI: {str(e)}"
             print_error(err)
             output_dict["error"] = err
-        console.print(
-            f"[dark_sea_green]Wallet created from URI: {uri}[/dark_sea_green]"
-        )
     else:
         try:
             wallet.create_new_coldkey(
@@ -513,17 +523,13 @@ async def wallet_create(
                 overwrite=overwrite,
             )
             console.print("[dark_sea_green]Coldkey created[/dark_sea_green]")
-            output_dict["success"] = True
-            output_dict["data"] = {
-                "name": wallet.name,
-                "path": wallet.path,
-                "hotkey": wallet.hotkey_str,
-                "coldkey_ss58": wallet.coldkeypub.ss58_address,
-            }
         except KeyFileError as error:
             err = str(error)
             print_error(err)
             output_dict["error"] = err
+            if json_output:
+                json_console.print(json.dumps(output_dict))
+            return
         try:
             wallet.create_new_hotkey(
                 n_words=n_words,
@@ -537,6 +543,7 @@ async def wallet_create(
                 "path": wallet.path,
                 "hotkey": wallet.hotkey_str,
                 "hotkey_ss58": wallet.hotkeypub.ss58_address,
+                "coldkey_ss58": wallet.coldkeypub.ss58_address,
             }
         except KeyFileError as error:
             err = str(error)
