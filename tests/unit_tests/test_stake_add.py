@@ -6,8 +6,7 @@ import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.commands.stake.add import stake_add
 
-
-TEST_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
+from tests.unit_tests.conftest import COLDKEY_SS58 as TEST_SS58
 
 
 class MockSubnetInfo:
@@ -17,17 +16,7 @@ class MockSubnetInfo:
         self.is_dynamic = netuid != 0
 
 
-@pytest.fixture
-def mock_wallet():
-    return SimpleNamespace(
-        coldkeypub=SimpleNamespace(ss58_address=TEST_SS58),
-        path="/tmp",
-        name="test_wallet",
-    )
-
-
-@pytest.fixture
-def mock_subtensor():
+def _sim_swap_side_effect():
     async def sim_swap_mock(origin_netuid, destination_netuid, amount):
         del origin_netuid, amount
         return SimpleNamespace(
@@ -35,18 +24,7 @@ def mock_subtensor():
             tao_fee=Balance.from_tao(0.1),
         )
 
-    return SimpleNamespace(
-        substrate=SimpleNamespace(
-            get_chain_head=AsyncMock(return_value="0xabc"),
-            compose_call=AsyncMock(return_value=SimpleNamespace()),
-        ),
-        network="test",
-        all_subnets=AsyncMock(return_value=[]),
-        get_stake_for_coldkey=AsyncMock(return_value=[]),
-        get_balance=AsyncMock(return_value=Balance.from_tao(100)),
-        get_extrinsic_fee=AsyncMock(return_value=Balance.from_tao(0.01)),
-        sim_swap=AsyncMock(side_effect=sim_swap_mock),
-    )
+    return AsyncMock(side_effect=sim_swap_mock)
 
 
 @pytest.mark.asyncio
@@ -56,6 +34,7 @@ async def test_stake_add_zero_price_does_not_raise(
     mock_subtensor,
     safe_staking,
 ):
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
     mock_subtensor.all_subnets.return_value = [MockSubnetInfo(netuid=427, price_tao=0)]
 
     with patch(
@@ -94,6 +73,7 @@ async def test_stake_add_mixed_prices_including_zero_does_not_raise(
     mock_wallet,
     mock_subtensor,
 ):
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
     mock_subtensor.all_subnets.return_value = [
         MockSubnetInfo(netuid=427, price_tao=0),
         MockSubnetInfo(netuid=1, price_tao=2.0),
