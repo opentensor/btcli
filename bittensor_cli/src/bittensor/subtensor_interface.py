@@ -1653,8 +1653,7 @@ class SubtensorInterface:
         for result in results:
             if result is None:
                 continue
-            for coldkey_bytes, stake_info_list in result:
-                coldkey_ss58 = decode_account_id(coldkey_bytes)
+            for coldkey_ss58, stake_info_list in result:
                 stake_info_map[coldkey_ss58] = StakeInfo.list_from_any(stake_info_list)
 
         return stake_info_map if stake_info_map else None
@@ -1719,8 +1718,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-
-        return [decode_account_id(hotkey[0]) for hotkey in owned_hotkeys or []]
+        return owned_hotkeys
 
     async def get_extrinsic_fee(
         self, call: GenericCall, keypair: Keypair, proxy: Optional[str] = None
