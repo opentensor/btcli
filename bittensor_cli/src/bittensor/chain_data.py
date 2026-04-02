@@ -70,32 +70,6 @@ def _tbwu(val: int, netuid: Optional[int] = 0) -> Balance:
     return Balance.from_rao(val).set_unit(netuid)
 
 
-def _chr_str(codes: tuple[int]) -> str:
-    """Converts a tuple of integer Unicode code points into a string."""
-    return "".join(map(chr, codes))
-
-
-def process_nested(
-    data: Sequence[dict[Hashable, tuple[int]]] | dict | Any,
-    chr_transform: Callable[[tuple[int]], str],
-) -> list[dict[Hashable, str]] | dict[Hashable, str] | Any:
-    """Processes nested data structures by applying a transformation function to their elements."""
-    if isinstance(data, Sequence):
-        if len(data) > 0 and isinstance(data[0], dict):
-            return [
-                {k: chr_transform(v) for k, v in item.items()}
-                if item is not None
-                else None
-                for item in data
-            ]
-        # TODO @abe why do we kind of silently fail here?
-        return {}
-    elif isinstance(data, dict):
-        return {k: chr_transform(v) for k, v in data.items()}
-    else:
-        return data
-
-
 @dataclass
 class AxonInfo:
     version: int
@@ -695,14 +669,14 @@ class SubnetIdentity(InfoBase):
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
         return cls(
-            subnet_name=bytes(decoded["subnet_name"]).decode(),
-            github_repo=bytes(decoded["github_repo"]).decode(),
-            subnet_contact=bytes(decoded["subnet_contact"]).decode(),
-            subnet_url=bytes(decoded["subnet_url"]).decode(),
-            discord=bytes(decoded["discord"]).decode(),
-            description=bytes(decoded["description"]).decode(),
-            logo_url=bytes(decoded["logo_url"]).decode(),
-            additional=bytes(decoded["additional"]).decode(),
+            subnet_name=decoded["subnet_name"],
+            github_repo=decoded["github_repo"],
+            subnet_contact=decoded["subnet_contact"],
+            subnet_url=decoded["subnet_url"],
+            discord=decoded["discord"],
+            description=decoded["description"],
+            logo_url=decoded["logo_url"],
+            additional=decoded["additional"],
         )
 
 
@@ -1122,10 +1096,6 @@ class MetagraphInfo(InfoBase):
         # Name and symbol
         decoded.update({"name": bytes(decoded.get("name")).decode()})
         decoded.update({"symbol": bytes(decoded.get("symbol")).decode()})
-        for key in ["identities", "identity"]:
-            raw_data = decoded.get(key)
-            processed = process_nested(raw_data, _chr_str)
-            decoded.update({key: processed})
 
         return cls(
             # Subnet index

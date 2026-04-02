@@ -2221,8 +2221,7 @@ class SubtensorInterface:
         root_claim_types = {}
         for coldkey, claim_type_data in result.records:
             coldkey_ss58 = decode_account_id(coldkey[0])
-
-            claim_type_key = next(iter(claim_type_data.value.keys()))
+            claim_type_key = claim_type_data.value
 
             if claim_type_key == "KeepSubnets":
                 subnets_data = claim_type_data.value["KeepSubnets"]["subnets"]
