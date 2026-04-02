@@ -1,5 +1,27 @@
 # Changelog
 
+## 9.20.1 /2026-04-02
+
+## What's Changed
+* Fully_exhaust=True for  by @thewhaleking in https://github.com/latent-to/btcli/pull/876
+* Fix/speed issue with network calls by @ibraheem-abe in https://github.com/latent-to/btcli/pull/877
+* Update/deprecate old identities by @ibraheem-abe in https://github.com/latent-to/btcli/pull/878
+* ASI version <2.0 by @thewhaleking in https://github.com/latent-to/btcli/pull/880
+* fix: resolve proxy address for stake queries in move/transfer/swap and sudo trim by @bitloi in https://github.com/latent-to/btcli/pull/881
+* Bumps workflow versions, uses permission in release by @thewhaleking in https://github.com/latent-to/btcli/pull/882
+* inspect hotkey support by @thewhaleking in https://github.com/latent-to/btcli/pull/883
+* unstake: format error message incorrect by @thewhaleking in https://github.com/latent-to/btcli/pull/884
+* fix: error handling in wallet_create() and new_coldkey() by @bitloi in https://github.com/latent-to/btcli/pull/888
+* fix: prevent division by zero in stake add when subnet price is zero by @bitloi in https://github.com/latent-to/btcli/pull/886
+* Improved test coverage by @thewhaleking in https://github.com/latent-to/btcli/pull/889
+* fix: proxy allow-death transfer balance check by @bitloi in https://github.com/latent-to/btcli/pull/891
+* Better st move interactivity by @thewhaleking in https://github.com/latent-to/btcli/pull/892
+
+## New Contributors
+* @bitloi made their first contribution in https://github.com/latent-to/btcli/pull/881
+
+**Full Changelog**: https://github.com/latent-to/btcli/compare/v9.20.0...v9.20.1
+
 ## 9.20.0 /2026-03-24
 
 ## What's Changed
