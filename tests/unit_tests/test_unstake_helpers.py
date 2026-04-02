@@ -22,12 +22,12 @@ from bittensor_cli.src.commands.stake.remove import (
     get_hotkey_identity,
 )
 from bittensor_cli.src.bittensor.balances import Balance
+from tests.unit_tests.conftest import (
+    PROXY_SS58 as _HOTKEY_SS58,
+    COLDKEY_SS58 as _COLDKEY_SS58,
+)
 
 MODULE = "bittensor_cli.src.commands.stake.remove"
-
-# Known-valid SS58 addresses
-_HOTKEY_SS58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-_COLDKEY_SS58 = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
 
 
 # ---------------------------------------------------------------------------

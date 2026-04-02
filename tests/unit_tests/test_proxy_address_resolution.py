@@ -9,10 +9,11 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bittensor_cli.src.bittensor.balances import Balance
-
-PROXY_SS58 = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-HOTKEY_SS58 = "5CiQ1cV1MmMwsep7YP37QZKEgBgaVXeSPnETB5JBgwYRoXbP"
-DEST_HOTKEY_SS58 = "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy"
+from tests.unit_tests.conftest import (
+    PROXY_SS58,
+    HOTKEY_SS58,
+    DEST_SS58 as DEST_HOTKEY_SS58,
+)
 
 
 @contextmanager
