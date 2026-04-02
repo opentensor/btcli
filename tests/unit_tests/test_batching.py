@@ -12,16 +12,6 @@ def subtensor():
     return st
 
 
-@pytest.fixture
-def mock_wallet():
-    """Create a mock wallet with coldkey for signing."""
-    wallet = MagicMock()
-    wallet.coldkey = MagicMock()
-    wallet.coldkey.ss58_address = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-    wallet.coldkeypub = MagicMock()
-    wallet.coldkeypub.ss58_address = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-    return wallet
-
 
 @pytest.mark.asyncio
 async def test_batch_empty_calls_returns_error(subtensor, mock_wallet):

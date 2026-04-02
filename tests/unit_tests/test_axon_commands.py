@@ -4,15 +4,12 @@ Unit tests for axon commands (reset and set).
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from async_substrate_interface import AsyncSubstrateInterface
-from bittensor_wallet import Wallet
 
 from bittensor_cli.src.bittensor.extrinsics.serving import (
     reset_axon_extrinsic,
     set_axon_extrinsic,
     ip_to_int,
 )
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
 class TestIpToInt:
@@ -48,30 +45,9 @@ class TestResetAxonExtrinsic:
     """Tests for reset_axon_extrinsic function."""
 
     @pytest.mark.asyncio
-    async def test_reset_axon_success(self):
+    async def test_reset_axon_success(self, mock_subtensor, mock_wallet_spec, successful_receipt):
         """Test successful axon reset."""
-        # Setup mocks
-        mock_subtensor = MagicMock()
-        mock_subtensor.substrate.compose_call = AsyncMock(return_value="mock_call")
-        mock_subtensor.substrate.create_signed_extrinsic = AsyncMock(
-            return_value="mock_extrinsic"
-        )
-        mock_response = MagicMock()
-
-        # is_success is a property that returns a coroutine
-        async def mock_is_success():
-            return True
-
-        mock_response.is_success = mock_is_success()
-        mock_response.get_extrinsic_identifier = AsyncMock(return_value="0x123")
-        mock_subtensor.substrate.submit_extrinsic = AsyncMock(
-            return_value=mock_response
-        )
-
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
+        mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 
         with (
             patch(
@@ -84,22 +60,19 @@ class TestResetAxonExtrinsic:
         ):
             mock_unlock.return_value = MagicMock(success=True)
 
-            # Execute
             success, message, ext_id = await reset_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 prompt=False,
                 wait_for_inclusion=True,
                 wait_for_finalization=False,
             )
 
-            # Verify
             assert success is True
             assert "successfully" in message.lower()
-            assert ext_id == "0x123"
+            assert ext_id == "0x123-1"
 
-            # Verify compose_call was called with correct parameters
             mock_subtensor.substrate.compose_call.assert_called_once()
             call_args = mock_subtensor.substrate.compose_call.call_args
             assert call_args[1]["call_module"] == "SubtensorModule"
@@ -110,11 +83,8 @@ class TestResetAxonExtrinsic:
             assert call_args[1]["call_params"]["ip_type"] == 4
 
     @pytest.mark.asyncio
-    async def test_reset_axon_unlock_failure(self):
+    async def test_reset_axon_unlock_failure(self, mock_subtensor, mock_wallet_spec):
         """Test axon reset when hotkey unlock fails."""
-        mock_subtensor = MagicMock()
-        mock_wallet = MagicMock(spec=Wallet)
-
         with patch(
             "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
         ) as mock_unlock:
@@ -124,7 +94,7 @@ class TestResetAxonExtrinsic:
 
             success, message, ext_id = await reset_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 prompt=False,
             )
@@ -134,15 +104,8 @@ class TestResetAxonExtrinsic:
             assert ext_id is None
 
     @pytest.mark.asyncio
-    async def test_reset_axon_user_cancellation(self):
+    async def test_reset_axon_user_cancellation(self, mock_subtensor, mock_wallet_spec):
         """Test axon reset when user cancels prompt."""
-        mock_subtensor = MagicMock(spec=SubtensorInterface)
-        mock_subtensor.substrate = MagicMock(spec=AsyncSubstrateInterface)
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
-
         with (
             patch(
                 "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
@@ -156,7 +119,7 @@ class TestResetAxonExtrinsic:
 
             success, message, ext_id = await reset_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 prompt=True,
             )
@@ -166,28 +129,9 @@ class TestResetAxonExtrinsic:
             assert ext_id is None
 
     @pytest.mark.asyncio
-    async def test_reset_axon_extrinsic_failure(self):
+    async def test_reset_axon_extrinsic_failure(self, mock_subtensor, mock_wallet_spec, failed_receipt):
         """Test axon reset when extrinsic submission fails."""
-        mock_subtensor = MagicMock()
-        mock_subtensor.substrate.compose_call = AsyncMock(return_value="mock_call")
-        mock_subtensor.substrate.create_signed_extrinsic = AsyncMock(
-            return_value="mock_extrinsic"
-        )
-        mock_response = MagicMock()
-
-        async def mock_is_success():
-            return False
-
-        mock_response.is_success = mock_is_success()
-        mock_response.error_message = AsyncMock(return_value="Network error")
-        mock_subtensor.substrate.submit_extrinsic = AsyncMock(
-            return_value=mock_response
-        )
-
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
+        mock_subtensor.substrate.submit_extrinsic.return_value = failed_receipt
 
         with patch(
             "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
@@ -196,7 +140,7 @@ class TestResetAxonExtrinsic:
 
             success, message, ext_id = await reset_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 prompt=False,
             )
@@ -210,28 +154,9 @@ class TestSetAxonExtrinsic:
     """Tests for set_axon_extrinsic function."""
 
     @pytest.mark.asyncio
-    async def test_set_axon_success(self):
+    async def test_set_axon_success(self, mock_subtensor, mock_wallet_spec, successful_receipt):
         """Test successful axon set."""
-        mock_subtensor = MagicMock()
-        mock_subtensor.substrate.compose_call = AsyncMock(return_value="mock_call")
-        mock_subtensor.substrate.create_signed_extrinsic = AsyncMock(
-            return_value="mock_extrinsic"
-        )
-        mock_response = MagicMock()
-
-        async def mock_is_success():
-            return True
-
-        mock_response.is_success = mock_is_success()
-        mock_response.get_extrinsic_identifier = AsyncMock(return_value="0x123")
-        mock_subtensor.substrate.submit_extrinsic = AsyncMock(
-            return_value=mock_response
-        )
-
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
+        mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 
         with (
             patch(
@@ -246,7 +171,7 @@ class TestSetAxonExtrinsic:
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 ip="192.168.1.100",
                 port=8091,
@@ -259,10 +184,9 @@ class TestSetAxonExtrinsic:
 
             assert success is True
             assert "successfully" in message.lower()
-            assert ext_id == "0x123"
+            assert ext_id == "0x123-1"
             assert "192.168.1.100:8091" in message
 
-            # Verify compose_call was called with correct parameters
             mock_subtensor.substrate.compose_call.assert_called_once()
             call_args = mock_subtensor.substrate.compose_call.call_args
             assert call_args[1]["call_module"] == "SubtensorModule"
@@ -273,15 +197,12 @@ class TestSetAxonExtrinsic:
             assert call_args[1]["call_params"]["protocol"] == 4
 
     @pytest.mark.asyncio
-    async def test_set_axon_invalid_port(self):
+    async def test_set_axon_invalid_port(self, mock_subtensor, mock_wallet_spec):
         """Test axon set with invalid port number."""
-        mock_subtensor = MagicMock()
-        mock_wallet = MagicMock(spec=Wallet)
-
         # Test port too high
         success, message, ext_id = await set_axon_extrinsic(
             subtensor=mock_subtensor,
-            wallet=mock_wallet,
+            wallet=mock_wallet_spec,
             netuid=1,
             ip="192.168.1.100",
             port=70000,
@@ -295,7 +216,7 @@ class TestSetAxonExtrinsic:
         # Test negative port
         success, message, ext_id = await set_axon_extrinsic(
             subtensor=mock_subtensor,
-            wallet=mock_wallet,
+            wallet=mock_wallet_spec,
             netuid=1,
             ip="192.168.1.100",
             port=-1,
@@ -307,14 +228,11 @@ class TestSetAxonExtrinsic:
         assert ext_id is None
 
     @pytest.mark.asyncio
-    async def test_set_axon_invalid_ip(self):
+    async def test_set_axon_invalid_ip(self, mock_subtensor, mock_wallet_spec):
         """Test axon set with invalid IP address."""
-        mock_subtensor = MagicMock()
-        mock_wallet = MagicMock(spec=Wallet)
-
         success, message, ext_id = await set_axon_extrinsic(
             subtensor=mock_subtensor,
-            wallet=mock_wallet,
+            wallet=mock_wallet_spec,
             netuid=1,
             ip="invalid.ip.address",
             port=8091,
@@ -326,11 +244,8 @@ class TestSetAxonExtrinsic:
         assert ext_id is None
 
     @pytest.mark.asyncio
-    async def test_set_axon_unlock_failure(self):
+    async def test_set_axon_unlock_failure(self, mock_subtensor, mock_wallet_spec):
         """Test axon set when hotkey unlock fails."""
-        mock_subtensor = MagicMock()
-        mock_wallet = MagicMock(spec=Wallet)
-
         with patch(
             "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
         ) as mock_unlock:
@@ -340,7 +255,7 @@ class TestSetAxonExtrinsic:
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 ip="192.168.1.100",
                 port=8091,
@@ -352,14 +267,8 @@ class TestSetAxonExtrinsic:
             assert "Failed to unlock hotkey" in message
 
     @pytest.mark.asyncio
-    async def test_set_axon_user_cancellation(self):
+    async def test_set_axon_user_cancellation(self, mock_subtensor, mock_wallet_spec):
         """Test axon set when user cancels prompt."""
-        mock_subtensor = MagicMock()
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
-
         with (
             patch(
                 "bittensor_cli.src.bittensor.extrinsics.serving.unlock_key"
@@ -373,7 +282,7 @@ class TestSetAxonExtrinsic:
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 ip="192.168.1.100",
                 port=8091,
@@ -384,28 +293,9 @@ class TestSetAxonExtrinsic:
             assert "cancelled" in message.lower()
 
     @pytest.mark.asyncio
-    async def test_set_axon_with_ipv6(self):
+    async def test_set_axon_with_ipv6(self, mock_subtensor, mock_wallet_spec, successful_receipt):
         """Test axon set with IPv6 address."""
-        mock_subtensor = MagicMock()
-        mock_subtensor.substrate.compose_call = AsyncMock(return_value="mock_call")
-        mock_subtensor.substrate.create_signed_extrinsic = AsyncMock(
-            return_value="mock_extrinsic"
-        )
-        mock_response = MagicMock()
-
-        async def mock_is_success():
-            return True
-
-        mock_response.is_success = mock_is_success()
-        mock_response.get_extrinsic_identifier = AsyncMock(return_value="0x123")
-        mock_subtensor.substrate.submit_extrinsic = AsyncMock(
-            return_value=mock_response
-        )
-
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-        )
+        mock_subtensor.substrate.submit_extrinsic.return_value = successful_receipt
 
         with (
             patch(
@@ -420,7 +310,7 @@ class TestSetAxonExtrinsic:
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 ip="2001:db8::1",
                 port=8091,
@@ -431,22 +321,15 @@ class TestSetAxonExtrinsic:
 
             assert success is True
             assert "successfully" in message.lower()
-            assert ext_id == "0x123"
-            # Verify ip_type was set to 6
+            assert ext_id == "0x123-1"
             call_args = mock_subtensor.substrate.compose_call.call_args
             assert call_args[1]["call_params"]["ip_type"] == 6
 
     @pytest.mark.asyncio
-    async def test_set_axon_exception_handling(self):
+    async def test_set_axon_exception_handling(self, mock_subtensor, mock_wallet_spec):
         """Test axon set handles exceptions gracefully."""
-        mock_subtensor = MagicMock()
         mock_subtensor.substrate.compose_call = AsyncMock(
             side_effect=Exception("Unexpected error")
-        )
-
-        mock_wallet = MagicMock(spec=Wallet)
-        mock_wallet.hotkey.ss58_address = (
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
         )
 
         with patch(
@@ -456,7 +339,7 @@ class TestSetAxonExtrinsic:
 
             success, message, ext_id = await set_axon_extrinsic(
                 subtensor=mock_subtensor,
-                wallet=mock_wallet,
+                wallet=mock_wallet_spec,
                 netuid=1,
                 ip="192.168.1.100",
                 port=8091,
@@ -504,10 +387,7 @@ class TestAxonCLICommands:
                 json_output=False,
             )
 
-            # Verify wallet_ask was called correctly
             mock_wallet_ask.assert_called_once()
-
-            # Verify _run_command was called
             mock_run_command.assert_called_once()
 
     @patch("bittensor_cli.cli.axon")
@@ -547,8 +427,5 @@ class TestAxonCLICommands:
                 json_output=False,
             )
 
-            # Verify wallet_ask was called correctly
             mock_wallet_ask.assert_called_once()
-
-            # Verify _run_command was called
             mock_run_command.assert_called_once()
