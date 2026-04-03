@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 import pytest
 from typing import Union
 
@@ -397,14 +396,7 @@ def test_staking(local_chain, wallet_setup):
             "--verbose",
         ],
     )
-
-    # Assert correct stake is added
-    cleaned_stake = [
-        re.sub(r"\s+", " ", line)
-        for line in show_stake_adding_single.stdout.splitlines()
-    ]
-    stake_added = cleaned_stake[8].split("│")[3].strip().split()[0]
-    assert Balance.from_tao(float(stake_added)) >= Balance.from_tao(87)
+    assert str(netuid) in show_stake_adding_single.stdout
 
     show_stake_json = exec_command_alice(
         command="stake",
@@ -420,8 +412,17 @@ def test_staking(local_chain, wallet_setup):
         ],
     )
     show_stake_json_output = json.loads(show_stake_json.stdout)
-    alice_stake = show_stake_json_output["stake_info"][keypair_alice.ss58_address][0]
-    assert Balance.from_tao(alice_stake["stake_value"]) >= Balance.from_tao(87.0)
+    alice_stakes = show_stake_json_output["stake_info"][keypair_alice.ss58_address]
+    alice_on_netuid = next(
+        (stake for stake in alice_stakes if stake["netuid"] == netuid), None
+    )
+    assert alice_on_netuid is not None, (
+        f"No stake row for netuid {netuid} in JSON output"
+    )
+    assert Balance.from_tao(float(alice_on_netuid["stake_value"])) >= Balance.from_tao(
+        87.0
+    )
+    remove_amount = float(alice_on_netuid["stake_value"]) - 1.0
 
     # Execute remove_stake command and remove all alpha stakes from Alice's wallet
     remove_stake = exec_command_alice(
@@ -439,7 +440,7 @@ def test_staking(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--amount",
-            str(float(stake_added) - 1),
+            str(remove_amount),
             "--tolerance",
             "0.1",
             "--partial",
