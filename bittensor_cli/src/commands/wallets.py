@@ -2253,7 +2253,9 @@ async def announce_coldkey_swap(
             block_hash=block_hash
         )
         hk_table = create_key_value_table(
-            f"Staking Hotkeys Associated with Destination Coldkey \n Count: ({len(dest_staking_hotkeys)})\n"
+            f"Staking Hotkeys Associated with Destination Coldkey \n Count: ({len(dest_staking_hotkeys)})\n",
+            key_label="Hotkey",
+            value_label="Identity",
         )
         for hk_ss58 in dest_staking_hotkeys:
             hk_name = get_hotkey_identity_name(identity_map, hk_ss58) or "~"
