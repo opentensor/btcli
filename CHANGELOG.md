@@ -1,6 +1,6 @@
 # Changelog
 
-## 9.20.2rc1 /2026-04-06
+## 9.20.2rc2 /2026-04-06
 
 ## What's Changed
 * Fix/e2e tests for stake locked as owner alpha feat by @ibraheem-abe in https://github.com/latent-to/btcli/pull/900
