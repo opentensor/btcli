@@ -1874,23 +1874,29 @@ async def swap_hotkey(
     return result
 
 
-def create_key_value_table(title: str = "Details") -> Table:
+def create_key_value_table(
+    title: str = "Details",
+    key_label: str = "Item",
+    value_label: str = "Value",
+) -> Table:
     """Creates a key-value table for displaying information for various cmds.
 
     Args:
         title: The title shown above the table.
+        key_label: The header for the key column.
+        value_label: The header for the value column.
 
     Returns:
         A Rich Table for key-value display.
     """
     return Table(
         Column(
-            "Item",
+            key_label,
             justify="right",
             style=COLOR_PALETTE["GENERAL"]["SUBHEADING_MAIN"],
             no_wrap=True,
         ),
-        Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
+        Column(value_label, style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}",
         show_footer=True,
         show_edge=False,
