@@ -180,10 +180,9 @@ class SubtensorInterface:
         """
         if not call_option or "Inline" not in call_option:
             return None
-        inline_bytes = bytes(call_option["Inline"][0][0])
         call_obj = await self.substrate.create_scale_object(
             "Call",
-            data=ScaleBytes(inline_bytes),
+            data=ScaleBytes(call_option["Inline"]),
             block_hash=block_hash,
         )
         call_value = call_obj.decode()
