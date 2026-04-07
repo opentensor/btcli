@@ -28,7 +28,7 @@ from bittensor_cli.src.bittensor.utils import (
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-    from bittensor_cli.src.bittensor.chain_data import DynamicInfo
+    from bittensor_cli.src.bittensor.chain_data import DynamicInfo, SimSwapResult
 
 MIN_STAKE_FEE = Balance.from_rao(50_000)
 
@@ -99,6 +99,7 @@ async def display_stake_movement_cross_subnets(
     destination_hotkey: str,
     amount_to_move: Balance,
     pricing: MovementPricing,
+    sim_swap: "SimSwapResult",
     stake_fee: Balance,
     extrinsic_fee: Balance,
     safe_staking: bool = False,
@@ -116,6 +117,7 @@ async def display_stake_movement_cross_subnets(
         destination_hotkey: The destination hotkey SS58 address.
         amount_to_move: The amount of stake to move/swap.
         pricing: Pricing information including rates and limits.
+        sim_swap: SimSwapResult from the runtime API with accurate swap amounts.
         stake_fee: The fee for the stake transaction.
         extrinsic_fee: The fee for the extrinsic execution.
         safe_staking: Whether to enable safe staking.
@@ -147,12 +149,15 @@ async def display_stake_movement_cross_subnets(
             + f"({Balance.get_unit(0)}/{Balance.get_unit(origin_netuid)})"
         )
     else:
-        dynamic_origin = pricing.origin_subnet
-        dynamic_destination = pricing.destination_subnet
-        received_amount_tao = (
-            dynamic_origin.alpha_to_tao(amount_to_move - stake_fee) - extrinsic_fee
-        )
-        received_amount = dynamic_destination.tao_to_alpha(received_amount_tao)
+        if destination_netuid == 0:
+            received_amount = sim_swap.tao_amount
+        else:
+            received_amount = sim_swap.alpha_amount
+        if not proxy:
+            extrinsic_fee_as_alpha = pricing.destination_subnet.tao_to_alpha(
+                extrinsic_fee
+            )
+            received_amount = received_amount - extrinsic_fee_as_alpha
         received_amount.set_unit(destination_netuid)
 
         if received_amount < Balance.from_tao(0).set_unit(destination_netuid):
@@ -670,6 +675,7 @@ async def move_stake(
                 destination_hotkey=destination_hotkey,
                 amount_to_move=amount_to_move_as_balance,
                 pricing=pricing,
+                sim_swap=sim_swap,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
@@ -889,6 +895,7 @@ async def transfer_stake(
                 destination_hotkey=origin_hotkey,
                 amount_to_move=amount_to_transfer,
                 pricing=pricing,
+                sim_swap=sim_swap,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
@@ -1116,6 +1123,7 @@ async def swap_stake(
                 destination_hotkey=hotkey_ss58,
                 amount_to_move=amount_to_swap,
                 pricing=pricing,
+                sim_swap=sim_swap,
                 stake_fee=sim_swap.alpha_fee
                 if origin_netuid != 0
                 else sim_swap.tao_fee,
