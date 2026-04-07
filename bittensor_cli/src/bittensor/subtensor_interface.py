@@ -175,7 +175,7 @@ class SubtensorInterface:
             "Call",
             data=ScaleBytes(call_option["Inline"]),
             block_hash=block_hash,
-            runtime=runtime
+            runtime=runtime,
         )
         call_value = call_obj.decode()
 

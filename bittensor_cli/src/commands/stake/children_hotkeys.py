@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections import defaultdict
 from typing import Optional
 
 from bittensor_wallet import Wallet
@@ -25,6 +26,7 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    err_console,
 )
 
 
@@ -493,7 +495,6 @@ async def get_children(
                     f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
         await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
-        return netuid_children_tuples
     else:
         success, children, err_mg = await subtensor.get_children(
             get_hotkey_pub_ss58(wallet), netuid
@@ -503,8 +504,11 @@ async def get_children(
         if children:
             netuid_children_tuples = [(netuid, children)]
             await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
-
-        return netuid_children_tuples
+    output = defaultdict(dict)
+    for netuid_, children_ in netuid_children_tuples:
+        for proportion_, addr in children_:
+            output[netuid][addr] = proportion_
+    return output
 
 
 async def set_children(
@@ -795,7 +799,8 @@ async def childkey_take(
     wallet_hk = get_hotkey_pub_ss58(wallet)
     if not hotkey or hotkey == wallet_hk:
         hotkey = wallet_hk
-    if hotkey != wallet_hk or not take:
+    # TODO get rid of this check, holy shit this is all so fucking bad
+    if hotkey == wallet_hk or not take:
         # display childkey take for other users
         if netuid:
             await display_chk_take(hotkey, netuid)
@@ -854,7 +859,7 @@ async def childkey_take(
                     subtensor=subtensor,
                     wallet=wallet,
                     netuid=netuid_,
-                    hotkey=wallet_hk,
+                    hotkey=hotkey,
                     take=take,
                     proxy=proxy,
                     prompt=prompt,
