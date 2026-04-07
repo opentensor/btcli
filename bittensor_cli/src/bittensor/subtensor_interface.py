@@ -2056,9 +2056,8 @@ class SubtensorInterface:
         )
 
         contributor_contributions = {}
-        for contributor_key, contribution_amount in contributors_data.records:
+        for contributor_address, contribution_amount in contributors_data.records:
             try:
-                contributor_address = decode_account_id(contributor_key[0])
                 contribution_balance = Balance.from_rao(contribution_amount.value)
                 contributor_contributions[contributor_address] = contribution_balance
             except Exception:
