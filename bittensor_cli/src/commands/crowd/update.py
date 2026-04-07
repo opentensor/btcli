@@ -19,10 +19,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
 )
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
-from bittensor_cli.src.commands.crowd.utils import (
-    get_constant,
-    get_effective_actor_ss58,
-)
+from bittensor_cli.src.commands.crowd.utils import get_constant
 
 
 async def update_crowdloan(
@@ -91,7 +88,7 @@ async def update_crowdloan(
             print_error(f"[red]{error_msg}[/red]")
         return False, f"Crowdloan #{crowdloan_id} is already finalized."
 
-    creator_address = get_effective_actor_ss58(wallet=wallet, proxy=proxy)
+    creator_address = proxy or wallet.coldkeypub.ss58_address
     if creator_address != crowdloan.creator:
         error_msg = "Only the creator can update this crowdloan."
         if json_output:

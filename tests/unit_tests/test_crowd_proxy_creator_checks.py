@@ -21,21 +21,6 @@ def _make_crowdloan(
     return crowdloan
 
 
-def test_get_effective_actor_ss58_prefers_proxy(mock_wallet):
-    from bittensor_cli.src.commands.crowd.utils import get_effective_actor_ss58
-
-    assert get_effective_actor_ss58(wallet=mock_wallet, proxy=PROXY_SS58) == PROXY_SS58
-
-
-def test_get_effective_actor_ss58_uses_wallet_when_proxy_missing(mock_wallet):
-    from bittensor_cli.src.commands.crowd.utils import get_effective_actor_ss58
-
-    assert (
-        get_effective_actor_ss58(wallet=mock_wallet, proxy=None)
-        == mock_wallet.coldkeypub.ss58_address
-    )
-
-
 @pytest.mark.asyncio
 async def test_finalize_crowdloan_allows_proxy_creator_actor(
     mock_wallet, mock_subtensor

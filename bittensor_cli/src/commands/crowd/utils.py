@@ -2,16 +2,10 @@ import json
 from typing import Optional
 
 from async_substrate_interface.types import Runtime
-from bittensor_wallet import Wallet
 from rich.prompt import Prompt
 
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import console, json_console, print_error
-
-
-def get_effective_actor_ss58(wallet: Wallet, proxy: Optional[str]) -> str:
-    """Return the account address whose permissions apply for this call."""
-    return proxy or wallet.coldkeypub.ss58_address
 
 
 async def prompt_custom_call_params(

@@ -7,7 +7,6 @@ from rich.table import Column, Table, box
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.commands.crowd.utils import get_effective_actor_ss58
 from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.utils import (
     blocks_to_duration,
@@ -51,7 +50,7 @@ async def dissolve_crowdloan(
         tuple[bool, str]: Success status and message.
     """
 
-    creator_ss58 = get_effective_actor_ss58(wallet=wallet, proxy=proxy)
+    creator_ss58 = proxy or wallet.coldkeypub.ss58_address
 
     crowdloan, current_block = await asyncio.gather(
         subtensor.get_single_crowdloan(crowdloan_id),

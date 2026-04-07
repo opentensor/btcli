@@ -11,7 +11,6 @@ from bittensor_cli.src.commands.crowd.view import show_crowdloan_details
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.commands.crowd.utils import (
-    get_effective_actor_ss58,
     get_constant,
     prompt_custom_call_params,
 )
@@ -587,7 +586,7 @@ async def finalize_crowdloan(
             print_error(error_msg)
         return False, error_msg
 
-    creator_address = get_effective_actor_ss58(wallet=wallet, proxy=proxy)
+    creator_address = proxy or wallet.coldkeypub.ss58_address
     if creator_address != crowdloan.creator:
         error_msg = (
             f"Only the creator can finalize a crowdloan. Creator: {crowdloan.creator}"
