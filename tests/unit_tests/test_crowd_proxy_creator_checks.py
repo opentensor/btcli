@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from bittensor_cli.src.bittensor.balances import Balance
-from tests.unit_tests.conftest import COLDKEY_SS58, PROXY_SS58
+from .conftest import COLDKEY_SS58, PROXY_SS58
 
 
 def _make_crowdloan(
