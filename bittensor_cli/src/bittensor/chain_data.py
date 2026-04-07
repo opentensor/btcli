@@ -875,11 +875,10 @@ class ColdkeySwapAnnouncementInfo(InfoBase):
         cls, coldkey: str, decoded: tuple
     ) -> "ColdkeySwapAnnouncementInfo":
         execution_block, new_coldkey_hash = decoded
-        hash_str = "0x" + bytes(new_coldkey_hash[0]).hex()
         return cls(
             coldkey=coldkey,
             execution_block=int(execution_block),
-            new_coldkey_hash=hash_str,
+            new_coldkey_hash=new_coldkey_hash,
         )
 
 
