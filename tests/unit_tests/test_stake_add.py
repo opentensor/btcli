@@ -6,7 +6,7 @@ import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.commands.stake.add import stake_add
 
-from tests.unit_tests.conftest import (
+from .conftest import (
     ALT_HOTKEY_SS58,
     COLDKEY_SS58 as TEST_SS58,
 )

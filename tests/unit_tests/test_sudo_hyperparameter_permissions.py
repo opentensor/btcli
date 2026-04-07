@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.unit_tests.conftest import COLDKEY_SS58
+from .conftest import COLDKEY_SS58
 
 
 MODULE = "bittensor_cli.src.commands.sudo"
