@@ -63,16 +63,9 @@ class ProposalVoteData:
     def __init__(self, proposal_dict: dict) -> None:
         self.index = proposal_dict["index"]
         self.threshold = proposal_dict["threshold"]
-        self.ayes = self.decode_ss58_tuples(proposal_dict["ayes"])
-        self.nays = self.decode_ss58_tuples(proposal_dict["nays"])
+        self.ayes = proposal_dict["ayes"]
+        self.nays = proposal_dict["nays"]
         self.end = proposal_dict["end"]
-
-    @staticmethod
-    def decode_ss58_tuples(data: tuple):
-        """
-        Decodes a tuple of ss58 addresses formatted as bytes tuples
-        """
-        return [decode_account_id(data[x][0]) for x in range(len(data))]
 
 
 class SubtensorInterface:
@@ -165,10 +158,7 @@ class SubtensorInterface:
             subscription_handler,
             reuse_block_hash,
         )
-        if hasattr(result, "value"):
-            return result.value
-        else:
-            return result
+        return getattr(result, "value", result)
 
     async def _decode_inline_call(
         self,
@@ -180,10 +170,12 @@ class SubtensorInterface:
         """
         if not call_option or "Inline" not in call_option:
             return None
+        runtime = await self.substrate.init_runtime(block_hash=block_hash)
         call_obj = await self.substrate.create_scale_object(
             "Call",
             data=ScaleBytes(call_option["Inline"]),
             block_hash=block_hash,
+            runtime=runtime
         )
         call_value = call_obj.decode()
 
@@ -1387,9 +1379,8 @@ class SubtensorInterface:
                 formatted_children = []
                 for proportion, child in children:
                     # Convert U64 to int
-                    formatted_child = decode_account_id(child[0])
                     int_proportion = int(proportion)
-                    formatted_children.append((int_proportion, formatted_child))
+                    formatted_children.append((int_proportion, child))
                 return True, formatted_children, ""
             else:
                 return True, [], ""
@@ -2660,7 +2651,7 @@ class SubtensorInterface:
             storage_function="NextKey",
             block_hash=block_hash,
         )
-        public_key_bytes = bytes(next(iter(result)))
+        public_key_bytes = bytes.fromhex(result.removeprefix("0x"))
 
         if len(public_key_bytes) != MEV_SHIELD_PUBLIC_KEY_SIZE:
             raise ValueError(

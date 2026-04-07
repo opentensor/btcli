@@ -477,11 +477,11 @@ async def get_children(
 
         console.print(table)
 
+    netuid_children_tuples = []
     # Core logic for get_children
     if netuid is None:
         # get all netuids
         netuids = await subtensor.get_all_subnet_netuids()
-        netuid_children_tuples = []
         for netuid_ in netuids:
             success, children, err_mg = await subtensor.get_children(
                 get_hotkey_pub_ss58(wallet), netuid_
@@ -493,6 +493,7 @@ async def get_children(
                     f"Failed to get children from subtensor {netuid_}: {err_mg}"
                 )
         await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
+        return netuid_children_tuples
     else:
         success, children, err_mg = await subtensor.get_children(
             get_hotkey_pub_ss58(wallet), netuid
@@ -503,7 +504,7 @@ async def get_children(
             netuid_children_tuples = [(netuid, children)]
             await _render_table(get_hotkey_pub_ss58(wallet), netuid_children_tuples)
 
-        return children
+        return netuid_children_tuples
 
 
 async def set_children(
@@ -790,7 +791,7 @@ async def childkey_take(
             print_error(f"Unable to set childkey take. {message}")
             return False, ext_id_
 
-    # Print childkey take for other user and return (dont offer to change take rate)
+    # Print childkey take for other user and return (don't offer to change take rate)
     wallet_hk = get_hotkey_pub_ss58(wallet)
     if not hotkey or hotkey == wallet_hk:
         hotkey = wallet_hk
