@@ -236,10 +236,166 @@ async def test_stake_add_stake_all_distributes_across_all_operations(
         for call in mock_subtensor.substrate.compose_call.await_args_list
         if call.kwargs.get("block_hash") == "0xabc123"
     ]
-    expected_amount = (Balance.from_tao(100) / 4).rao
+    expected_amount = ((Balance.from_tao(100) - (Balance.from_tao(0.01) * 4)) / 4).rao
 
     assert len(batched_stake_calls) == 4
     assert all(
         call.kwargs["call_params"]["amount_staked"] == expected_amount
         for call in batched_stake_calls
     )
+
+
+@pytest.mark.asyncio
+async def test_stake_add_stake_all_reserves_extrinsic_fees_across_operations(
+    mock_wallet,
+    mock_subtensor,
+):
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
+    mock_subtensor.all_subnets.return_value = [
+        MockSubnetInfo(netuid=427, price_tao=1.5),
+        MockSubnetInfo(netuid=1, price_tao=2.0),
+    ]
+    mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(1.0))
+    mock_subtensor.sign_and_send_batch_extrinsic = AsyncMock(
+        return_value=(
+            True,
+            "",
+            MagicMock(get_extrinsic_identifier=AsyncMock(return_value="0x1")),
+        )
+    )
+
+    with patch(
+        "bittensor_cli.src.commands.stake.add.unlock_key",
+        return_value=MagicMock(success=True),
+    ):
+        await stake_add(
+            wallet=mock_wallet,
+            subtensor=mock_subtensor,
+            netuids=[427, 1],
+            stake_all=True,
+            amount=0,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            all_hotkeys=False,
+            include_hotkeys=[TEST_SS58, ALT_HOTKEY_SS58],
+            exclude_hotkeys=[],
+            safe_staking=False,
+            rate_tolerance=0.05,
+            allow_partial_stake=True,
+            json_output=True,
+            era=16,
+            mev_protection=False,
+            proxy=None,
+        )
+
+    batched_stake_calls = [
+        call
+        for call in mock_subtensor.substrate.compose_call.await_args_list
+        if call.kwargs.get("block_hash") == "0xabc123"
+    ]
+    expected_amount = ((Balance.from_tao(100) - (Balance.from_tao(1.0) * 4)) / 4).rao
+
+    assert len(batched_stake_calls) == 4
+    assert all(
+        call.kwargs["call_params"]["amount_staked"] == expected_amount
+        for call in batched_stake_calls
+    )
+
+
+@pytest.mark.asyncio
+async def test_stake_add_multi_target_aborts_if_fees_make_plan_unaffordable(
+    mock_wallet,
+    mock_subtensor,
+):
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
+    mock_subtensor.all_subnets.return_value = [
+        MockSubnetInfo(netuid=427, price_tao=1.5),
+        MockSubnetInfo(netuid=1, price_tao=2.0),
+    ]
+    mock_subtensor.get_balance = AsyncMock(return_value=Balance.from_tao(1.0))
+    mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(0.1))
+    mock_subtensor.sign_and_send_batch_extrinsic = AsyncMock(
+        return_value=(
+            True,
+            "",
+            MagicMock(get_extrinsic_identifier=AsyncMock(return_value="0x1")),
+        )
+    )
+
+    with patch(
+        "bittensor_cli.src.commands.stake.add.unlock_key",
+        return_value=MagicMock(success=True),
+    ) as mock_unlock:
+        await stake_add(
+            wallet=mock_wallet,
+            subtensor=mock_subtensor,
+            netuids=[427, 1],
+            stake_all=False,
+            amount=0.5,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            all_hotkeys=False,
+            include_hotkeys=[TEST_SS58],
+            exclude_hotkeys=[],
+            safe_staking=False,
+            rate_tolerance=0.05,
+            allow_partial_stake=True,
+            json_output=True,
+            era=16,
+            mev_protection=False,
+            proxy=None,
+        )
+
+    mock_unlock.assert_not_called()
+    mock_subtensor.sign_and_send_batch_extrinsic.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stake_add_stake_all_aborts_if_fees_exceed_balance(
+    mock_wallet,
+    mock_subtensor,
+):
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
+    mock_subtensor.all_subnets.return_value = [
+        MockSubnetInfo(netuid=427, price_tao=1.5),
+        MockSubnetInfo(netuid=1, price_tao=2.0),
+    ]
+    mock_subtensor.get_balance = AsyncMock(return_value=Balance.from_tao(1.0))
+    mock_subtensor.get_extrinsic_fee = AsyncMock(return_value=Balance.from_tao(1.0))
+    mock_subtensor.sign_and_send_batch_extrinsic = AsyncMock(
+        return_value=(
+            True,
+            "",
+            MagicMock(get_extrinsic_identifier=AsyncMock(return_value="0x1")),
+        )
+    )
+
+    with patch(
+        "bittensor_cli.src.commands.stake.add.unlock_key",
+        return_value=MagicMock(success=True),
+    ) as mock_unlock:
+        await stake_add(
+            wallet=mock_wallet,
+            subtensor=mock_subtensor,
+            netuids=[427, 1],
+            stake_all=True,
+            amount=0,
+            prompt=False,
+            decline=False,
+            quiet=True,
+            all_hotkeys=False,
+            include_hotkeys=[TEST_SS58],
+            exclude_hotkeys=[],
+            safe_staking=False,
+            rate_tolerance=0.05,
+            allow_partial_stake=True,
+            json_output=True,
+            era=16,
+            mev_protection=False,
+            proxy=None,
+        )
+
+    mock_unlock.assert_not_called()
+    mock_subtensor.sign_and_send_batch_extrinsic.assert_not_awaited()
