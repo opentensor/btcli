@@ -799,24 +799,10 @@ async def childkey_take(
     wallet_hk = get_hotkey_pub_ss58(wallet)
     if not hotkey or hotkey == wallet_hk:
         hotkey = wallet_hk
-    # TODO get rid of this check, holy shit this is all so fucking bad
-    if hotkey == wallet_hk or not take:
-        # display childkey take for other users
-        if netuid:
-            await display_chk_take(hotkey, netuid)
-            if take:
-                console.print(
-                    f"Hotkey {hotkey} not associated with wallet {wallet.name}."
-                )
-                return [(netuid, False, None)]
-        else:
-            # show child hotkey take on all subnets
-            await chk_all_subnets(hotkey)
-            if take:
-                console.print(
-                    f"Hotkey {hotkey} not associated with wallet {wallet.name}."
-                )
-                return [(netuid, False, None)]
+    if netuid:
+        await display_chk_take(hotkey, netuid)
+    else:
+        await chk_all_subnets(hotkey)
 
     # Validate child SS58 addresses
     if not take:

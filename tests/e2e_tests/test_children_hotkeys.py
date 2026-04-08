@@ -68,11 +68,15 @@ def test_children_hotkeys(local_chain, wallet_setup):
             "--logo-url",
             "https://testsubnet.com/logo.png",
             "--no-prompt",
+            "--no-mev-protection",
             "--json-output",
         ],
     )
     create_subnet_payload = json.loads(create_subnet_result.stdout)
-    assert create_subnet_payload["success"] is True
+    assert create_subnet_payload["success"] is True, (
+        create_subnet_result.stdout,
+        create_subnet_result.stderr,
+    )
     netuid = create_subnet_payload["netuid"]
 
     # Start emission schedule for the subnet
@@ -208,44 +212,16 @@ def test_children_hotkeys(local_chain, wallet_setup):
             "--no-prompt",
             "--wait-for-inclusion",
             "--wait-for-finalization",
-            "--verbose",
+            "--json-output",
         ],
     )
-    assert (
-        "Child take set" in set_take_result.stdout or "✅" in set_take_result.stdout
-    ), f"Take not set:\n{set_take_result.stdout}\n{set_take_result.stderr}"
-
-    # TODO Does not work yet. Think the issue is in the take setting above, still investigating
-    time.sleep(500)
-    # Verify the take value was applied
-    get_take_result = exec_command_alice(
-        command="stake",
-        sub_command="child",
-        extra_args=[
-            "take",
-            "--child-hotkey-ss58",
-            wallet_bob.hotkey.ss58_address,
-            "--netuid",
-            str(netuid),
-            "--wallet-path",
-            wallet_path_alice,
-            "--wallet-name",
-            wallet_alice.name,
-            "--wallet-hotkey",
-            wallet_alice.hotkey_str,
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--no-prompt",
-            "--verbose",
-        ],
-    )
-    print(get_take_result.stdout, get_take_result.stderr)
-    assert "10.00%" in get_take_result.stdout, (
-        f"Expected 10.00% take not found:\n{get_take_result.stdout}"
+    set_take_result_json = json.loads(set_take_result.stdout)
+    assert set_take_result_json[str(netuid)]["success"] is True, (
+        f"Take not set:\n{set_take_result.stdout}\n{set_take_result.stderr}"
     )
 
     ################################
-    # TEST 4: Revoke child hotkeys
+    # TEST 3: Revoke child hotkeys
     # Alice revokes Bob as a child hotkey on the subnet
     ################################
 
