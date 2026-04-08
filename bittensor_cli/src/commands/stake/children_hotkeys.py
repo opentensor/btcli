@@ -672,7 +672,7 @@ async def revoke_children(
             success, message, ext_id = await set_children_extrinsic(
                 subtensor=subtensor,
                 wallet=wallet,
-                netuid=netuid,  # TODO should this be able to allow netuid = None ?
+                netuid=netuid_,
                 hotkey=get_hotkey_pub_ss58(wallet),
                 children_with_proportions=[],
                 proxy=proxy,
