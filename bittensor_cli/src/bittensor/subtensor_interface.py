@@ -23,7 +23,6 @@ from bittensor_cli.src.bittensor.chain_data import (
     NeuronInfoLite,
     NeuronInfo,
     SubnetHyperparameters,
-    decode_account_id,
     DynamicInfo,
     SubnetState,
     MetagraphInfo,
@@ -278,8 +277,7 @@ class SubtensorInterface:
         )
         destinations: dict[int, str] = {}
         for netuid, destination in query.records:
-            hotkey_ss58 = decode_account_id(destination.value[0])
-            if hotkey_ss58:
+            if hotkey_ss58 := destination.value[0]:
                 destinations[int(netuid)] = hotkey_ss58
         return destinations
 
@@ -1830,8 +1828,7 @@ class SubtensorInterface:
         )
 
         announcements = []
-        for ss58, data in result.records:
-            coldkey = decode_account_id(ss58)
+        for coldkey, data in result.records:
             announcements.append(
                 ColdkeySwapAnnouncementInfo._fix_decoded(coldkey, data)
             )
@@ -1890,8 +1887,7 @@ class SubtensorInterface:
         )
 
         disputes: list[tuple[str, int]] = []
-        for ss58, data in result.records:
-            coldkey = decode_account_id(ss58)
+        for coldkey, data in result.records:
             disputes.append((coldkey, data.value))
         return disputes
 
@@ -2204,8 +2200,7 @@ class SubtensorInterface:
         )
 
         root_claim_types = {}
-        for coldkey, claim_type_data in result.records:
-            coldkey_ss58 = decode_account_id(coldkey[0])
+        for coldkey_ss58, claim_type_data in result.records:
             claim_type_key = claim_type_data.value
 
             if claim_type_key == "KeepSubnets":
@@ -2243,8 +2238,7 @@ class SubtensorInterface:
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
         )
-        staked_hotkeys = [decode_account_id(hotkey) for hotkey in result]
-        return staked_hotkeys
+        return result
 
     async def get_claimed_amount(
         self,

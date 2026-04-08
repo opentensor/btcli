@@ -633,13 +633,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
         return False
 
 
-def decode_account_id(account_id_bytes: str) -> str:
-    """
-    Does nothing. Retained for compatibility til v10
-    """
-    return account_id_bytes
-
-
 def encode_account_id(ss58_address: str) -> bytes:
     return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
 

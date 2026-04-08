@@ -21,7 +21,6 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
-from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
@@ -686,9 +685,8 @@ async def _get_senate_members(
         block_hash=block_hash,
     )
     try:
-        return [
-            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
-        ]
+        # TODO double-check the decode logic here
+        return [i[x] for i in senate_members for x in range(len(i))]
     except (IndexError, TypeError):
         print_error("Unable to retrieve senate members.")
         return []
