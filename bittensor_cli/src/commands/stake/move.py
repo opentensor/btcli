@@ -15,7 +15,6 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_table,
-    is_valid_ss58_address,
     print_error,
     group_subnets,
     get_subnet_name,
@@ -706,57 +705,57 @@ async def move_stake(
             nonce=next_nonce,
         )
 
-    ext_id = await response.get_extrinsic_identifier() if response else ""
-    if success_:
-        if mev_protection:
-            inner_hash = err_msg
-            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
-                subtensor=subtensor,
-                extrinsic_hash=inner_hash,
-                submit_block_hash=response.block_hash,
-                status=status,
-            )
-            if not mev_success:
-                status.stop()
-                print_error(f"\nFailed: {mev_error}")
-                return False, ""
-        await print_extrinsic_id(response)
-        if not prompt:
-            print_success("Sent")
-            return True, ext_id
-        else:
-            print_success("[dark_sea_green3]Stake moved.[/dark_sea_green3]")
-            block_hash = await subtensor.substrate.get_chain_head()
-            (
-                new_origin_stake_balance,
-                new_destination_stake_balance,
-            ) = await asyncio.gather(
-                subtensor.get_stake(
-                    coldkey_ss58=coldkey_ss58,
-                    hotkey_ss58=origin_hotkey,
-                    netuid=origin_netuid,
-                    block_hash=block_hash,
-                ),
-                subtensor.get_stake(
-                    coldkey_ss58=coldkey_ss58,
-                    hotkey_ss58=destination_hotkey,
-                    netuid=destination_netuid,
-                    block_hash=block_hash,
-                ),
-            )
+        ext_id = await response.get_extrinsic_identifier() if response else ""
+        if success_:
+            if mev_protection:
+                inner_hash = err_msg
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not mev_success:
+                    status.stop()
+                    print_error(f"\nFailed: {mev_error}")
+                    return False, ""
+            await print_extrinsic_id(response)
+            if not prompt:
+                print_success("Sent")
+                return True, ext_id
+            else:
+                print_success("[dark_sea_green3]Stake moved.[/dark_sea_green3]")
+                block_hash = await subtensor.substrate.get_chain_head()
+                (
+                    new_origin_stake_balance,
+                    new_destination_stake_balance,
+                ) = await asyncio.gather(
+                    subtensor.get_stake(
+                        coldkey_ss58=coldkey_ss58,
+                        hotkey_ss58=origin_hotkey,
+                        netuid=origin_netuid,
+                        block_hash=block_hash,
+                    ),
+                    subtensor.get_stake(
+                        coldkey_ss58=coldkey_ss58,
+                        hotkey_ss58=destination_hotkey,
+                        netuid=destination_netuid,
+                        block_hash=block_hash,
+                    ),
+                )
 
-            console.print(
-                f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_origin_stake_balance}"
-            )
-            console.print(
-                f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
-            )
-            return True, ext_id
-    else:
-        print_error(f"\nFailed with error: {err_msg}")
-        return False, ""
+                console.print(
+                    f"Origin Stake:\n  [blue]{origin_stake_balance}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_origin_stake_balance}"
+                )
+                console.print(
+                    f"Destination Stake:\n  [blue]{destination_stake_balance}[/blue] :arrow_right: "
+                    f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_destination_stake_balance}"
+                )
+                return True, ext_id
+        else:
+            print_error(f"\nFailed with error: {err_msg}")
+            return False, ""
 
 
 async def transfer_stake(
