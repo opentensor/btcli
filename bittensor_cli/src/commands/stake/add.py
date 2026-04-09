@@ -53,6 +53,7 @@ async def stake_add(
     era: int,
     mev_protection: bool,
     proxy: Optional[str],
+    announce_only: bool = False,
 ):
     """
     Args:
@@ -150,6 +151,7 @@ async def stake_add(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            announce_only=announce_only,
         )
         if not success_:
             if "Custom error: 8" in err_msg:
@@ -248,6 +250,7 @@ async def stake_add(
             era={"period": era},
             proxy=proxy,
             mev_protection=mev_protection,
+            announce_only=announce_only,
         )
         if not success_:
             err_msg = f"{failure_prelude} with error: {err_msg}"
@@ -539,6 +542,7 @@ async def stake_add(
                 era={"period": era},
                 proxy=proxy,
                 mev_protection=mev_protection,
+                announce_only=announce_only,
                 block_hash=batch_block_hash,
             )
 
@@ -767,12 +771,12 @@ def _define_stake_table(
         "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
     )
     table.add_column(
-        "Amount (τ)",
+        "Amount (Ï)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO"],
     )
     table.add_column(
-        "Rate (per τ)",
+        "Rate (per Ï)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
@@ -782,12 +786,12 @@ def _define_stake_table(
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
     )
     table.add_column(
-        "Fee (τ)",
+        "Fee (Ï)",
         justify="center",
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
     table.add_column(
-        "Extrinsic Fee (τ)",
+        "Extrinsic Fee (Ï)",
         justify="center",
         style=COLOR_PALETTE.STAKE.TAO,
     )
