@@ -105,3 +105,53 @@ async def test_stake_add_mixed_prices_including_zero_does_not_raise(
 
     assert mock_subtensor.substrate.compose_call.await_count == 2
     assert mock_subtensor.sim_swap.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_stake_add_announce_only_forwarded(
+    mock_wallet,
+    mock_subtensor,
+):
+    """announce_only=True must be threaded through to sign_and_send_extrinsic.
+
+    Regression test for https://github.com/latent-to/btcli/issues/898 — the flag
+    was accepted by the CLI but silently dropped before reaching the extrinsic layer.
+    """
+    mock_subtensor.sim_swap = _sim_swap_side_effect()
+    mock_subtensor.all_subnets.return_value = [
+        MockSubnetInfo(netuid=1, price_tao=1.0),
+    ]
+    send_mock = AsyncMock(return_value=(True, "", None))
+    mock_subtensor.sign_and_send_extrinsic = send_mock
+
+    with (
+        patch("bittensor_cli.src.commands.stake.add.confirm_action", return_value=True),
+        patch("bittensor_cli.src.commands.stake.add.print_verbose"),
+    ):
+        await stake_add(
+            wallet=mock_wallet,
+            subtensor=mock_subtensor,
+            netuids=[1],
+            stake_all=False,
+            amount=1.0,
+            prompt=True,
+            decline=False,
+            quiet=True,
+            all_hotkeys=False,
+            include_hotkeys=[TEST_SS58],
+            exclude_hotkeys=[],
+            safe_staking=False,
+            rate_tolerance=0.05,
+            allow_partial_stake=True,
+            json_output=False,
+            era=16,
+            mev_protection=False,
+            proxy=None,
+            announce_only=True,
+        )
+
+    assert send_mock.called, "sign_and_send_extrinsic was never invoked"
+    _, kwargs = send_mock.call_args
+    assert kwargs.get("announce_only") is True, (
+        "announce_only=True was not forwarded to sign_and_send_extrinsic"
+    )
