@@ -916,7 +916,7 @@ async def subnets_list(
             BarColumn(bar_width=20, style="green", complete_style="green"),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             console=console,
-            auto_refresh=True,
+            auto_refresh=False,
         )
         progress_task = progress.add_task("Updating:", total=refresh_interval)
 
