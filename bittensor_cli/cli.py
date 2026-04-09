@@ -122,7 +122,7 @@ except ImportError:
 
 
 logger = logging.getLogger("btcli")
-_epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
+_epilog = "Made with [bold red]:heart:[/bold red] by The OpenÏensor FoundaÏion"
 
 np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
@@ -2842,7 +2842,7 @@ class CLIManager:
         # Warning for netuid 0 - only swaps on root network, not a full swap
         if netuid == 0 and prompt:
             console.print(
-                "\n[bold yellow]⚠️  WARNING: Using --netuid 0 for swap_hotkey[/bold yellow]\n"
+                "\n[bold yellow]â ï¸  WARNING: Using --netuid 0 for swap_hotkey[/bold yellow]\n"
             )
             console.print(
                 "[yellow]Specifying --netuid 0 will ONLY swap the hotkey on the root network (netuid 0).[/yellow]\n"
@@ -4810,9 +4810,9 @@ class CLIManager:
             [green]$[/green] btcli stake add --amount 100 --netuid 1 --no-mev-protection
 
         [bold]Safe Staking Parameters:[/bold]
-        • [blue]--safe[/blue]: Enables rate tolerance checks
-        • [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
-        • [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
+        â¢ [blue]--safe[/blue]: Enables rate tolerance checks
+        â¢ [blue]--tolerance[/blue]: Maximum % rate change allowed (0.05 = 5%)
+        â¢ [blue]--partial[/blue]: Complete partial stake if rates exceed tolerance
 
         """
         netuids = netuids or []
@@ -4995,11 +4995,11 @@ class CLIManager:
                 return
             if netuids:
                 amount = FloatPrompt.ask(
-                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake (TAO τ)"
+                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake (TAO Ï)"
                 )
             else:
                 amount = FloatPrompt.ask(
-                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake to each netuid (TAO τ)"
+                    f"Amount to [{COLORS.G.SUBHEAD_MAIN}]stake to each netuid (TAO Ï)"
                 )
 
             if amount <= 0:
@@ -5046,6 +5046,7 @@ class CLIManager:
                 era=period,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                announce_only=announce_only,
             )
         )
 
@@ -5142,9 +5143,9 @@ class CLIManager:
             [green]$[/green] btcli stake remove --amount 100 --netuid 1 --no-mev-protection
 
         [bold]Safe Staking Parameters:[/bold]
-        • [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
-        • [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
-        • [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
+        â¢ [blue]--safe[/blue]: Enables rate tolerance checks during unstaking
+        â¢ [blue]--tolerance[/blue]: Max allowed rate change (0.05 = 5%)
+        â¢ [blue]--partial[/blue]: Complete partial unstake if rates exceed tolerance
         """
         self.verbosity_handler(quiet, verbose, json_output, prompt, decline)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -5414,6 +5415,7 @@ class CLIManager:
                 era=period,
                 proxy=proxy,
                 mev_protection=mev_protection,
+                announce_only=announce_only,
             )
         )
 
@@ -6173,9 +6175,9 @@ class CLIManager:
         Root claim types control how staking emissions are handled on the ROOT network (subnet 0):
 
         [bold]Claim Types:[/bold]
-        • [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
-        • [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
-        • [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO. You can use this type by selecting the netuids.
+        â¢ [green]Swap[/green]: Future Root Alpha Emissions are swapped to TAO and added to root stake (default)
+        â¢ [yellow]Keep[/yellow]: Future Root Alpha Emissions are kept as Alpha tokens
+        â¢ [cyan]Keep Specific[/cyan]: Keep specific subnets as Alpha, swap others to TAO. You can use this type by selecting the netuids.
 
         USAGE:
 
@@ -6993,7 +6995,7 @@ class CLIManager:
                     console.print(f"[dim]Side Effects:[/dim] {side_effects}")
                 if docs_link:
                     console.print(
-                        f"[dim]📚 Docs:[/dim] [link]https://{docs_link}[/link]\n"
+                        f"[dim]ð Docs:[/dim] [link]https://{docs_link}[/link]\n"
                     )
 
         if param_name in ["alpha_high", "alpha_low"]:
@@ -7565,15 +7567,15 @@ class CLIManager:
          [green]$[/green] btcli subnets list --live
 
         [bold]Output Columns:[/bold]
-         • [white]Netuid[/white] - Subnet identifier number
-         • [white]Name[/white] - Subnet name with currency symbol (τ/α/β etc)
-         • [white]Price (τ_in/α_in)[/white] - Exchange rate (TAO per alpha token)
-         • [white]Market Cap (α * Price)[/white] - Total value in TAO (alpha tokens × price)
-         • [white]Emission (τ)[/white] - TAO rewards emitted per block to subnet
-         • [white]P (τ_in, α_in)[/white] - Pool reserves (Tao reserves, alpha reserves) in liquidity pool
-         • [white]Stake (α_out)[/white] - Total staked alpha tokens across all hotkeys (alpha outstanding)
-         • [white]Supply (α)[/white] - Circulating alpha token supply
-         • [white]Tempo (k/n)[/white] - Block interval for subnet updates
+         â¢ [white]Netuid[/white] - Subnet identifier number
+         â¢ [white]Name[/white] - Subnet name with currency symbol (Ï/Î±/Î² etc)
+         â¢ [white]Price (Ï_in/Î±_in)[/white] - Exchange rate (TAO per alpha token)
+         â¢ [white]Market Cap (Î± * Price)[/white] - Total value in TAO (alpha tokens Ã price)
+         â¢ [white]Emission (Ï)[/white] - TAO rewards emitted per block to subnet
+         â¢ [white]P (Ï_in, Î±_in)[/white] - Pool reserves (Tao reserves, alpha reserves) in liquidity pool
+         â¢ [white]Stake (Î±_out)[/white] - Total staked alpha tokens across all hotkeys (alpha outstanding)
+         â¢ [white]Supply (Î±)[/white] - Circulating alpha token supply
+         â¢ [white]Tempo (k/n)[/white] - Block interval for subnet updates
 
          EXAMPLE
 
@@ -8270,7 +8272,7 @@ class CLIManager:
 
         - [bold]UID[/bold]: Unique identifier of the neuron.
 
-        - [bold]STAKE(τ)[/bold]: Total stake of the neuron in TAO (τ).
+        - [bold]STAKE(Ï)[/bold]: Total stake of the neuron in TAO (Ï).
 
         - [bold]RANK[/bold]: Rank score of the neuron.
 
@@ -8373,7 +8375,7 @@ class CLIManager:
 
         EXAMPLE
 
-        [green]$[/green] btcli subnets set-symbol [dark_orange]--netuid 1 シ[/dark_orange]
+        [green]$[/green] btcli subnets set-symbol [dark_orange]--netuid 1 ã·[/dark_orange]
 
 
         JSON OUTPUT:
@@ -10007,7 +10009,7 @@ class CLIManager:
 
         Once killed, the pure proxy account is cleared from chain storage and cannot be recovered.
 
-        [bold]⚠️ WARNING[/bold]: Killing a pure proxy permanently removes access to the account, and any funds remaining in it are lost.
+        [bold]â ï¸ WARNING[/bold]: Killing a pure proxy permanently removes access to the account, and any funds remaining in it are lost.
 
         EXAMPLE
 
