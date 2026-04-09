@@ -79,34 +79,13 @@ def write_proxy_address_book_entry(
     cursor: Any,
     *,
     name: str,
+    ss58_address: str,
     delay: int,
     proxy_type: str,
     note: str,
-    pure: Optional[str] = None,
-    spawner: Optional[str] = None,
-    delegatee: Optional[str] = None,
-    delegator: Optional[str] = None,
+    spawner: str,
 ) -> None:
-    """Writes a normalized proxy address-book entry for pure and non-pure proxies."""
-
-    if pure is not None or spawner is not None:
-        if pure is None or spawner is None:
-            raise ValueError(
-                "Both `pure` and `spawner` must be supplied for a pure proxy."
-            )
-        ss58_address = pure
-        spawner_address = spawner
-    elif delegatee is not None or delegator is not None:
-        if delegatee is None or delegator is None:
-            raise ValueError(
-                "Both `delegatee` and `delegator` must be supplied for a regular proxy."
-            )
-        ss58_address = delegatee
-        spawner_address = delegator
-    else:
-        raise ValueError(
-            "Supply either (`pure`, `spawner`) or (`delegatee`, `delegator`)."
-        )
+    """Writes a proxy address-book entry using the normalized storage schema."""
 
     ProxyAddressBook.add_entry(
         conn,
@@ -116,7 +95,7 @@ def write_proxy_address_book_entry(
         delay=delay,
         proxy_type=proxy_type,
         note=note,
-        spawner=spawner_address,
+        spawner=spawner,
     )
 
 
@@ -346,10 +325,10 @@ async def create_proxy(
                             conn=conn,
                             cursor=cursor,
                             name=proxy_name,
+                            ss58_address=created_pure,
                             delay=delay,
                             proxy_type=created_proxy_type.value,
                             note=note,
-                            pure=created_pure,
                             spawner=created_spawner,
                         )
                     console.print(
@@ -629,11 +608,11 @@ async def add_proxy(
                             conn=conn,
                             cursor=cursor,
                             name=proxy_name,
+                            ss58_address=delegatee,
                             delay=delay,
                             proxy_type=created_proxy_type.value,
                             note=note,
-                            delegatee=delegatee,
-                            delegator=delegator,
+                            spawner=delegator,
                         )
                     console.print(
                         f"Added to Proxy Address Book.\n"
