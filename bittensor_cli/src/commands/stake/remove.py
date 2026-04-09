@@ -57,6 +57,7 @@ async def unstake(
     era: int,
     proxy: Optional[str],
     mev_protection: bool,
+    announce_only: bool = False,
 ):
     """Unstake from hotkey(s)."""
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
@@ -267,7 +268,7 @@ async def unstake(
                 staking_address_name,  # Hotkey Name
                 str(amount_to_unstake_as_balance),  # Amount to Unstake
                 f"{subnet_info.price.tao:.6f}"
-                + f"(τ/{Balance.get_unit(netuid)})",  # Rate
+                + f"(Ï/{Balance.get_unit(netuid)})",  # Rate
                 str(sim_swap.alpha_fee),  # Fee
                 str(extrinsic_fee),  # Extrinsic fee
                 str(received_amount),  # Received Amount
@@ -459,6 +460,7 @@ async def unstake(
                     "era": era,
                     "proxy": proxy,
                     "mev_protection": mev_protection,
+                    "announce_only": announce_only,
                 }
 
                 if safe_staking and op["netuid"] != 0:
@@ -592,7 +594,7 @@ async def unstake_all(
             style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
         )
         table.add_column(
-            "Extrinsic Fee (τ)",
+            "Extrinsic Fee (Ï)",
             justify="center",
             style=COLOR_PALETTE.STAKE.TAO,
         )
@@ -755,6 +757,7 @@ async def unstake_all(
                     era=era,
                     proxy=proxy,
                     mev_protection=mev_protection,
+                    announce_only=announce_only,
                 )
                 ext_id = (
                     await ext_receipt.get_extrinsic_identifier() if success else None
@@ -779,6 +782,7 @@ async def _unstake_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
@@ -821,12 +825,12 @@ async def _unstake_extrinsic(
     )
 
     success, err_msg, response = await subtensor.sign_and_send_extrinsic(
-        # TODO I think this should handle announce-only
         call=call,
         wallet=wallet,
         era={"period": era},
         proxy=proxy,
         mev_protection=mev_protection,
+        announce_only=announce_only,
         nonce=next_nonce,
     )
     if success:
@@ -880,6 +884,7 @@ async def _safe_unstake_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -938,6 +943,7 @@ async def _safe_unstake_extrinsic(
         era={"period": era},
         proxy=proxy,
         mev_protection=mev_protection,
+        announce_only=announce_only,
     )
     if success:
         if mev_protection:
@@ -1005,6 +1011,7 @@ async def _unstake_all_extrinsic(
     era: int = 3,
     proxy: Optional[str] = None,
     mev_protection: bool = True,
+    announce_only: bool = False,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
@@ -1062,6 +1069,7 @@ async def _unstake_all_extrinsic(
             nonce=next_nonce,
             proxy=proxy,
             mev_protection=mev_protection,
+            announce_only=announce_only,
         )
 
         if not success_:
@@ -1273,7 +1281,7 @@ async def _unstake_selection(
 
     for netuid_, stake_amount in netuid_stakes.items():
         symbol = dynamic_info[netuid_].symbol
-        rate = f"{dynamic_info[netuid_].price.tao:.6f} τ/{symbol}"
+        rate = f"{dynamic_info[netuid_].price.tao:.6f} Ï/{symbol}"
         table.add_row(str(netuid_), symbol, str(stake_amount), rate)
     console.print("\n", table, "\n")
 
@@ -1511,7 +1519,7 @@ def _create_unstake_table(
         style=COLOR_PALETTE["POOLS"]["TAO"],
     )
     table.add_column(
-        f"Rate (τ/{Balance.get_unit(1)})",
+        f"Rate (Ï/{Balance.get_unit(1)})",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["RATE"],
     )
@@ -1521,10 +1529,10 @@ def _create_unstake_table(
         style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
     )
     table.add_column(
-        "Extrinsic Fee (τ)", justify="center", style=COLOR_PALETTE.STAKE.TAO
+        "Extrinsic Fee (Ï)", justify="center", style=COLOR_PALETTE.STAKE.TAO
     )
     table.add_column(
-        "Received (τ)",
+        "Received (Ï)",
         justify="center",
         style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
         footer=str(total_received_amount),
