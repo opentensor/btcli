@@ -43,6 +43,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     ProxyAnnouncements,
 )
+from scalecodec.base import ScaleType
 
 GENESIS_ADDRESS = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
 
@@ -146,9 +147,9 @@ class SubtensorInterface:
         reuse_block_hash: bool = False,
     ) -> Any:
         """
-        Pass-through to substrate.query which automatically returns the .value if it's a ScaleObj
+        Pass-through to substrate.query which automatically returns the .value if it's a ScaleType
         """
-        result = await self.substrate.query(
+        result: Optional[ScaleType] = await self.substrate.query(
             module,
             storage_function,
             params,
@@ -221,7 +222,7 @@ class SubtensorInterface:
         )
         res = []
         for netuid, exists in result.records:
-            if exists.value:
+            if exists:
                 res.append(netuid)
         return res
 
@@ -277,7 +278,7 @@ class SubtensorInterface:
         )
         destinations: dict[int, str] = {}
         for netuid, destination in query.records:
-            if hotkey_ss58 := destination.value[0]:
+            if hotkey_ss58 := destination[0]:
                 destinations[int(netuid)] = hotkey_ss58
         return destinations
 
@@ -335,9 +336,9 @@ class SubtensorInterface:
         """
         if reuse_block:
             block_hash = self.substrate.last_block_hash
-        result = (
-            await self.substrate.runtime_call(runtime_api, method, params, block_hash)
-        ).value
+        result = await self.substrate.runtime_call(
+            runtime_api, method, params, block_hash
+        )
 
         return result
 
@@ -566,7 +567,7 @@ class SubtensorInterface:
         )
         res = []
         for record in result.records:
-            if record[1].value:
+            if record[1]:
                 res.append(record[0])
         return res
 
@@ -588,14 +589,14 @@ class SubtensorInterface:
 
         This means whether the `start_call` was initiated or not.
         """
-        query = await self.substrate.query(
+        query = await self.query(
             module="SubtensorModule",
             storage_function="FirstEmissionBlockNumber",
             block_hash=block_hash,
             reuse_block_hash=reuse_block,
             params=[netuid],
         )
-        return True if query and query.value > 0 else False
+        return True if query and query > 0 else False
 
     async def subnet_exists(
         self, netuid: int, block_hash: Optional[str] = None, reuse_block: bool = False
@@ -942,8 +943,7 @@ class SubtensorInterface:
             fully_exhaust=True,
         )
         all_identities = {
-            ss58_address: identity.value
-            for (ss58_address, identity) in identities.records
+            ss58_address: identity for (ss58_address, identity) in identities.records
         }
 
         return all_identities
@@ -989,12 +989,10 @@ class SubtensorInterface:
     async def fetch_coldkey_hotkey_identities(
         self,
         block_hash: Optional[str] = None,
-        reuse_block: bool = False,
     ) -> dict[str, dict]:
         """
         Builds a dictionary containing coldkeys and hotkeys with their associated identities and relationships.
         :param block_hash: The hash of the blockchain block number for the query.
-        :param reuse_block: Whether to reuse the last-used blockchain block hash.
         :return: Dict with 'coldkeys' and 'hotkeys' as keys.
         """
         if block_hash is None:
@@ -1051,7 +1049,7 @@ class SubtensorInterface:
         )
         w_map = []
         async for uid, w in w_map_encoded:
-            w_map.append((uid, w.value))
+            w_map.append((uid, w))
 
         return w_map
 
@@ -1442,7 +1440,7 @@ class SubtensorInterface:
         )
         res = {}
         for netuid, count in results.records:
-            res[int(netuid)] = int(count.value)
+            res[int(netuid)] = int(count)
         return res
 
     async def get_mechanism_emission_split(
@@ -1888,7 +1886,7 @@ class SubtensorInterface:
 
         disputes: list[tuple[str, int]] = []
         for coldkey, data in result.records:
-            disputes.append((coldkey, data.value))
+            disputes.append((coldkey, data))
         return disputes
 
     async def get_coldkey_swap_dispute(
@@ -1922,7 +1920,7 @@ class SubtensorInterface:
 
     async def get_crowdloans(
         self, block_hash: Optional[str] = None
-    ) -> list[CrowdloanData]:
+    ) -> dict[int, CrowdloanData]:
         """Retrieves all crowdloans from the network.
 
         Args:
@@ -1946,7 +1944,7 @@ class SubtensorInterface:
                 fund_info["call"],
                 block_hash=block_hash,
             )
-            info_dict = dict(fund_info.value)
+            info_dict = dict(fund_info)
             info_dict["call_details"] = decoded_call
             crowdloans[fund_id] = CrowdloanData.from_any(info_dict)
 
@@ -2044,7 +2042,7 @@ class SubtensorInterface:
         contributor_contributions = {}
         for contributor_address, contribution_amount in contributors_data.records:
             try:
-                contribution_balance = Balance.from_rao(contribution_amount.value)
+                contribution_balance = Balance.from_rao(contribution_amount)
                 contributor_contributions[contributor_address] = contribution_balance
             except Exception:
                 continue
@@ -2178,7 +2176,7 @@ class SubtensorInterface:
         self,
         block_hash: Optional[str] = None,
         reuse_block: bool = False,
-    ) -> dict[str, dict]:
+    ) -> dict[str, dict[str, str | list[int]]]:
         """
         Retrieves all root claim types for all coldkeys in the network.
 
@@ -2200,11 +2198,20 @@ class SubtensorInterface:
         )
 
         root_claim_types = {}
-        for coldkey_ss58, claim_type_data in result.records:
-            claim_type_key = claim_type_data.value
+        coldkey_ss58: str
+        claim_type_key: str
+        claim_type_dict: dict
+        claim_type_data: str | dict
 
+        for coldkey_ss58, claim_type_data in result.records:
+            if isinstance(claim_type_data, str):
+                claim_type_key = claim_type_data
+                claim_type_dict = {}
+            else:
+                claim_type_key = next(iter(claim_type_data.keys()))
+                claim_type_dict = claim_type_data
             if claim_type_key == "KeepSubnets":
-                subnets_data = claim_type_data.value["KeepSubnets"]["subnets"]
+                subnets_data = claim_type_dict["KeepSubnets"]["subnets"]
                 subnet_list = sorted([subnet for subnet in subnets_data[0]])
                 root_claim_types[coldkey_ss58] = {
                     "type": "KeepSubnets",
@@ -2298,9 +2305,7 @@ class SubtensorInterface:
         )
         total_claimed = {}
         for netuid, claimed in query.records:
-            total_claimed[netuid] = Balance.from_rao(claimed.value).set_unit(
-                netuid=netuid
-            )
+            total_claimed[netuid] = Balance.from_rao(claimed).set_unit(netuid=netuid)
         return total_claimed
 
     async def get_claimable_rate_all_netuids(
@@ -2556,7 +2561,7 @@ class SubtensorInterface:
 
         map_ = {}
         for netuid_, current_sqrt_price in query.records:
-            current_sqrt_price_ = fixed_to_float(current_sqrt_price.value)
+            current_sqrt_price_ = fixed_to_float(current_sqrt_price)
             current_price = current_sqrt_price_**2
             map_[netuid_] = Balance.from_rao(int(current_price * 1e9))
 
