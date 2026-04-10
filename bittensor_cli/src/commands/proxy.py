@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 import sys
 
 from async_substrate_interface.errors import StateDiscardedError
@@ -53,50 +53,6 @@ class ProxyType(StrEnum):
     SwapHotkey = "SwapHotkey"
     SubnetLeaseBeneficiary = "SubnetLeaseBeneficiary"
     RootClaim = "RootClaim"
-
-
-async def extract_event_attributes_from_receipt(
-    receipt: Any, event_name: str
-) -> Optional[dict[str, Any]]:
-    """Extracts event attributes from a receipt, supporting nested and top-level event shapes."""
-
-    for event in await receipt.triggered_events:
-        if not isinstance(event, dict):
-            continue
-        event_data = event.get("event", event)
-        if not isinstance(event_data, dict):
-            continue
-        if event_data.get("event_id") == event_name:
-            attributes = event_data.get("attributes")
-            if isinstance(attributes, dict):
-                return attributes
-            return None
-    return None
-
-
-def write_proxy_address_book_entry(
-    conn: Any,
-    cursor: Any,
-    *,
-    name: str,
-    ss58_address: str,
-    delay: int,
-    proxy_type: str,
-    note: str,
-    spawner: str,
-) -> None:
-    """Writes a proxy address-book entry using the normalized storage schema."""
-
-    ProxyAddressBook.add_entry(
-        conn,
-        cursor,
-        name=name,
-        ss58_address=ss58_address,
-        delay=delay,
-        proxy_type=proxy_type,
-        note=note,
-        spawner=spawner,
-    )
 
 
 # TODO add announce with also --reject and --remove
@@ -214,70 +170,15 @@ async def create_proxy(
         ),
     )
     if success:
-        attrs = await extract_event_attributes_from_receipt(receipt, "PureCreated")
-        if attrs is None:
-            msg = "Created pure proxy, but could not parse the `PureCreated` event from the receipt."
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
-        created_pure = attrs.get("pure")
-        created_spawner = attrs.get("who")
-        created_proxy_type_name = attrs.get("proxy_type")
-        if not (
-            isinstance(created_pure, str)
-            and isinstance(created_spawner, str)
-            and isinstance(created_proxy_type_name, str)
-        ):
-            msg = (
-                "Created pure proxy, but received malformed `PureCreated` event attributes "
-                "from the receipt."
-            )
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
-        try:
-            created_proxy_type = ProxyType(created_proxy_type_name)
-        except ValueError:
-            msg = (
-                "Created pure proxy, but received an unknown proxy type in the receipt: "
-                f"{created_proxy_type_name}."
-            )
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
+        created_pure = None
+        created_spawner = None
+        created_proxy_type = None
+        for event in await receipt.triggered_events:
+            if event["event_id"] == "PureCreated":
+                attrs = event["attributes"]
+                created_pure = attrs["pure"]
+                created_spawner = attrs["who"]
+                created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
         msg = (
             f"Created pure '{created_pure}' "
             f"from spawner '{created_spawner}' "
@@ -321,9 +222,9 @@ async def create_proxy(
                         "[Optional] Add a note for this proxy", default=""
                     )
                     with ProxyAddressBook.get_db() as (conn, cursor):
-                        write_proxy_address_book_entry(
-                            conn=conn,
-                            cursor=cursor,
+                        ProxyAddressBook.add_entry(
+                            conn,
+                            cursor,
                             name=proxy_name,
                             ss58_address=created_pure,
                             delay=delay,
@@ -497,70 +398,16 @@ async def add_proxy(
         era={"period": period},
     )
     if success:
-        attrs = await extract_event_attributes_from_receipt(receipt, "ProxyAdded")
-        if attrs is None:
-            msg = "Added proxy, but could not parse the `ProxyAdded` event from the receipt."
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
-        delegatee = attrs.get("delegatee")
-        delegator = attrs.get("delegator")
-        created_proxy_type_name = attrs.get("proxy_type")
-        if not (
-            isinstance(delegatee, str)
-            and isinstance(delegator, str)
-            and isinstance(created_proxy_type_name, str)
-        ):
-            msg = (
-                "Added proxy, but received malformed `ProxyAdded` event attributes "
-                "from the receipt."
-            )
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
-        try:
-            created_proxy_type = ProxyType(created_proxy_type_name)
-        except ValueError:
-            msg = (
-                "Added proxy, but received an unknown proxy type in the receipt: "
-                f"{created_proxy_type_name}."
-            )
-            if json_output:
-                json_console.print_json(
-                    data={
-                        "success": success,
-                        "message": msg,
-                        "data": None,
-                        "extrinsic_identifier": await receipt.get_extrinsic_identifier(),
-                    }
-                )
-            else:
-                await print_extrinsic_id(receipt)
-                console.print(msg)
-            return None
-
+        delegatee = None
+        delegator = None
+        created_proxy_type = None
+        for event in await receipt.triggered_events:
+            if event["event_id"] == "ProxyAdded":
+                attrs = event["attributes"]
+                delegatee = attrs["delegatee"]
+                delegator = attrs["delegator"]
+                created_proxy_type = getattr(ProxyType, attrs["proxy_type"])
+                break
         msg = (
             f"Added proxy delegatee '{delegatee}' "
             f"from delegator '{delegator}' "
@@ -604,9 +451,9 @@ async def add_proxy(
                         "[Optional] Add a note for this proxy", default=""
                     )
                     with ProxyAddressBook.get_db() as (conn, cursor):
-                        write_proxy_address_book_entry(
-                            conn=conn,
-                            cursor=cursor,
+                        ProxyAddressBook.add_entry(
+                            conn,
+                            cursor,
                             name=proxy_name,
                             ss58_address=delegatee,
                             delay=delay,

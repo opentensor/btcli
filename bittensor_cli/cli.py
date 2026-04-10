@@ -2088,8 +2088,8 @@ class CLIManager:
         """
         table = Table(
             Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-            Column("Address/Delegatee", style="gold1"),
-            Column("Spawner/Delegator", style="medium_purple"),
+            Column("Address/Delegator", style="gold1"),
+            Column("Spawner/Delegatee", style="medium_purple"),
             Column("Proxy Type", style="medium_purple"),
             Column("Delay", style="dim"),
             Column("Note", style="dim"),
@@ -2174,8 +2174,8 @@ class CLIManager:
                     )
                     table = Table(
                         Column("[bold white]Name", style=f"{COLORS.G.ARG}"),
-                        Column("Address/Delegatee", style="gold1"),
-                        Column("Spawner/Delegator", style="medium_purple"),
+                        Column("Address/Delegator", style="gold1"),
+                        Column("Spawner/Delegatee", style="medium_purple"),
                         Column("Proxy Type", style="medium_purple"),
                         Column("Delay", style="dim"),
                         Column("Note", style="dim"),
@@ -2202,7 +2202,7 @@ class CLIManager:
                             break
                     console.print(table)
                     console.print(
-                        "\n\n[1] Address/Delegatee"
+                        "\n\n[1] Address/Delegator"
                         "\n[2] Spawner/Delegator"
                         "\n[3] Proxy Type"
                         "\n[4] Delay"
@@ -10127,7 +10127,7 @@ class CLIManager:
                         console.print(
                             f"Name: {p_name}\n"
                             f"Delay: {delay_}\n"
-                            f"Spawner/Delegator: {spawner}\n"
+                            f"Spawner/Delegatee: {spawner}\n"
                             f"Proxy Type: {proxy_type}\n"
                             f"Note: {note}\n"
                         )
