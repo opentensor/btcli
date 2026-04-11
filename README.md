@@ -24,15 +24,18 @@ From a high level, here is what happens to register with collateral on Vanta Net
 
 ### From Source
 ```bash
-git clone <repository-url>
+git clone git@github.com:taoshidev/vanta-cli.git
 cd vanta-cli
 pip install .
 ```
+
 ### Homebrew (macOS/Linux)
 Coming soon
 
 ### Pip
-Coming soon
+```bash
+pip install --upgrade git+https://github.com/taoshidev/vanta-cli.git
+```
 
 ## Commands
 

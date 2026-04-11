@@ -18,6 +18,10 @@ from vanta_cli.src.commands.collateral import (
 from vanta_cli.src.commands.asset import (
     select as select_asset
 )
+from vanta_cli.src.commands.entity import (
+    register as register_entity,
+    create_subaccount as create_subaccount_entity
+)
 
 _epilog = "Made with [bold red]:heart:[/bold red] by The Vanτa Neτwork"
 
@@ -45,12 +49,14 @@ class VantaCLIManager(CLIManager):
 
     collateral_app: typer.Typer
     asset_app: typer.Typer
+    entity_app: typer.Typer
 
     def __init__(self):
         super().__init__()
 
         self.collateral_app = typer.Typer(epilog=_epilog)
         self.asset_app = typer.Typer(epilog=_epilog)
+        self.entity_app = typer.Typer(epilog=_epilog)
 
         self.app.add_typer(
             self.collateral_app,
@@ -62,6 +68,12 @@ class VantaCLIManager(CLIManager):
             self.asset_app,
             name="asset",
             short_help="Asset command for choosing asset",
+            no_args_is_help=True
+        )
+        self.app.add_typer(
+            self.entity_app,
+            name="entity",
+            short_help="Entity management commands",
             no_args_is_help=True
         )
 
@@ -78,6 +90,13 @@ class VantaCLIManager(CLIManager):
         self.asset_app.command(
             "select", rich_help_panel="Asset class selection"
         )(self.asset_select)
+
+        self.entity_app.command(
+            "register", rich_help_panel="Entity Management"
+        )(self.entity_register)
+        self.entity_app.command(
+            "create-subaccount", rich_help_panel="Entity Management"
+        )(self.entity_create_subaccount)
 
     def collateral_list(
         self,
@@ -233,6 +252,108 @@ class VantaCLIManager(CLIManager):
                 wallet,
                 network,
                 asset_choice,
+                prompt,
+                quiet,
+                verbose,
+                json_output
+            )
+        )
+
+    def entity_register(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        network: str = VantaOptions.vanta_network,
+        prompt: bool = VantaOptions.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Register a new entity on the Vanta Network
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        ask_for = [WO.NAME, WO.HOTKEY]
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=ask_for,
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            register_entity.register(
+                wallet,
+                network,
+                prompt,
+                quiet,
+                verbose,
+                json_output
+            )
+        )
+
+    def entity_create_subaccount(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        network: str = VantaOptions.vanta_network,
+        account_size: Optional[float] = typer.Option(
+            None,
+            "--account-size",
+            help="Account size in USD"
+        ),
+        asset_class: Optional[str] = typer.Option(
+            None,
+            "--asset-class",
+            help="Asset class selection (crypto, forex, equities)"
+        ),
+        prompt: bool = VantaOptions.prompt,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Create a new subaccount for an entity
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        ask_for = [WO.NAME, WO.HOTKEY]
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=ask_for,
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        # Prompt for account_size if not provided
+        if account_size is None:
+            account_size = FloatPrompt.ask("Enter subaccount size in USD")
+
+        # Prompt for asset_class if not provided
+        if asset_class is None:
+            assets = ["crypto", "forex", "equities"]
+            console.print("\nAvailable asset classes:")
+            for idx, asset in enumerate(assets, start=1):
+                console.print(f"{idx}. {asset}")
+
+            choice = IntPrompt.ask(
+                "\nEnter the number of the asset class",
+                choices=[str(i) for i in range(1, len(assets) + 1)],
+                show_choices=False,
+            )
+            asset_class = assets[choice - 1]
+
+        return self._run_command(
+            create_subaccount_entity.create_subaccount(
+                wallet,
+                network,
+                account_size,
+                asset_class,
                 prompt,
                 quiet,
                 verbose,
