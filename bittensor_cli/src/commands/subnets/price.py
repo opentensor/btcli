@@ -23,6 +23,20 @@ if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 
 
+def _calculate_change_pct(price_start: float, price_end: float) -> float:
+    """Calculate percentage change between two prices.
+
+    Returns 0.0 when both prices are zero, inf when start is zero but end is
+    positive, and the standard percentage change otherwise. This avoids a
+    ZeroDivisionError for newly created subnets whose initial price is 0.
+    """
+    if price_start == 0:
+        if price_end > 0:
+            return float("inf")
+        return 0.0
+    return (price_end - price_start) / price_start * 100
+
+
 async def price(
     subtensor: "SubtensorInterface",
     netuids: list[int],
@@ -178,7 +192,7 @@ def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
                 "current_price": prices[-1],
                 "high": max(prices),
                 "low": min(prices),
-                "change_pct": ((prices[-1] - prices[0]) / prices[0] * 100),
+                "change_pct": _calculate_change_pct(prices[0], prices[-1]),
                 "supply": latest_subnet_data.alpha_in.tao
                 + latest_subnet_data.alpha_out.tao,
                 "market_cap": latest_subnet_data.price.tao
@@ -218,7 +232,7 @@ def _process_subnet_data(block_numbers, all_subnet_infos, netuids, all_netuids):
             "current_price": prices[-1],
             "high": max(prices),
             "low": min(prices),
-            "change_pct": ((prices[-1] - prices[0]) / prices[0] * 100),
+            "change_pct": _calculate_change_pct(prices[0], prices[-1]),
             "supply": latest_subnet_data.alpha_in.tao
             + latest_subnet_data.alpha_out.tao,
             "market_cap": latest_subnet_data.price.tao
