@@ -834,13 +834,20 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     """
 
     def get_decoded(data: Optional[str]) -> str:
-        """Decodes a hex-encoded string."""
+        """Decodes a hex-encoded string.
+
+        Returns an empty string when *data* is ``None`` or when the payload
+        cannot be decoded (malformed hex or invalid UTF-8).  Previously the
+        except branch had no ``return`` statement, so the function returned
+        ``None`` implicitly — propagating into downstream string operations
+        and causing ``TypeError``.
+        """
         if data is None:
             return ""
         try:
             return hex_to_bytes(data).decode()
         except (UnicodeDecodeError, ValueError):
-            print(f"Could not decode: {key}: {item}")
+            return ""
 
     for key, value in info_dictionary.items():
         if isinstance(value, dict):
