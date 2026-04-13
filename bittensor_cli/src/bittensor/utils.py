@@ -833,7 +833,8 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
         try:
             return hex_to_bytes(data).decode()
         except (UnicodeDecodeError, ValueError):
-            print(f"Could not decode: {key}: {item}")
+            print_error(f"Could not decode: {key}: {item}")
+            raise ValueError
 
     for key, value in info_dictionary.items():
         if isinstance(value, dict):
@@ -842,7 +843,7 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
                 try:
                     info_dictionary[key] = get_decoded(item)
                 except UnicodeDecodeError:
-                    print(f"Could not decode: {key}: {item}")
+                    print_error(f"Could not decode: {key}: {item}")
             else:
                 info_dictionary[key] = item
         if key == "additional":
