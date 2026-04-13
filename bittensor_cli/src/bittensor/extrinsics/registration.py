@@ -784,7 +784,6 @@ async def burned_register_extrinsic(
                 subtensor.get_balance(
                     wallet.coldkeypub.ss58_address,
                     block_hash=block_hash,
-                    reuse_block=False,
                 ),
                 subtensor.get_netuids_for_hotkey(
                     get_hotkey_pub_ss58(wallet), block_hash=block_hash

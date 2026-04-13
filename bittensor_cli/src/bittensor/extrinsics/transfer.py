@@ -228,7 +228,7 @@ async def transfer_extrinsic(
     if success:
         with console.status(":satellite: Checking Balance...", spinner="aesthetic"):
             new_balance = await subtensor.get_balance(
-                proxy or wallet.coldkeypub.ss58_address, reuse_block=False
+                proxy or wallet.coldkeypub.ss58_address
             )
             console.print(
                 f"Balance:\n"
