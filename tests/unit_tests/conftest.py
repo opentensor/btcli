@@ -4,7 +4,7 @@ Shared fixtures for btcli unit tests.
 Provides common mock objects, SS58 address constants, and receipt helpers that
 are duplicated across multiple test files. Import constants directly:
 
-    from conftest import COLDKEY_SS58, HOTKEY_SS58, ...
+    from .conftest import COLDKEY_SS58, HOTKEY_SS58, ...
 
 Fixtures (mock_wallet, mock_wallet_spec, mock_subtensor, successful_receipt,
 failed_receipt) are discovered automatically by pytest.
