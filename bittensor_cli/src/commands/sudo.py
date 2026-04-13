@@ -1052,9 +1052,7 @@ async def get_hyperparameters(
         if not await subtensor.subnet_exists(netuid):
             error_msg = f"Subnet with netuid {netuid} does not exist."
             if json_output:
-                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
-                sys.stdout.write(json_str + "\n")
-                sys.stdout.flush()
+                json_console.print_json(data={"error": error_msg})
             else:
                 print_error(error_msg)
             return False
@@ -1064,17 +1062,13 @@ async def get_hyperparameters(
         if subnet_info is None:
             error_msg = f"Subnet with netuid {netuid} does not exist."
             if json_output:
-                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
-                sys.stdout.write(json_str + "\n")
-                sys.stdout.flush()
+                json_console.print_json(data={"error": error_msg})
             else:
                 print_error(error_msg)
             return False
     except Exception as e:
         if json_output:
-            json_str = json.dumps({"error": str(e)}, ensure_ascii=True)
-            sys.stdout.write(json_str + "\n")
-            sys.stdout.flush()
+            json_console.print_json(data={"error": str(e)})
         else:
             raise
         return False
