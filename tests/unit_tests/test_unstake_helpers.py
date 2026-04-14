@@ -9,7 +9,6 @@ running the full unstake flow:
   - _print_table_and_slippage
 """
 
-import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 

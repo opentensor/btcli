@@ -5,7 +5,6 @@ Tests the branching logic in transfer_extrinsic using the shared mock_wallet
 and mock_subtensor fixtures from conftest.py.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bittensor_cli.src.bittensor.balances import Balance

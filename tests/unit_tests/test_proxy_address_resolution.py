@@ -8,7 +8,6 @@ import pytest
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from bittensor_cli.src.bittensor.balances import Balance
 from tests.unit_tests.conftest import (
     PROXY_SS58,
     HOTKEY_SS58,
