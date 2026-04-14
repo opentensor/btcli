@@ -9,8 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
-from tests.unit_tests.conftest import DEST_SS58 as _DEST_SS58
-from tests.unit_tests.conftest import PROXY_SS58 as _PROXY_SS58
+from .conftest import DEST_SS58 as _DEST_SS58, PROXY_SS58 as _PROXY_SS58
 
 # An invalid destination
 _INVALID_DEST = "not_a_valid_address"
