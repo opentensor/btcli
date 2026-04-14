@@ -15,7 +15,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_success,
     print_verbose,
     is_valid_bittensor_address_or_public_key,
-    print_error,
     unlock_key,
 )
 

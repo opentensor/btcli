@@ -26,7 +26,6 @@ from bittensor_cli.src.bittensor.utils import (
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
-    err_console,
 )
 
 

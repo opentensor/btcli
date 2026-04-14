@@ -27,7 +27,6 @@ from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from scalecodec import GenericCall
-from scalecodec.utils.ss58 import ss58_encode, ss58_decode
 import typer
 
 
@@ -631,23 +630,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
     else:
         # Invalid address type
         return False
-
-
-def encode_account_id(ss58_address: str) -> bytes:
-    return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
-
-
-def ss58_to_vec_u8(ss58_address: str) -> list[int]:
-    """
-    Converts an SS58 address to a list of integers (vector of u8).
-
-    :param ss58_address: The SS58 address to be converted.
-
-    :return: A list of integers representing the byte values of the SS58 address.
-    """
-    ss58_bytes: bytes = encode_account_id(ss58_address)
-    encoded_address: list[int] = [int(byte) for byte in ss58_bytes]
-    return encoded_address
 
 
 def get_explorer_root_url_by_network_from_map(

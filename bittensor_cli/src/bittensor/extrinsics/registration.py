@@ -38,7 +38,6 @@ from bittensor_cli.src.bittensor.utils import (
     millify,
     get_human_readable,
     print_verbose,
-    print_error,
     unlock_key,
     hex_to_bytes,
     get_hotkey_pub_ss58,

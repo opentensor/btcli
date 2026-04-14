@@ -23,7 +23,6 @@ from bittensor_cli.src.bittensor.utils import (
     print_error,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
-    format_error_message,
     group_subnets,
     unlock_key,
     json_console,

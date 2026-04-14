@@ -15,7 +15,6 @@ from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
     create_table,
-    is_valid_ss58_address,
     print_error,
     group_subnets,
     get_subnet_name,

@@ -1,8 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
-from collections.abc import Sequence
 from enum import Enum
-from typing import Optional, Any, Union, Callable, Hashable
+from typing import Optional, Any, Union
 
 import netaddr
 from scalecodec.utils.ss58 import ss58_encode
@@ -780,7 +779,7 @@ class DynamicInfo(InfoBase):
         if self.is_dynamic:
             new_tao_in = self.tao_in + tao
             if new_tao_in == 0:
-                return tao, Balance.from_rao(0)
+                return tao, Balance.from_rao(0), 0.0
             new_alpha_in = self.k / new_tao_in
 
             # Amount of alpha given to the staker
