@@ -8,7 +8,7 @@ version = "9.20.1"
 description = "Bittensor CLI"
 readme = "README.md"
 authors = [
-    {name = "bittensor.com"}
+    { name = "bittensor.com" }
 ]
 license = "MIT"
 scripts = { btcli = "bittensor_cli.cli:main" }
@@ -29,6 +29,7 @@ classifiers = [
 ]
 dependencies = [
     "wheel",
+    # TODO this will need to be changed to asi 2.0-3.0 when merged
     "async-substrate-interface @ git+https://github.com/opentensor/async-substrate-interface.git@release/2.0.0",
     "aiohttp~=3.13",
     "backoff~=2.2.1",
