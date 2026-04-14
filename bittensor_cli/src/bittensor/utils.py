@@ -799,48 +799,21 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     Examples:
         input_dict = {
              "name": {"value": "0x6a6f686e"},
-             "additional": [
-                 {"data1": "0x64617461"},
-                 ("data2", "0x64617461")
-             ]
+             "additional": "0x64617461"
          }
         decode_hex_identity_dict(input_dict)
-        {'name': 'john', 'additional': [('data1', 'data'), ('data2', 'data')]}
+        {'name': 'john', 'additional': "data"]}
     """
-
-    def get_decoded(data: Optional[str]) -> str:
-        """Decodes a hex-encoded string."""
-        if data is None:
-            return ""
-        try:
-            return hex_to_bytes(data).decode()
-        except (UnicodeDecodeError, ValueError):
-            print_error(f"Could not decode: {key}: {item}")
-            raise ValueError
 
     for key, value in info_dictionary.items():
         if isinstance(value, dict):
             item = list(value.values())[0]
-            if isinstance(item, str) and item.startswith("0x"):
-                try:
-                    info_dictionary[key] = get_decoded(item)
-                except UnicodeDecodeError:
-                    print_error(f"Could not decode: {key}: {item}")
-            else:
-                info_dictionary[key] = item
-        if key == "additional":
-            additional = []
-            for item in value:
-                if isinstance(item, dict):
-                    for k, v in item.items():
-                        additional.append((k, get_decoded(v)))
-                else:
-                    if isinstance(item, (tuple, list)) and len(item) == 2:
-                        k_, v = item
-                        k = k_ if k_ is not None else ""
-                        additional.append((k, get_decoded(v)))
-            info_dictionary[key] = additional
-
+        else:
+            item = value
+        if isinstance(item, str) and item.startswith("0x"):
+            info_dictionary[key] = hex_to_bytes(item.removeprefix("0x")).decode()
+        else:
+            info_dictionary[key] = item
     return info_dictionary
 
 
