@@ -2114,7 +2114,7 @@ class SubtensorInterface:
                 claim_type_dict = claim_type_data
             if claim_type_key == "KeepSubnets":
                 subnets_data = claim_type_dict["KeepSubnets"]["subnets"]
-                subnet_list = sorted([subnet for subnet in subnets_data[0]])
+                subnet_list = sorted([subnet for subnet in subnets_data])
                 root_claim_types[coldkey_ss58] = {
                     "type": "KeepSubnets",
                     "subnets": subnet_list,
