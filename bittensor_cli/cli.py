@@ -6563,7 +6563,7 @@ class CLIManager:
             wallet_name,
             wallet_path,
             wallet_hotkey,
-            ask_for=[WO.NAME, WO.HOTKEY],
+            ask_for=[WO.NAME],
             validate=WV.WALLET_AND_HOTKEY,
         )
         if all_netuids and netuid:
