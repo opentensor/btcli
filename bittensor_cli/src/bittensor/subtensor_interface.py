@@ -13,7 +13,7 @@ from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
 from bittensor_wallet.bittensor_wallet import Keypair
 from bittensor_wallet.utils import SS58_FORMAT
-from scalecodec import GenericCall, ScaleBytes
+from scalecodec import GenericCall, ScaleBytes, ScaleValue
 import typer
 import websockets
 
@@ -144,9 +144,9 @@ class SubtensorInterface:
         block_hash: Optional[str] = None,
         raw_storage_key: Optional[bytes] = None,
         subscription_handler=None,
-    ) -> Any:
+    ) -> ScaleValue:
         """
-        Pass-through to substrate.query which automatically returns the .value if it's a ScaleType
+        Pass-through to substrate.query which automatically returns the .value
         """
         result: Optional[ScaleType] = await self.substrate.query(
             module,
@@ -156,7 +156,7 @@ class SubtensorInterface:
             raw_storage_key,
             subscription_handler,
         )
-        return getattr(result, "value", result)
+        return result.value
 
     async def _decode_inline_call(
         self,
@@ -308,7 +308,7 @@ class SubtensorInterface:
         method: str,
         params: Optional[Union[list, dict]] = None,
         block_hash: Optional[str] = None,
-    ) -> Optional[Any]:
+    ) -> ScaleValue:
         """
         Queries the runtime API of the Bittensor blockchain, providing a way to interact with the underlying
         runtime and retrieve data encoded in Scale Bytes format. This function is essential for advanced users
@@ -2059,7 +2059,7 @@ class SubtensorInterface:
                 - {"type": "Keep"}
                 - {"type": "KeepSubnets", "subnets": [1, 5, 10, ...]}
         """
-        result = await self.query(
+        result: Optional[str | dict] = await self.query(
             module="SubtensorModule",
             storage_function="RootClaimType",
             params=[coldkey_ss58],
@@ -2069,14 +2069,13 @@ class SubtensorInterface:
         if result is None:
             return {"type": "Swap"}
 
-        claim_type_key = next(iter(result.keys()))
-
-        if claim_type_key == "KeepSubnets":
-            subnets_data = result["KeepSubnets"]["subnets"]
-            subnet_list = sorted([subnet for subnet in subnets_data[0]])
-            return {"type": "KeepSubnets", "subnets": subnet_list}
+        if isinstance(result, str):
+            return {"type": result}
         else:
-            return {"type": claim_type_key}
+            claim_type = next(iter(result.keys()))
+            subnets_data = result[claim_type]["subnets"]
+            subnet_list = sorted(subnets_data)
+            return {"type": claim_type, "subnets": subnet_list}
 
     async def get_all_coldkeys_claim_type(
         self,
@@ -2504,7 +2503,7 @@ class SubtensorInterface:
         Returns:
             Balance(EMA TAO inflow).
         """
-        value = await self.substrate.query(
+        value = await self.query(
             module="SubtensorModule",
             storage_function="SubnetEmaTaoFlow",
             params=[netuid],
