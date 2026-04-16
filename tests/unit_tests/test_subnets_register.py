@@ -2,7 +2,6 @@
 Unit tests for subnets register command.
 """
 
-
 import pytest
 from unittest.mock import AsyncMock, patch
 
