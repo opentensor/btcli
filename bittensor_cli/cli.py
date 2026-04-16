@@ -7740,7 +7740,6 @@ class CLIManager:
             selected_mechanism_id = self.ask_subnet_mechanism(
                 mechanism_id, mechanism_count, netuid
             )
-
         return self._run_command(
             subnets.show(
                 subtensor=subtensor,

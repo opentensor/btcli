@@ -218,7 +218,7 @@ def test_children_hotkeys(local_chain, wallet_setup):
     try:
         set_take_result_json = json.loads(set_take_result.stdout)
     except json.decoder.JSONDecodeError:
-        print(set_take_result.stdout, set_take_result.stderr)
+        print("DEBUG221", set_take_result.stdout, set_take_result.stderr)
         raise Exception
     assert set_take_result_json[str(netuid)]["success"] is True, (
         f"Take not set:\n{set_take_result.stdout}\n{set_take_result.stderr}"
