@@ -1379,7 +1379,6 @@ async def show(
             if tao_stake.tao > 0:
                 claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
                 claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
-
             rows.append(
                 (
                     str(idx),  # UID

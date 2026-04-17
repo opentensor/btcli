@@ -644,8 +644,10 @@ class SubnetIdentity(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
+        if isinstance(subnet_name := decoded["subnet_name"], list):
+            subnet_name = bytes(subnet_name).decode("utf-8")
         return cls(
-            subnet_name=decoded["subnet_name"],
+            subnet_name=subnet_name,
             github_repo=decoded["github_repo"],
             subnet_contact=decoded["subnet_contact"],
             subnet_url=decoded["subnet_url"],
@@ -688,8 +690,14 @@ class DynamicInfo(InfoBase):
         """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
 
         netuid = int(decoded.get("netuid"))
-        symbol = bytes([int(b) for b in decoded.get("token_symbol")]).decode()
-        subnet_name = bytes([int(b) for b in decoded.get("subnet_name")]).decode()
+        if isinstance(token_symbol := decoded.get("token_symbol", ""), list):
+            symbol = bytes(token_symbol).decode("utf-8")
+        else:
+            symbol = token_symbol
+        if isinstance(sn_name := decoded.get("subnet_name", ""), list):
+            subnet_name = bytes(sn_name).decode("utf-8")
+        else:
+            subnet_name = sn_name
         is_dynamic = True if netuid > 0 else False  # Patching for netuid 0
 
         owner_hotkey = decoded.get("owner_hotkey")
