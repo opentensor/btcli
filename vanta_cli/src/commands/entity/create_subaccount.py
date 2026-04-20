@@ -68,7 +68,7 @@ async def create_subaccount(
     base_url = VANTA_API_BASE_URL_TESTNET if network == "test" else VANTA_API_BASE_URL_MAINNET
 
     max_account_size = 100_000
-    cost_per_theta = 5000
+    cost_per_theta = 5000 if account_size > 10000 else 2500
 
     # Step 2: Validate account size
     if account_size > max_account_size:

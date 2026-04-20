@@ -45,7 +45,7 @@ async def register(
     # Determine base URL
     base_url = VANTA_API_BASE_URL_TESTNET if network == "test" else VANTA_API_BASE_URL_MAINNET
 
-    registration_fee = 5000 # Theta
+    registration_fee = 1000 # Theta
 
     # Display configuration
     if not json_output:
