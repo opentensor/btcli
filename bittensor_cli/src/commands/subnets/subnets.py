@@ -1787,6 +1787,7 @@ async def register(
     decline: bool = False,
     quiet: bool = False,
     proxy: Optional[str] = None,
+    limit: Optional[float] = None,
 ):
     """Register neuron by recycling some TAO."""
 
@@ -1839,6 +1840,19 @@ async def register(
             )
         return
 
+    if limit is not None:
+        with_limit = current_recycle.tao * (1 + limit)
+        extra_text = (
+            f" You have declared a limit of "
+            f"up to [{COLOR_PALETTE.G.COST}]{Balance.from_tao(with_limit)}[/{COLOR_PALETTE.G.COST}]"
+        )
+    else:
+        with_limit = None
+        extra_text = ""
+
+    print_verbose(f"Recycle price: {current_recycle}")
+    print_verbose(extra_text)
+
     if prompt and not json_output:
         # Show creation table.
         table = create_table(
@@ -1887,7 +1901,7 @@ async def register(
             confirm_action(
                 f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
                 f"The cost to register by recycle is "
-                f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}]\n"
+                f"[{COLOR_PALETTE.G.COST}]{current_recycle}.{extra_text}\n"
                 f"Do you want to continue?",
                 default=False,
                 decline=decline,
@@ -1908,6 +1922,7 @@ async def register(
             old_balance=balance,
             era=era,
             proxy=proxy,
+            limit=with_limit,
         )
     if not success:
         print_error(f"Failure: {msg}")

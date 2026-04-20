@@ -8184,6 +8184,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
+        limit: Optional[float] = Options.rate_tolerance,
         proxy: Optional[str] = Options.proxy,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
@@ -8201,6 +8202,11 @@ class CLIManager:
 
         [green]$[/green] btcli subnets register --netuid 1
         """
+        if limit is not None and netuid == 0:
+            raise typer.BadParameter(
+                "Cannot specify both `--tolerance` and `--netuid 0`, "
+                "as the limit does not apply for root registrations."
+            )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         wallet = self.wallet_ask(
@@ -8222,6 +8228,7 @@ class CLIManager:
                 json_output=json_output,
                 prompt=prompt,
                 proxy=proxy,
+                limit=limit,
             )
         )
 
