@@ -211,7 +211,8 @@ def test_registration(local_chain, wallet_setup):
     )
 
     assert "Your extrinsic has been included" in start_call_netuid_3.stdout
-    # Should fail bc it's never going to be so tiny
+
+    # use limit of 10%
     register_result = exec_command_bob(
         command="subnets",
         sub_command="register",
@@ -229,36 +230,13 @@ def test_registration(local_chain, wallet_setup):
             "--no-prompt",
             "--era",
             "30",
-            "--limit",
-            "0.0005",
+            "--rate-tolerance",
+            "0.10",
             "--verbose",
         ],
     )
-    assert all(
-        x in register_result.stderr
-        for x in ("Failed", "RegistrationPriceLimitExceeded")
-    ), register_result.stdout
-
-    register_result = exec_command_bob(
-        command="subnets",
-        sub_command="register",
-        extra_args=[
-            "--netuid",
-            "3",
-            "--wallet-path",
-            wallet_path_bob,
-            "--wallet-name",
-            wallet_bob.name,
-            "--hotkey",
-            wallet_bob.hotkey_str,
-            "--chain",
-            "ws://127.0.0.1:9945",
-            "--no-prompt",
-            "--era",
-            "30",
-            "--limit",
-            "10_000.0",
-        ],
+    assert "You have declared a limit of up to" in register_result.stdout, (
+        register_result.stderr
     )
     assert "✅ Registered" in register_result.stdout, register_result.stderr
     assert "Your extrinsic has been included" in register_result.stdout, (

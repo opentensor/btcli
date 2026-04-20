@@ -8184,11 +8184,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
-        limit: Optional[float] = typer.Option(
-            None,
-            "--limit",
-            help="Maximum burn price limit, in Tao, for the registration",
-        ),
+        limit: Optional[float] = Options.rate_tolerance,
         proxy: Optional[str] = Options.proxy,
         json_output: bool = Options.json_output,
         prompt: bool = Options.prompt,
@@ -8208,7 +8204,7 @@ class CLIManager:
         """
         if limit is not None and netuid == 0:
             raise typer.BadParameter(
-                "Cannot specify both `--limit` and `--netuid 0`, "
+                "Cannot specify both `--tolerance` and `--netuid 0`, "
                 "as the limit does not apply for root registrations."
             )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
