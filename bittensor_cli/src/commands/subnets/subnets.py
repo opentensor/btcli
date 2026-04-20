@@ -1787,6 +1787,7 @@ async def register(
     decline: bool = False,
     quiet: bool = False,
     proxy: Optional[str] = None,
+    limit: Optional[float] = None,
 ):
     """Register neuron by recycling some TAO."""
 
@@ -1908,6 +1909,7 @@ async def register(
             old_balance=balance,
             era=era,
             proxy=proxy,
+            limit=limit,
         )
     if not success:
         print_error(f"Failure: {msg}")
