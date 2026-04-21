@@ -38,7 +38,6 @@ from bittensor_cli.src.bittensor.utils import (
     millify,
     get_human_readable,
     print_verbose,
-    print_error,
     unlock_key,
     hex_to_bytes,
     get_hotkey_pub_ss58,
@@ -683,6 +682,7 @@ async def burned_register_extrinsic(
     wait_for_finalization: bool = True,
     era: Optional[int] = None,
     proxy: Optional[str] = None,
+    limit: Optional[float] = None,
 ) -> tuple[bool, str, Optional[str]]:
     """Registers the wallet to chain by recycling TAO.
 
@@ -753,13 +753,18 @@ async def burned_register_extrinsic(
     with console.status(
         ":satellite: Recycling TAO for Registration...", spinner="aesthetic"
     ):
+        call_data = {
+            "call_module": "SubtensorModule",
+            "call_params": {"netuid": netuid, "hotkey": get_hotkey_pub_ss58(wallet)},
+            "block_hash": block_hash,
+        }
+        if limit is not None:
+            call_data["call_params"]["limit_price"] = Balance.from_tao(limit).rao
+            call_data["call_function"] = "register_limit"
+        else:
+            call_data["call_function"] = "burned_register"
         call = await subtensor.substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function="burned_register",
-            call_params={
-                "netuid": netuid,
-                "hotkey": get_hotkey_pub_ss58(wallet),
-            },
+            **call_data,
         )
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
             call,
@@ -784,7 +789,6 @@ async def burned_register_extrinsic(
                 subtensor.get_balance(
                     wallet.coldkeypub.ss58_address,
                     block_hash=block_hash,
-                    reuse_block=False,
                 ),
                 subtensor.get_netuids_for_hotkey(
                     get_hotkey_pub_ss58(wallet), block_hash=block_hash

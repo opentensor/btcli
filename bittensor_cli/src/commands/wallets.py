@@ -1055,7 +1055,7 @@ async def overview(
         neurons: dict[str, list[NeuronInfoLite]] = {}
 
         netuids = await subtensor.filter_netuids_by_registered_hotkeys(
-            all_netuids, netuids_filter, all_hotkeys, reuse_block=True
+            all_netuids, netuids_filter, all_hotkeys
         )
 
         for netuid in netuids:
