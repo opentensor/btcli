@@ -15,7 +15,7 @@ from rich import box
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
-    burned_register_extrinsic
+    burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (

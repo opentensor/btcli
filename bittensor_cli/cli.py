@@ -8075,7 +8075,6 @@ class CLIManager:
                 json.dumps({"success": success, "extrinsic_identifier": ext_id})
             )
 
-
     def subnets_register(
         self,
         wallet_name: str = Options.wallet_name,

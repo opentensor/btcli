@@ -451,6 +451,7 @@ async def is_hotkey_registered(
     else:
         return False
 
+
 async def burned_register_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
