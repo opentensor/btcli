@@ -190,4 +190,10 @@ def mock_subtensor() -> MagicMock:
         return_value={"hotkeys": {}, "coldkeys": {}}
     )
     st.get_all_subnet_netuids = AsyncMock(return_value=[0, 1])
+
+    async def _do_hotkeys_exist(hotkeys_ss58, block_hash=None):
+        del block_hash
+        return {ss58: True for ss58 in hotkeys_ss58}
+
+    st.do_hotkeys_exist = AsyncMock(side_effect=_do_hotkeys_exist)
     return st
