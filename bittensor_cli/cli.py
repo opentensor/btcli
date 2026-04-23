@@ -1183,9 +1183,6 @@ class CLIManager:
             "create", rich_help_panel=HELP_PANELS["SUBNETS"]["CREATION"]
         )(self.subnets_create)
         self.subnets_app.command(
-            "pow-register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
-        )(self.subnets_pow_register)
-        self.subnets_app.command(
             "register", rich_help_panel=HELP_PANELS["SUBNETS"]["REGISTER"]
         )(self.subnets_register)
         self.subnets_app.command(
@@ -1290,7 +1287,6 @@ class CLIManager:
 
         # Subnets
         self.subnets_app.command("burn_cost", hidden=True)(self.subnets_burn_cost)
-        self.subnets_app.command("pow_register", hidden=True)(self.subnets_pow_register)
         self.subnets_app.command("set_identity", hidden=True)(self.subnets_set_identity)
         self.subnets_app.command("get_identity", hidden=True)(self.subnets_get_identity)
         self.subnets_app.command("check_start", hidden=True)(self.subnets_check_start)
@@ -8079,94 +8075,6 @@ class CLIManager:
                 json.dumps({"success": success, "extrinsic_identifier": ext_id})
             )
 
-    def subnets_pow_register(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        netuid: int = Options.netuid,
-        # TODO add the following to config
-        processors: Optional[int] = typer.Option(
-            defaults.pow_register.num_processes,
-            "--processors",
-            help="Number of processors to use for POW registration.",
-        ),
-        update_interval: Optional[int] = typer.Option(
-            defaults.pow_register.update_interval,
-            "--update-interval",
-            "-u",
-            help="The number of nonces to process before checking for the next block during registration",
-        ),
-        output_in_place: Optional[bool] = typer.Option(
-            defaults.pow_register.output_in_place,
-            help="Whether to output the registration statistics in-place.",
-        ),
-        verbose: Optional[bool] = typer.Option(  # TODO verbosity here
-            defaults.pow_register.verbose,
-            "--verbose",
-            "-v",
-            help="Whether to output the registration statistics verbosely.",
-        ),
-        use_cuda: Optional[bool] = typer.Option(
-            defaults.pow_register.cuda.use_cuda,
-            "--use-cuda/--no-use-cuda",
-            "--cuda/--no-cuda",
-            help="Set the flag to use CUDA for POW registration.",
-        ),
-        dev_id: Optional[int] = typer.Option(
-            defaults.pow_register.cuda.dev_id,
-            "--dev-id",
-            "-d",
-            help="Set the CUDA device id(s), in the order of the device speed (0 is the fastest).",
-        ),
-        threads_per_block: Optional[int] = typer.Option(
-            defaults.pow_register.cuda.tpb,
-            "--threads-per-block",
-            "-tbp",
-            help="Set the number of threads per block for CUDA.",
-        ),
-        prompt: bool = Options.prompt,
-    ):
-        """
-        Register a neuron (a subnet validator or a subnet miner) using Proof of Work (POW).
-
-        This method is an alternative registration process that uses computational work for securing a neuron's place on the subnet.
-
-        The command starts by verifying the existence of the specified subnet. If the subnet does not exist, it terminates with an error message. On successful verification, the POW registration process is initiated, which requires solving computational puzzles.
-
-        The command also supports additional wallet and subtensor arguments, enabling further customization of the registration process.
-
-        EXAMPLE
-
-        [green]$[/green] btcli pow_register --netuid 1 --num_processes 4 --cuda
-
-        [blue bold]Note[/blue bold]: This command is suitable for users with adequate computational resources to participate in POW registration.
-        It requires a sound understanding of the network's operations and POW mechanics. Users should ensure their systems meet the necessary hardware and software requirements, particularly when opting for CUDA-based GPU acceleration.
-
-        This command may be disabled by the subnet owner. For example, on netuid 1 this is permanently disabled.
-        """
-        return self._run_command(
-            subnets.pow_register(
-                self.wallet_ask(
-                    wallet_name,
-                    wallet_path,
-                    wallet_hotkey,
-                    ask_for=[WO.NAME, WO.PATH, WO.HOTKEY],
-                    validate=WV.WALLET_AND_HOTKEY,
-                ),
-                self.initialize_chain(network),
-                netuid,
-                processors,
-                update_interval,
-                output_in_place,
-                verbose,
-                use_cuda,
-                dev_id,
-                threads_per_block,
-                prompt=prompt,
-            )
-        )
 
     def subnets_register(
         self,
