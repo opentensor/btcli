@@ -1022,6 +1022,36 @@ class SubtensorInterface:
 
         return b_map
 
+    async def do_hotkeys_exist(
+        self, hotkeys_ss58: Iterable[str], block_hash: Optional[str] = None
+    ) -> dict[str, bool]:
+        """
+        Checks whether a hotkey exists is known by the chain and there are accounts.
+
+        Args:
+            hotkeys_ss58: list of hotkey ss58s
+            block_hash: hash of the block to query
+
+        Returns:
+            {hotkey ss58: exists (True/False)}
+        """
+        if block_hash is None:
+            block_hash = await self.substrate.get_chain_head()
+        keys = [
+            await self.substrate.create_storage_key(
+                "SubtensorModule", "Owner", [ss58], block_hash=block_hash
+            )
+            for ss58 in hotkeys_ss58
+        ]
+        query = await self.substrate.query_multi(
+            storage_keys=keys,
+            block_hash=block_hash,
+        )
+        output: dict[str, bool] = {}
+        for key, value in query:
+            output[key.params[0]] = value != GENESIS_ADDRESS
+        return output
+
     async def does_hotkey_exist(
         self,
         hotkey_ss58: str,

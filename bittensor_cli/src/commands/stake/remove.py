@@ -124,6 +124,13 @@ async def unstake(
             identities=ck_hk_identities,
         )
 
+    hotkeys_existence = await subtensor.do_hotkeys_exist(
+        [x[1] for x in hotkeys_to_unstake_from], block_hash=chain_head
+    )
+    hotkeys_to_unstake_from = [
+        x for x in hotkeys_to_unstake_from if hotkeys_existence[x[1]] is True
+    ]
+
     with console.status(
         f"Retrieving stake data from {subtensor.network}...",
         spinner="earth",
@@ -334,7 +341,7 @@ async def unstake(
         with console.status(
             f"\n:satellite: Batching {total_ops} unstake operations..."
         ) as status:
-            batch_block_hash = await subtensor.substrate.get_chain_head()
+            batch_block_hash = chain_head
             current_balance = await subtensor.get_balance(
                 coldkey_ss58, block_hash=batch_block_hash
             )
