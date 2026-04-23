@@ -1811,16 +1811,10 @@ async def register(
 
     if limit is not None:
         with_limit = current_recycle.tao * (1 + limit)
-        extra_text = (
-            f" You have declared a limit of "
-            f"up to [{COLOR_PALETTE.G.COST}]{Balance.from_tao(with_limit)}[/{COLOR_PALETTE.G.COST}]"
-        )
     else:
         with_limit = None
-        extra_text = ""
 
     print_verbose(f"Recycle price: {current_recycle}")
-    print_verbose(extra_text)
 
     if prompt and not json_output:
         # Show creation table.
@@ -1846,6 +1840,13 @@ async def register(
             no_wrap=True,
             justify="center",
         )
+        if with_limit is not None and limit is not None:
+            table.add_column(
+                f"Limit Cost (+{limit * 100:g}%)",
+                style=COLOR_PALETTE["POOLS"]["TAO"],
+                no_wrap=True,
+                justify="center",
+            )
         table.add_column(
             "Hotkey",
             style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
@@ -1858,19 +1859,26 @@ async def register(
             no_wrap=True,
             justify="center",
         )
-        table.add_row(
+        row = [
             str(netuid),
             f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
-            f"{get_hotkey_pub_ss58(wallet)}",
-            f"{coldkey_ss58}",
+        ]
+        if with_limit is not None:
+            row.append(f"τ {with_limit:,.9f}".rstrip("0").rstrip("."))
+        row.extend(
+            [
+                f"{get_hotkey_pub_ss58(wallet)}",
+                f"{coldkey_ss58}",
+            ]
         )
+        table.add_row(*row)
         console.print(table)
         if not (
             confirm_action(
                 f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
                 f"The cost to register by recycle is "
-                f"[{COLOR_PALETTE.G.COST}]{current_recycle}.{extra_text}\n"
+                f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}].\n"
                 f"Do you want to continue?",
                 default=False,
                 decline=decline,
