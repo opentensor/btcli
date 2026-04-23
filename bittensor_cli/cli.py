@@ -393,6 +393,13 @@ class Options:
         show_default=False,
         help="Enable or disable safe staking mode [dim](default: enabled)[/dim].",
     )
+    safe_registration = typer.Option(
+        None,
+        "--safe-register/--unsafe-register",
+        "--safe/--unsafe",
+        show_default=False,
+        help="Enable or disable safe registration mode [dim](default: enabled)[/dim].",
+    )
     allow_partial_stake = typer.Option(
         None,
         "--allow-partial-stake/--no-allow-partial-stake",
@@ -1576,6 +1583,9 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+        # Temporarily disable cach for this btcli process.
+        self.config["disk_cache"] = False
+        os.environ["DISK_CACHE"] = "0"
         if self.config.get("use_cache", False):
             with open(self.debug_file_path, "w+") as f:
                 f.write(
@@ -2391,6 +2401,36 @@ class CLIManager:
             )
             logger.debug(f"Partial staking {partial_staking}")
             return False
+
+    def ask_safe_registration(
+        self,
+        safe_registration: Optional[bool],
+    ) -> bool:
+        """
+        Gets safe registration setting from args or default.
+
+        Args:
+            safe_registration (Optional[bool]): Explicitly provided safe registration value
+
+        Returns:
+            bool: Safe registration setting
+        """
+        if safe_registration is not None:
+            enabled = "enabled" if safe_registration else "disabled"
+            console.print(
+                f"[dim][blue]Safe registration[/blue]: [bold cyan]{enabled}[/bold cyan]."
+            )
+            logger.debug(f"Safe registration {enabled}")
+            return safe_registration
+        else:
+            console.print(
+                "[dim][blue]Safe registration[/blue]: "
+                "[bold cyan]enabled[/bold cyan] "
+                "by default. Disable this using "
+                "[dark_sea_green3 italic]`--unsafe`[/dark_sea_green3 italic] flag[/dim]"
+            )
+            logger.debug("Safe registration enabled.")
+            return True
 
     @staticmethod
     def ask_subnet_mechanism(
@@ -8091,6 +8131,7 @@ class CLIManager:
             help="Length (in blocks) for which the transaction should be valid. Note that it is possible that if you "
             "use an era for this transaction that you may pay a different fee to register than the one stated.",
         ),
+        safe_registration: Optional[bool] = Options.safe_registration,
         limit: Optional[float] = Options.rate_tolerance,
         proxy: Optional[str] = Options.proxy,
         json_output: bool = Options.json_output,
@@ -8115,6 +8156,14 @@ class CLIManager:
                 "as the limit does not apply for root registrations."
             )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
+        if netuid != 0:
+            safe_registration = self.ask_safe_registration(safe_registration)
+            if not safe_registration and limit is not None:
+                raise typer.BadParameter(
+                    "Cannot specify both `--unsafe`/`--unsafe-register` and `--tolerance`, "
+                    "as tolerance only applies in safe registration mode."
+                )
+            limit = self.ask_rate_tolerance(limit) if safe_registration else None
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
         wallet = self.wallet_ask(
             wallet_name,
