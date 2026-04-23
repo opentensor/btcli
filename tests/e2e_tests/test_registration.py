@@ -235,7 +235,7 @@ def test_registration(local_chain, wallet_setup):
             "--verbose",
         ],
     )
-    assert "You have declared a limit of up to" in register_result.stdout, (
+    assert "Rate tolerance: 0.1 (10.0%)." in register_result.stdout, (
         register_result.stderr
     )
     assert "✅ Registered" in register_result.stdout, register_result.stderr
