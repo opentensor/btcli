@@ -127,9 +127,35 @@ async def unstake(
     hotkeys_existence = await subtensor.do_hotkeys_exist(
         [x[1] for x in hotkeys_to_unstake_from], block_hash=chain_head
     )
-    hotkeys_to_unstake_from = [
+    hotkeys_to_unstake_from_that_exist = [
         x for x in hotkeys_to_unstake_from if hotkeys_existence[x[1]] is True
     ]
+    if not hotkeys_to_unstake_from_that_exist:
+        err_msg = "No keys existing on chain from which to unstake"
+        if json_output:
+            json_console.print_json(data={"success": False, "error": err_msg})
+        else:
+            print_error(err_msg)
+        return False
+
+    if hotkeys_to_unstake_from_that_exist != hotkeys_to_unstake_from:
+        difference = set(x[1] for x in hotkeys_to_unstake_from).symmetric_difference(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        sames = set(x[1] for x in hotkeys_to_unstake_from).intersection(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        msg = (
+            "Some hotkeys attempting to unstake are not present: "
+            + ", ".join(difference)
+            + ". Using hotkeys:\n"
+            + "\n".join(sames)
+        )
+        console.print(msg)
+        if prompt:
+            if not confirm_action("Do you want to continue?"):
+                return False
+    hotkeys_to_unstake_from = hotkeys_to_unstake_from_that_exist
 
     with console.status(
         f"Retrieving stake data from {subtensor.network}...",
