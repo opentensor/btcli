@@ -1576,6 +1576,9 @@ class CLIManager:
         for k, v in config.items():
             if k in self.config.keys():
                 self.config[k] = v
+        # Temporarily disable cach for this btcli process.
+        self.config["disk_cache"] = False
+        os.environ["DISK_CACHE"] = "0"
         if self.config.get("use_cache", False):
             with open(self.debug_file_path, "w+") as f:
                 f.write(
