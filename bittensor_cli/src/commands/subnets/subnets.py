@@ -15,7 +15,6 @@ from rich import box
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
-    register_extrinsic,
     burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
@@ -1745,36 +1744,6 @@ async def create(
                 github_repo=identity["github_repo"],
                 proxy=proxy,
             )
-
-
-async def pow_register(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    netuid,
-    processors,
-    update_interval,
-    output_in_place,
-    verbose,
-    use_cuda,
-    dev_id,
-    threads_per_block,
-    prompt: bool,
-):
-    """Register neuron."""
-
-    await register_extrinsic(
-        subtensor,
-        wallet=wallet,
-        netuid=netuid,
-        prompt=prompt,
-        tpb=threads_per_block,
-        update_interval=update_interval,
-        num_processes=processors,
-        cuda=use_cuda,
-        dev_id=dev_id,
-        output_in_place=output_in_place,
-        log_verbose=verbose,
-    )
 
 
 async def register(
