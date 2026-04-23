@@ -8116,6 +8116,8 @@ class CLIManager:
             )
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, False)
+        if netuid != 0:
+            limit = self.ask_rate_tolerance(limit)
         wallet = self.wallet_ask(
             wallet_name,
             wallet_path,
