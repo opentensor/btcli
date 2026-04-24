@@ -152,7 +152,10 @@ def get_hotkey_identity_name(
     """Return a hotkey display name from the V2 identity map, if present."""
     hotkey_identity = identities.get("hotkeys", {}).get(hotkey_ss58, {})
     identity_data = hotkey_identity.get("identity", {})
-    return identity_data.get("name") or identity_data.get("display") or None
+    if isinstance((id_name := identity_data.get("name")), list):
+        if len(id_name) != 0:
+            return bytes(id_name).decode("utf-8")
+    return identity_data.get("display") or None
 
 
 def get_coldkey_identity_name(
