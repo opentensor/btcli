@@ -1232,7 +1232,7 @@ async def _get_extrinsic_fee(
                 "hotkey": hotkey_ss58,
                 "netuid": netuid,
                 "amount_unstaked": amount.rao,
-                "limit_price": price_limit,
+                "limit_price": price_limit.rao if price_limit is not None else None,
                 "allow_partial": allow_partial_stake,
             },
         ),
