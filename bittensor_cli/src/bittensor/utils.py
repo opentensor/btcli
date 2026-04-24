@@ -155,6 +155,8 @@ def get_hotkey_identity_name(
     if isinstance((id_name := identity_data.get("name")), list):
         if len(id_name) != 0:
             return bytes(id_name).decode("utf-8")
+    elif isinstance(id_name, str):
+        return id_name
     return identity_data.get("display") or None
 
 
