@@ -5,6 +5,7 @@ Extrinsics for serving operations (axon management).
 import typing
 from typing import Optional
 
+import netaddr
 from bittensor_wallet import Wallet
 
 from bittensor_cli.src.bittensor.utils import (
@@ -190,8 +191,6 @@ async def set_axon_extrinsic(
     # 32-bit when interpreted as ip_type=4 and 128-bit when interpreted as
     # ip_type=6, so the wrong combination yields an unreachable axon).
     try:
-        import netaddr
-
         parsed_ip = netaddr.IPAddress(ip)
         ip_int = int(parsed_ip)
     except Exception as e:
