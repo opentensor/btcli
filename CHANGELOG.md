@@ -28,6 +28,7 @@
 * Adds CODEOWNERS file by @thewhaleking in https://github.com/latent-to/btcli/pull/936
 * Resolves the issue with the disk cache by @thewhaleking in https://github.com/latent-to/btcli/pull/935
 * Bumps ruff version by @thewhaleking in https://github.com/latent-to/btcli/pull/943
+* Support New Hyperparams by @thewhaleking in https://github.com/latent-to/btcli/pull/944
 
 **Full Changelog**: https://github.com/latent-to/btcli/compare/v9.20.1...v9.21.0
 
