@@ -6897,6 +6897,11 @@ class CLIManager:
         param_value: Optional[str] = typer.Option(
             "", "--value", help="Value to set the hyperparameter to."
         ),
+        normalize_value: bool = typer.Option(
+            False,
+            "--normalize",
+            help="Whether to accept input as the normalized value.",
+        ),
         proxy: Optional[str] = Options.proxy,
         prompt: bool = Options.prompt,
         decline: bool = Options.decline,
@@ -7108,10 +7113,12 @@ class CLIManager:
                     "Param value not supplied with `--no-prompt` flag. Cannot continue."
                 )
                 return False
-            if HYPERPARAMS.get(param_name):
+            if not normalize_value and HYPERPARAMS.get(param_name):
                 param_value = Prompt.ask(
                     f"Enter the new value for [{COLORS.G.SUBHEAD}]{param_name}[/{COLORS.G.SUBHEAD}] "
-                    f"in the VALUE column format"
+                    f"in the VALUE column format. \n"
+                    f"Tip: to enter the normalized value instead, run this command with "
+                    f"{arg__('--normalize')} instead."
                 )
             else:
                 param_value = None
@@ -7137,6 +7144,7 @@ class CLIManager:
                         proxy=proxy,
                         param_name=param_name,
                         param_value=param_value,
+                        normalize=normalize_value,
                         prompt=prompt,
                         json_output=json_output,
                     )
@@ -7174,6 +7182,7 @@ class CLIManager:
                     proxy=proxy,
                     param_name=param_name,
                     param_value=param_value,
+                    normalize=normalize_value,
                     prompt=prompt,
                     json_output=json_output,
                 )

@@ -524,6 +524,7 @@ async def set_hyperparameter_extrinsic(
     proxy: Optional[str],
     parameter: str,
     value: Optional[Union[str, float, list[float]]],
+    normalize: bool,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
@@ -538,6 +539,7 @@ async def set_hyperparameter_extrinsic(
     :param proxy: Optional proxy to use for this extrinsic submission.
     :param parameter: Hyperparameter name.
     :param value: New hyperparameter value.
+    :param normalize: Normalize hyperparameter value or not.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
@@ -570,6 +572,9 @@ async def set_hyperparameter_extrinsic(
 
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", RootSudoOnly.FALSE))
     call_params = {"netuid": netuid}
+    if normalize:
+        parameter = extrinsic
+        extrinsic = None
     if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
             parameter, value, netuid, subtensor.substrate.metadata
@@ -1020,6 +1025,7 @@ async def sudo_set_hyperparameter(
     proxy: Optional[str],
     param_name: str,
     param_value: Optional[str],
+    normalize: bool,
     prompt: bool,
     json_output: bool,
 ) -> tuple[bool, str, Optional[str]]:
@@ -1043,7 +1049,14 @@ async def sudo_set_hyperparameter(
     if json_output:
         prompt = False
     success, err_msg, ext_id = await set_hyperparameter_extrinsic(
-        subtensor, wallet, netuid, proxy, param_name, value, prompt=prompt
+        subtensor,
+        wallet,
+        netuid,
+        proxy,
+        param_name,
+        value,
+        normalize=normalize,
+        prompt=prompt,
     )
     if json_output:
         return success, err_msg, ext_id
