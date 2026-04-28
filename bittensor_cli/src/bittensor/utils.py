@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import webbrowser
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
@@ -301,6 +302,14 @@ def u64_normalized_float(x: int) -> float:
 def string_to_u64(value: str) -> int:
     """Converts a string to u64"""
     return float_to_u64(float(value))
+
+
+def string_to_u64f64(value: str) -> int:
+    """Converts a string to a U64F64 fixed-point raw u128 value."""
+    d = Decimal(value)
+    if not (0 <= d < 2**64):
+        raise ValueError("Input value must be in the range [0, 2**64)")
+    return int(d * (Decimal(2) ** 64))
 
 
 def float_to_u64(value: float) -> int:

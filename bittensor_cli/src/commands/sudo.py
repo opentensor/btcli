@@ -37,6 +37,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
     get_hotkey_identity_name,
+    string_to_u64f64,
 )
 
 if TYPE_CHECKING:
@@ -356,7 +357,8 @@ def search_metadata(
                     f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}': "
                 )
             return arg_types[type_](val)
-        except ValueError:
+        except ValueError as e:
+            print_error(f"Error: {e}")
             return type_converter_with_retry(type_, None, arg_name)
         except KeyError:
             print_error(
@@ -364,14 +366,21 @@ def search_metadata(
                 "You will be unable to set this parameter via this command.\n"
                 "Some hyperparams must be set by their dedicated command, such as `btcli subnets mech`"
             )
+            raise KeyError
 
     arg_types = {
         "bool": string_to_bool,
         "u16": string_to_u16,
         "u64": string_to_u64,
         "MechId": int,
+        "U64F64": string_to_u64f64,
     }
-    arg_type_output = {"bool": "bool", "u16": "float", "u64": "float"}
+    arg_type_output = {
+        "bool": "bool",
+        "u16": "float",
+        "u64": "float",
+        "U64F64": "decimal",
+    }
 
     call_crafter = {"netuid": netuid}
 
@@ -383,15 +392,23 @@ def search_metadata(
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
             if len(call_args) == 1:
                 arg = call_args[0].value
-                call_crafter[arg["name"]] = type_converter_with_retry(
-                    arg["typeName"], value, arg["name"]
-                )
+                try:
+                    call_crafter[arg["name"]] = type_converter_with_retry(
+                        arg["typeName"], value, arg["name"]
+                    )
+                except KeyError:
+                    return False, {"error": "Unable to set value for hyperparameter"}
             else:
                 for arg_ in call_args:
                     arg = arg_.value
-                    call_crafter[arg["name"]] = type_converter_with_retry(
-                        arg["typeName"], None, arg["name"]
-                    )
+                    try:
+                        call_crafter[arg["name"]] = type_converter_with_retry(
+                            arg["typeName"], None, arg["name"]
+                        )
+                    except KeyError:
+                        return False, {
+                            "error": "Unable to set value for hyperparameter"
+                        }
             return True, call_crafter
     else:
         return False, None
@@ -554,7 +571,10 @@ async def set_hyperparameter_extrinsic(
         )
         extrinsic = parameter
         if not arbitrary_extrinsic:
-            err_msg = "Invalid hyperparameter specified."
+            if call_params:
+                err_msg = call_params["error"]
+            else:
+                err_msg = "Invalid hyperparameter specified."
             print_error(err_msg)
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
