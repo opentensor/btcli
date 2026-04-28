@@ -20,7 +20,8 @@ from vanta_cli.src.commands.asset import (
 )
 from vanta_cli.src.commands.entity import (
     register as register_entity,
-    create_subaccount as create_subaccount_entity
+    create_subaccount as create_subaccount_entity,
+    apikey as apikey_entity,
 )
 
 _epilog = "Made with [bold red]:heart:[/bold red] by The Vanτa Neτwork"
@@ -97,6 +98,9 @@ class VantaCLIManager(CLIManager):
         self.entity_app.command(
             "create-subaccount", rich_help_panel="Entity Management"
         )(self.entity_create_subaccount)
+        self.entity_app.command(
+            "apikey", rich_help_panel="Entity Management"
+        )(self.entity_apikey)
 
     def collateral_list(
         self,
@@ -358,6 +362,40 @@ class VantaCLIManager(CLIManager):
                 quiet,
                 verbose,
                 json_output
+            )
+        )
+
+    def entity_apikey(
+        self,
+        wallet_name: Optional[str] = Options.wallet_name,
+        wallet_path: Optional[str] = Options.wallet_path,
+        wallet_hotkey: Optional[str] = Options.wallet_hotkey_ss58,
+        network: str = VantaOptions.vanta_network,
+        quiet: bool = Options.quiet,
+        verbose: bool = Options.verbose,
+        json_output: bool = Options.json_output,
+    ):
+        """
+        Request or retrieve the API key for your entity miner
+        """
+        self.verbosity_handler(quiet, verbose, json_output)
+
+        ask_for = [WO.NAME, WO.HOTKEY]
+        wallet = self.wallet_ask(
+            wallet_name,
+            wallet_path,
+            wallet_hotkey,
+            ask_for=ask_for,
+            validate=WV.WALLET_AND_HOTKEY,
+        )
+
+        return self._run_command(
+            apikey_entity.apikey(
+                wallet,
+                network,
+                quiet,
+                verbose,
+                json_output,
             )
         )
 
