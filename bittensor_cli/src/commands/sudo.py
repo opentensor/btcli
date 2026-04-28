@@ -374,12 +374,14 @@ def search_metadata(
         "u64": string_to_u64,
         "MechId": int,
         "U64F64": string_to_u64f64,
+        "TaoBalance": lambda x: Balance.from_tao(float(x)).rao,
     }
     arg_type_output = {
         "bool": "bool",
         "u16": "float",
         "u64": "float",
         "U64F64": "decimal",
+        "TaoBalance": "Tao (float)",
     }
 
     call_crafter = {"netuid": netuid}
