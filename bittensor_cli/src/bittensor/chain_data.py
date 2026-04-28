@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Optional, Any, Union
 
 import netaddr
+from scalecodec.utils.math import FixedPoint
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -185,11 +186,16 @@ class SubnetHyperparameters(InfoBase):
     transfers_enabled: bool
     bonds_reset_enabled: bool
     user_liquidity_enabled: bool
+    burn_increase_mult: FixedPoint
+    burn_half_life: int
 
     @classmethod
     def _fix_decoded(
-        cls, decoded: Union[dict, "SubnetHyperparameters"]
+        cls,
+        decoded: Union[dict, "SubnetHyperparameters"],
     ) -> "SubnetHyperparameters":
+        burn_increase_mult: FixedPoint = decoded["burn_increase_mult"]
+        burn_half_life: int = decoded["burn_half_life"]
         return cls(
             activity_cutoff=decoded["activity_cutoff"],
             adjustment_alpha=decoded["adjustment_alpha"],
@@ -226,6 +232,8 @@ class SubnetHyperparameters(InfoBase):
             weights_rate_limit=decoded["weights_rate_limit"],
             weights_version=decoded["weights_version"],
             yuma_version=decoded["yuma_version"],
+            burn_increase_mult=burn_increase_mult,
+            burn_half_life=burn_half_life,
         )
 
 

@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import webbrowser
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
@@ -32,7 +33,7 @@ import typer
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import defaults, Constants
-
+from scalecodec.utils.math import fixed_to_float
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -303,6 +304,14 @@ def string_to_u64(value: str) -> int:
     return float_to_u64(float(value))
 
 
+def string_to_u64f64(value: str) -> int:
+    """Converts a string to a U64F64 fixed-point raw u128 value."""
+    d = Decimal(value)
+    if not (0 <= d < 2**64):
+        raise ValueError("Input value must be in the range [0, 2**64)")
+    return int(d * (Decimal(2) ** 64))
+
+
 def float_to_u64(value: float) -> int:
     """Converts a float to a u64 int"""
     # Ensure the input is within the expected range
@@ -326,6 +335,20 @@ def u64_to_float(value: int) -> float:
 def string_to_u16(value: str) -> int:
     """Converts a string to a u16 int"""
     return float_to_u16(float(value))
+
+
+def string_to_i16(value: str) -> int:
+    """Converts a stringified float to a u16 int"""
+    return float_to_i16(float(value))
+
+
+def float_to_i16(value: float) -> int:
+    """Converts a float to a 16-bit signed integer"""
+    if not (-1 <= value <= 1):
+        raise ValueError("Input value must be between -1 and 1")
+
+    i16_max = 32767
+    return int(value * i16_max)
 
 
 def float_to_u16(value: float) -> int:
@@ -912,6 +935,8 @@ def normalize_hyperparameters(
         "alpha_sigmoid_steepness": u16_normalized_float,
         "min_burn": Balance.from_rao,
         "max_burn": Balance.from_rao,
+        "burn_increase_mult": fixed_to_float,
+        "burn_half_life": u16_normalized_float,
     }
 
     normalized_values: list[tuple[str, str, str]] = []
