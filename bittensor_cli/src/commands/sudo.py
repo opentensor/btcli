@@ -552,10 +552,15 @@ async def set_hyperparameter_extrinsic(
     """
     print_verbose("Confirming subnet owner")
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    block_hash = (
+        subtensor.substrate.last_block_hash
+        or await subtensor.substrate.get_chain_head()
+    )
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
+        block_hash=block_hash,
     )
 
     if not (ulw := unlock_key(wallet)).success:
@@ -591,7 +596,7 @@ async def set_hyperparameter_extrinsic(
 
     if not arbitrary_extrinsic:
         extrinsic_params = await substrate.get_metadata_call_function(
-            module_name=pallet, call_function_name=extrinsic
+            module_name=pallet, call_function_name=extrinsic, block_hash=block_hash
         )
 
         # if input value is a list, iterate through the list and assign values
@@ -626,10 +631,14 @@ async def set_hyperparameter_extrinsic(
         call_module=pallet,
         call_function=extrinsic,
         call_params=call_params,
+        block_hash=block_hash,
     )
     if sudo_ is RootSudoOnly.TRUE:
         call = await substrate.compose_call(
-            call_module="Sudo", call_function="sudo", call_params={"call": call_}
+            call_module="Sudo",
+            call_function="sudo",
+            call_params={"call": call_},
+            block_hash=block_hash,
         )
     elif sudo_ is RootSudoOnly.COMPLICATED:
         if not prompt:
@@ -647,6 +656,7 @@ async def set_hyperparameter_extrinsic(
                 call_module="Sudo",
                 call_function="sudo",
                 call_params={"call": call_},
+                block_hash=block_hash,
             )
         else:
             if subnet_owner != coldkey_ss58:

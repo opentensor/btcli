@@ -650,6 +650,8 @@ HYPERPARAMS = {
     "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
     "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
     "max_allowed_uids": ("sudo_set_max_allowed_uids", RootSudoOnly.FALSE),
+    "burn_increase_mult": ("sudo_set_burn_increase_mult", RootSudoOnly.FALSE),
+    "burn_half_life": ("sudo_set_burn_half_life", RootSudoOnly.FALSE),
 }
 
 HYPERPARAMS_MODULE = {
