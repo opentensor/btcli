@@ -40,6 +40,7 @@ async def test_max_burn_no_prompt_owner_uses_owner_path(
             wait_for_inclusion=False,
             wait_for_finalization=False,
             prompt=False,
+            normalize=False,
         )
 
     assert success is True
@@ -94,6 +95,7 @@ async def test_max_burn_no_prompt_non_owner_uses_sudo_path(
             wait_for_inclusion=False,
             wait_for_finalization=False,
             prompt=False,
+            normalize=False,
         )
 
     assert success is True
@@ -154,6 +156,7 @@ async def test_max_burn_interactive_owner_chooses_non_sudo_path(
             prompt=True,
             decline=False,
             quiet=True,
+            normalize=False,
         )
 
     assert success is True
@@ -205,6 +208,7 @@ async def test_max_burn_interactive_non_owner_chooses_non_sudo_errors(
             prompt=True,
             decline=False,
             quiet=True,
+            normalize=False,
         )
 
     assert success is False
