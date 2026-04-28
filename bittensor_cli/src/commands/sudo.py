@@ -38,6 +38,7 @@ from bittensor_cli.src.bittensor.utils import (
     print_extrinsic_id,
     get_hotkey_identity_name,
     string_to_u64f64,
+    float_to_u16,
 )
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ DEFAULT_PALLET = "AdminUtils"
 
 
 def allowed_value(
-    param: str, value: Union[str, bool]
+    param: str, value: str | bool, normalize: bool
 ) -> tuple[bool, Union[str, list[float], float, bool]]:
     """
     Check the allowed values on hyperparameters. Return False if value is out of bounds.
@@ -72,18 +73,32 @@ def allowed_value(
                 alpha_low = float(alpha_low_str)
 
                 # Check alpha_high value
-                if alpha_high <= 52428 or alpha_high >= 65535:
-                    return (
-                        False,
-                        f"between 52428 and 65535 for alpha_high (but is {alpha_high})",
-                    )
+                if normalize:
+                    if alpha_high <= 0.8 or alpha_high >= 1.0:
+                        return (
+                            False,
+                            f"between 0.8 and 1.0 for alpha_high (but is {alpha_high})",
+                        )
+                else:
+                    if alpha_high <= 52428 or alpha_high >= 65535:
+                        return (
+                            False,
+                            f"between 52428 and 65535 for alpha_high (but is {alpha_high})",
+                        )
 
                 # Check alpha_low value
-                if alpha_low < 0 or alpha_low > 52428:
-                    return (
-                        False,
-                        f"between 0 and 52428 for alpha_low (but is {alpha_low})",
-                    )
+                if normalize:
+                    if alpha_low < 0.0 or alpha_low > 0.8:
+                        return (
+                            False,
+                            f"between 0.0 and 0.8 for alpha_low (but is {alpha_low})",
+                        )
+                else:
+                    if alpha_low < 0 or alpha_low > 52428:
+                        return (
+                            False,
+                            f"between 0 and 52428 for alpha_low (but is {alpha_low})",
+                        )
 
                 return True, [alpha_low, alpha_high]
     except ValueError:
@@ -574,7 +589,7 @@ async def set_hyperparameter_extrinsic(
 
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", RootSudoOnly.FALSE))
     call_params = {"netuid": netuid}
-    if normalize:
+    if normalize and parameter != "alpha_values":
         parameter = extrinsic
         extrinsic = None
     if not extrinsic:
@@ -1032,7 +1047,7 @@ async def sudo_set_hyperparameter(
     json_output: bool,
 ) -> tuple[bool, str, Optional[str]]:
     """Set subnet hyperparameters."""
-    is_allowed_value, value = allowed_value(param_name, param_value)
+    is_allowed_value, value = allowed_value(param_name, param_value, normalize)
     if not is_allowed_value:
         err_msg = (
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
@@ -1050,6 +1065,8 @@ async def sudo_set_hyperparameter(
         return False, err_msg, None
     if json_output:
         prompt = False
+    if param_name == "alpha_values":
+        value = [float_to_u16(value[0]), float_to_u16(value[1])]
     success, err_msg, ext_id = await set_hyperparameter_extrinsic(
         subtensor,
         wallet,
