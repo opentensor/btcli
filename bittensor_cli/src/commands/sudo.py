@@ -39,6 +39,7 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_identity_name,
     string_to_u64f64,
     float_to_u16,
+    string_to_i16,
 )
 
 if TYPE_CHECKING:
@@ -368,10 +369,17 @@ def search_metadata(
     def type_converter_with_retry(type_, val, arg_name):
         try:
             if val is None:
+                if arg_name in do_not_convert:
+                    output_type = do_not_convert[arg_name].__name__
+                else:
+                    output_type = arg_type_output[type_]
                 val = input(
-                    f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}': "
+                    f"Enter a value for field '{arg_name}' with type '{output_type}': "
                 )
-            return arg_types[type_](val)
+            if arg_name in do_not_convert:
+                return do_not_convert[arg_name](val)
+            else:
+                return arg_types[type_](val)
         except ValueError as e:
             print_error(f"Error: {e}")
             return type_converter_with_retry(type_, None, arg_name)
@@ -383,9 +391,26 @@ def search_metadata(
             )
             raise KeyError
 
+    do_not_convert = {
+        "max_registrations_per_block": int,
+        "immunity_period": int,
+        "commit_reveal_period": int,
+        "adjustment_interval": int,
+        "max_validators": int,
+        "min_allowed_weights": int,
+        "rho": int,
+        "serving_rate_limit": int,
+        "target_regs_per_interval": int,
+        "tempo": int,
+        "weights_rate_limit": int,
+        "weights_version": int,
+        "yuma_version": int,
+    }
+
     arg_types = {
         "bool": string_to_bool,
         "u16": string_to_u16,
+        "i16": string_to_i16,
         "u64": string_to_u64,
         "MechId": int,
         "U64F64": string_to_u64f64,
@@ -394,6 +419,7 @@ def search_metadata(
     arg_type_output = {
         "bool": "bool",
         "u16": "float",
+        "i16": "float (signed)",
         "u64": "float",
         "U64F64": "decimal",
         "TaoBalance": "Tao (float)",

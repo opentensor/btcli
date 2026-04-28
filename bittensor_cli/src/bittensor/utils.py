@@ -337,6 +337,19 @@ def string_to_u16(value: str) -> int:
     return float_to_u16(float(value))
 
 
+def string_to_i16(value: str) -> int:
+    return float_to_i16(float(value))
+
+
+def float_to_i16(value: float) -> int:
+    """Converts a float to a 16-bit signed integer"""
+    if not (-1 <= value <= 1):
+        raise ValueError("Input value must be between -1 and 1")
+
+    i16_max = 32767
+    return int(value * i16_max)
+
+
 def float_to_u16(value: float) -> int:
     # Ensure the input is within the expected range
     if not (0 <= value <= 1):
