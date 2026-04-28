@@ -102,7 +102,13 @@ def test_hyperparams_setting(local_chain, wallet_setup):
         )
 
     # Skip parameters that cannot be set with --no-prompt
-    SKIP_PARAMS = {"alpha_high", "alpha_low", "subnet_is_active", "yuma_version"}
+    SKIP_PARAMS = {
+        "alpha_high",
+        "alpha_low",
+        "subnet_is_active",
+        "yuma_version",
+        "burn_increase_mult",
+    }
 
     for key, (_, sudo_only) in HYPERPARAMS.items():
         print(f"key: {key}, sudo_only: {sudo_only}")
@@ -174,6 +180,40 @@ def test_hyperparams_setting(local_chain, wallet_setup):
     cmd_json = json.loads(cmd.stdout)
     assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
     assert isinstance(cmd_json["extrinsic_identifier"], str)
+    # also test normalization
+    param_value_map = [
+        ("max_burn", "110"),
+        ("burn_half_life", "0.15"),
+        ("burn_increase_mult", "1.26"),
+        ("max_regs_per_block", "2"),  # already normalized
+    ]
+    for param, val in param_value_map:
+        cmd = exec_command_alice(
+            command="sudo",
+            sub_command="set",
+            extra_args=[
+                "--wallet-path",
+                wallet_path_alice,
+                "--network",
+                "ws://127.0.0.1:9945",
+                "--wallet-name",
+                wallet_alice.name,
+                "--wallet-hotkey",
+                wallet_alice.hotkey_str,
+                "--netuid",
+                netuid,
+                "--json-out",
+                "--no-prompt",
+                "--param",
+                param,
+                "--value",
+                val,
+                "--normalize",
+            ],
+        )
+        cmd_json = json.loads(cmd.stdout)
+        assert cmd_json["success"] is True, (cmd.stdout, cmd_json)
+        assert isinstance(cmd_json["extrinsic_identifier"], str)
     print("Successfully set hyperparameters")
     print("Testing trimming UIDs")
     cmd = exec_command_alice(
