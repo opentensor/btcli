@@ -338,6 +338,7 @@ def string_to_u16(value: str) -> int:
 
 
 def string_to_i16(value: str) -> int:
+    """Converts a stringified float to a u16 int"""
     return float_to_i16(float(value))
 
 
