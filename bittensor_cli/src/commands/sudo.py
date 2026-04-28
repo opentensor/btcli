@@ -21,7 +21,6 @@ from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
-from bittensor_cli.src.bittensor.chain_data import decode_account_id
 from bittensor_cli.src.bittensor.utils import (
     confirm_action,
     console,
@@ -38,6 +37,9 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
     get_hotkey_identity_name,
+    string_to_u64f64,
+    float_to_u16,
+    string_to_i16,
 )
 
 if TYPE_CHECKING:
@@ -53,7 +55,7 @@ DEFAULT_PALLET = "AdminUtils"
 
 
 def allowed_value(
-    param: str, value: Union[str, bool]
+    param: str, value: str | bool, normalize: bool
 ) -> tuple[bool, Union[str, list[float], float, bool]]:
     """
     Check the allowed values on hyperparameters. Return False if value is out of bounds.
@@ -72,18 +74,32 @@ def allowed_value(
                 alpha_low = float(alpha_low_str)
 
                 # Check alpha_high value
-                if alpha_high <= 52428 or alpha_high >= 65535:
-                    return (
-                        False,
-                        f"between 52428 and 65535 for alpha_high (but is {alpha_high})",
-                    )
+                if normalize:
+                    if alpha_high <= 0.8 or alpha_high >= 1.0:
+                        return (
+                            False,
+                            f"between 0.8 and 1.0 for alpha_high (but is {alpha_high})",
+                        )
+                else:
+                    if alpha_high <= 52428 or alpha_high >= 65535:
+                        return (
+                            False,
+                            f"between 52428 and 65535 for alpha_high (but is {alpha_high})",
+                        )
 
                 # Check alpha_low value
-                if alpha_low < 0 or alpha_low > 52428:
-                    return (
-                        False,
-                        f"between 0 and 52428 for alpha_low (but is {alpha_low})",
-                    )
+                if normalize:
+                    if alpha_low < 0.0 or alpha_low > 0.8:
+                        return (
+                            False,
+                            f"between 0.0 and 0.8 for alpha_low (but is {alpha_low})",
+                        )
+                else:
+                    if alpha_low < 0 or alpha_low > 52428:
+                        return (
+                            False,
+                            f"between 0 and 52428 for alpha_low (but is {alpha_low})",
+                        )
 
                 return True, [alpha_low, alpha_high]
     except ValueError:
@@ -353,11 +369,19 @@ def search_metadata(
     def type_converter_with_retry(type_, val, arg_name):
         try:
             if val is None:
+                if arg_name in do_not_convert:
+                    output_type = do_not_convert[arg_name].__name__
+                else:
+                    output_type = arg_type_output[type_]
                 val = input(
-                    f"Enter a value for field '{arg_name}' with type '{arg_type_output[type_]}': "
+                    f"Enter a value for field '{arg_name}' with type '{output_type}': "
                 )
-            return arg_types[type_](val)
-        except ValueError:
+            if arg_name in do_not_convert:
+                return do_not_convert[arg_name](val)
+            else:
+                return arg_types[type_](val)
+        except ValueError as e:
+            print_error(f"Error: {e}")
             return type_converter_with_retry(type_, None, arg_name)
         except KeyError:
             print_error(
@@ -365,14 +389,41 @@ def search_metadata(
                 "You will be unable to set this parameter via this command.\n"
                 "Some hyperparams must be set by their dedicated command, such as `btcli subnets mech`"
             )
+            raise KeyError
+
+    do_not_convert = {
+        "max_registrations_per_block": int,
+        "immunity_period": int,
+        "commit_reveal_period": int,
+        "adjustment_interval": int,
+        "max_validators": int,
+        "min_allowed_weights": int,
+        "rho": int,
+        "serving_rate_limit": int,
+        "target_regs_per_interval": int,
+        "tempo": int,
+        "weights_rate_limit": int,
+        "weights_version": int,
+        "yuma_version": int,
+    }
 
     arg_types = {
         "bool": string_to_bool,
         "u16": string_to_u16,
+        "i16": string_to_i16,
         "u64": string_to_u64,
         "MechId": int,
+        "U64F64": string_to_u64f64,
+        "TaoBalance": lambda x: Balance.from_tao(float(x)).rao,
     }
-    arg_type_output = {"bool": "bool", "u16": "float", "u64": "float"}
+    arg_type_output = {
+        "bool": "bool",
+        "u16": "float",
+        "i16": "float (signed)",
+        "u64": "float",
+        "U64F64": "decimal",
+        "TaoBalance": "Tao (float)",
+    }
 
     call_crafter = {"netuid": netuid}
 
@@ -384,15 +435,23 @@ def search_metadata(
             call_args = [arg for arg in call.args if arg.value["name"] != "netuid"]
             if len(call_args) == 1:
                 arg = call_args[0].value
-                call_crafter[arg["name"]] = type_converter_with_retry(
-                    arg["typeName"], value, arg["name"]
-                )
+                try:
+                    call_crafter[arg["name"]] = type_converter_with_retry(
+                        arg["typeName"], value, arg["name"]
+                    )
+                except KeyError:
+                    return False, {"error": "Unable to set value for hyperparameter"}
             else:
                 for arg_ in call_args:
                     arg = arg_.value
-                    call_crafter[arg["name"]] = type_converter_with_retry(
-                        arg["typeName"], None, arg["name"]
-                    )
+                    try:
+                        call_crafter[arg["name"]] = type_converter_with_retry(
+                            arg["typeName"], None, arg["name"]
+                        )
+                    except KeyError:
+                        return False, {
+                            "error": "Unable to set value for hyperparameter"
+                        }
             return True, call_crafter
     else:
         return False, None
@@ -508,6 +567,7 @@ async def set_hyperparameter_extrinsic(
     proxy: Optional[str],
     parameter: str,
     value: Optional[Union[str, float, list[float]]],
+    normalize: bool,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = True,
@@ -522,6 +582,7 @@ async def set_hyperparameter_extrinsic(
     :param proxy: Optional proxy to use for this extrinsic submission.
     :param parameter: Hyperparameter name.
     :param value: New hyperparameter value.
+    :param normalize: Normalize hyperparameter value or not.
     :param wait_for_inclusion: If set, waits for the extrinsic to enter a block before returning `True`, or returns
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
@@ -536,10 +597,15 @@ async def set_hyperparameter_extrinsic(
     """
     print_verbose("Confirming subnet owner")
     coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    block_hash = (
+        subtensor.substrate.last_block_hash
+        or await subtensor.substrate.get_chain_head()
+    )
     subnet_owner = await subtensor.query(
         module="SubtensorModule",
         storage_function="SubnetOwner",
         params=[netuid],
+        block_hash=block_hash,
     )
 
     if not (ulw := unlock_key(wallet)).success:
@@ -549,13 +615,19 @@ async def set_hyperparameter_extrinsic(
 
     extrinsic, sudo_ = HYPERPARAMS.get(parameter, ("", RootSudoOnly.FALSE))
     call_params = {"netuid": netuid}
+    if normalize and parameter != "alpha_values":
+        parameter = extrinsic
+        extrinsic = None
     if not extrinsic:
         arbitrary_extrinsic, call_params = search_metadata(
             parameter, value, netuid, subtensor.substrate.metadata
         )
         extrinsic = parameter
         if not arbitrary_extrinsic:
-            err_msg = "Invalid hyperparameter specified."
+            if call_params:
+                err_msg = call_params["error"]
+            else:
+                err_msg = "Invalid hyperparameter specified."
             print_error(err_msg)
             return False, err_msg, None
     if sudo_ is RootSudoOnly.TRUE and prompt:
@@ -572,7 +644,7 @@ async def set_hyperparameter_extrinsic(
 
     if not arbitrary_extrinsic:
         extrinsic_params = await substrate.get_metadata_call_function(
-            module_name=pallet, call_function_name=extrinsic
+            module_name=pallet, call_function_name=extrinsic, block_hash=block_hash
         )
 
         # if input value is a list, iterate through the list and assign values
@@ -607,14 +679,20 @@ async def set_hyperparameter_extrinsic(
         call_module=pallet,
         call_function=extrinsic,
         call_params=call_params,
+        block_hash=block_hash,
     )
     if sudo_ is RootSudoOnly.TRUE:
         call = await substrate.compose_call(
-            call_module="Sudo", call_function="sudo", call_params={"call": call_}
+            call_module="Sudo",
+            call_function="sudo",
+            call_params={"call": call_},
+            block_hash=block_hash,
         )
     elif sudo_ is RootSudoOnly.COMPLICATED:
         if not prompt:
-            to_sudo_or_not_to_sudo = True  # default to sudo true when no-prompt is set
+            # In no-prompt mode, owners should take the owner path; non-owners
+            # should default to sudo.
+            to_sudo_or_not_to_sudo = subnet_owner != coldkey_ss58
         else:
             to_sudo_or_not_to_sudo = confirm_action(
                 "This hyperparam can be executed as sudo or not. Do you want to execute as sudo [y] or not [n]?",
@@ -626,6 +704,7 @@ async def set_hyperparameter_extrinsic(
                 call_module="Sudo",
                 call_function="sudo",
                 call_params={"call": call_},
+                block_hash=block_hash,
             )
         else:
             if subnet_owner != coldkey_ss58:
@@ -684,9 +763,8 @@ async def _get_senate_members(
         block_hash=block_hash,
     )
     try:
-        return [
-            decode_account_id(i[x][0]) for i in senate_members for x in range(len(i))
-        ]
+        # TODO double-check the decode logic here
+        return [i[x] for i in senate_members for x in range(len(i))]
     except (IndexError, TypeError):
         print_error("Unable to retrieve senate members.")
         return []
@@ -990,11 +1068,12 @@ async def sudo_set_hyperparameter(
     proxy: Optional[str],
     param_name: str,
     param_value: Optional[str],
+    normalize: bool,
     prompt: bool,
     json_output: bool,
 ) -> tuple[bool, str, Optional[str]]:
     """Set subnet hyperparameters."""
-    is_allowed_value, value = allowed_value(param_name, param_value)
+    is_allowed_value, value = allowed_value(param_name, param_value, normalize)
     if not is_allowed_value:
         err_msg = (
             f"Hyperparameter [dark_orange]{param_name}[/dark_orange] value is not within bounds. "
@@ -1012,8 +1091,17 @@ async def sudo_set_hyperparameter(
         return False, err_msg, None
     if json_output:
         prompt = False
+    if param_name == "alpha_values":
+        value = [float_to_u16(value[0]), float_to_u16(value[1])]
     success, err_msg, ext_id = await set_hyperparameter_extrinsic(
-        subtensor, wallet, netuid, proxy, param_name, value, prompt=prompt
+        subtensor,
+        wallet,
+        netuid,
+        proxy,
+        param_name,
+        value,
+        normalize=normalize,
+        prompt=prompt,
     )
     if json_output:
         return success, err_msg, ext_id
@@ -1052,9 +1140,7 @@ async def get_hyperparameters(
         if not await subtensor.subnet_exists(netuid):
             error_msg = f"Subnet with netuid {netuid} does not exist."
             if json_output:
-                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
-                sys.stdout.write(json_str + "\n")
-                sys.stdout.flush()
+                json_console.print_json(data={"error": error_msg})
             else:
                 print_error(error_msg)
             return False
@@ -1064,17 +1150,13 @@ async def get_hyperparameters(
         if subnet_info is None:
             error_msg = f"Subnet with netuid {netuid} does not exist."
             if json_output:
-                json_str = json.dumps({"error": error_msg}, ensure_ascii=True)
-                sys.stdout.write(json_str + "\n")
-                sys.stdout.flush()
+                json_console.print_json(data={"error": error_msg})
             else:
                 print_error(error_msg)
             return False
     except Exception as e:
         if json_output:
-            json_str = json.dumps({"error": str(e)}, ensure_ascii=True)
-            sys.stdout.write(json_str + "\n")
-            sys.stdout.flush()
+            json_console.print_json(data={"error": str(e)})
         else:
             raise
         return False
@@ -1382,7 +1464,7 @@ async def senate_vote(
         return False
 
     console.print(f"Fetching proposals in [dark_orange]network: {subtensor.network}")
-    vote_data = await subtensor.get_vote_data(proposal_hash, reuse_block=True)
+    vote_data = await subtensor.get_vote_data(proposal_hash)
     if not vote_data:
         print_error("Failed: Proposal not found.")
         return False
