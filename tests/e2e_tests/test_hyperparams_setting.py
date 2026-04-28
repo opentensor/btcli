@@ -102,7 +102,13 @@ def test_hyperparams_setting(local_chain, wallet_setup):
         )
 
     # Skip parameters that cannot be set with --no-prompt
-    SKIP_PARAMS = {"alpha_high", "alpha_low", "subnet_is_active", "yuma_version"}
+    SKIP_PARAMS = {
+        "alpha_high",
+        "alpha_low",
+        "subnet_is_active",
+        "yuma_version",
+        "burn_increase_mult",
+    }
 
     for key, (_, sudo_only) in HYPERPARAMS.items():
         print(f"key: {key}, sudo_only: {sudo_only}")
