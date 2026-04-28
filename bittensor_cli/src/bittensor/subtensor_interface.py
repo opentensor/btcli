@@ -1364,16 +1364,29 @@ class SubtensorInterface:
         Understanding the hyperparameters is crucial for comprehending how subnets are configured and
         managed, and how they interact with the network's consensus and incentive mechanisms.
         """
-        result = await self.query_runtime_api(
-            runtime_api="SubnetInfoRuntimeApi",
-            method="get_subnet_hyperparams_v2",
-            params=[netuid],
-            block_hash=block_hash,
+        result, burn_increase_mult, burn_half_life = await asyncio.gather(
+            self.query_runtime_api(
+                runtime_api="SubnetInfoRuntimeApi",
+                method="get_subnet_hyperparams_v2",
+                params=[netuid],
+                block_hash=block_hash,
+            ),
+            self.substrate.query(
+                "SubtensorModule", "BurnIncreaseMult", [netuid], block_hash=block_hash
+            ),
+            self.substrate.query(
+                "SubtensorModule", "BurnHalfLife", [netuid], block_hash=block_hash
+            ),
         )
         if not result:
             return []
 
-        return SubnetHyperparameters.from_any(result)
+        additional = {
+            "burn_increase_mult": burn_increase_mult.value,
+            "burn_half_life": burn_half_life.value,
+        }
+
+        return SubnetHyperparameters.from_any(result | additional)
 
     async def get_subnet_mechanisms(
         self, netuid: int, block_hash: Optional[str] = None
