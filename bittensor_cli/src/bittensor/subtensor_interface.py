@@ -1364,6 +1364,8 @@ class SubtensorInterface:
         Understanding the hyperparameters is crucial for comprehending how subnets are configured and
         managed, and how they interact with the network's consensus and incentive mechanisms.
         """
+        if block_hash is None:
+            block_hash = await self.substrate.get_chain_head()
         result, burn_increase_mult, burn_half_life = await asyncio.gather(
             self.query_runtime_api(
                 runtime_api="SubnetInfoRuntimeApi",

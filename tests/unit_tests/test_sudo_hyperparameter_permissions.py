@@ -50,6 +50,7 @@ async def test_max_burn_no_prompt_owner_uses_owner_path(
         call_module="AdminUtils",
         call_function="sudo_set_max_burn",
         call_params={"netuid": 1, "max_burn": "10000000000"},
+        block_hash=mock_subtensor.substrate.last_block_hash,
     )
     mock_subtensor.sign_and_send_extrinsic.assert_awaited_once_with(
         direct_call,
@@ -106,11 +107,13 @@ async def test_max_burn_no_prompt_non_owner_uses_sudo_path(
         "call_module": "AdminUtils",
         "call_function": "sudo_set_max_burn",
         "call_params": {"netuid": 1, "max_burn": "10000000000"},
+        "block_hash": mock_subtensor.substrate.last_block_hash,
     }
     assert mock_subtensor.substrate.compose_call.await_args_list[1].kwargs == {
         "call_module": "Sudo",
         "call_function": "sudo",
         "call_params": {"call": direct_call},
+        "block_hash": mock_subtensor.substrate.last_block_hash,
     }
     mock_subtensor.sign_and_send_extrinsic.assert_awaited_once_with(
         sudo_call,
@@ -166,6 +169,7 @@ async def test_max_burn_interactive_owner_chooses_non_sudo_path(
         call_module="AdminUtils",
         call_function="sudo_set_max_burn",
         call_params={"netuid": 1, "max_burn": "10000000000"},
+        block_hash=mock_subtensor.substrate.last_block_hash,
     )
     mock_subtensor.sign_and_send_extrinsic.assert_awaited_once_with(
         direct_call,
@@ -218,5 +222,6 @@ async def test_max_burn_interactive_non_owner_chooses_non_sudo_errors(
         call_module="AdminUtils",
         call_function="sudo_set_max_burn",
         call_params={"netuid": 1, "max_burn": "10000000000"},
+        block_hash=mock_subtensor.substrate.last_block_hash,
     )
     mock_subtensor.sign_and_send_extrinsic.assert_not_awaited()
