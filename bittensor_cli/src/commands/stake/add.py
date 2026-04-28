@@ -315,14 +315,58 @@ async def stake_add(
 
     # Get subnet data and stake information for coldkey
     chain_head = await subtensor.substrate.get_chain_head()
-    _all_subnets, _stake_info, current_wallet_balance = await asyncio.gather(
+    (
+        _all_subnets,
+        _stake_info,
+        current_wallet_balance,
+        hotkey_existence,
+    ) = await asyncio.gather(
         subtensor.all_subnets(block_hash=chain_head),
         subtensor.get_stake_for_coldkey(
             coldkey_ss58=coldkey_ss58,
             block_hash=chain_head,
         ),
         subtensor.get_balance(coldkey_ss58, block_hash=chain_head),
+        subtensor.do_hotkeys_exist(
+            [x[1] for x in hotkeys_to_stake_to],
+            block_hash=chain_head,
+        ),
     )
+    hotkeys_that_exists = [
+        x for x in hotkeys_to_stake_to if hotkey_existence[x[1]] is True
+    ]
+    if not hotkeys_that_exists:
+        err_msg = "No keys existing on chain that can be staked to."
+        if json_output:
+            json_console.print_json(
+                data={
+                    "staking_success": False,
+                    "error_messages": [err_msg],
+                    "extrinsic_ids": None,
+                }
+            )
+        else:
+            print_error(err_msg)
+        return None
+
+    if hotkeys_that_exists != hotkeys_to_stake_to:
+        difference = set(x[1] for x in hotkeys_to_stake_to).symmetric_difference(
+            set(x[1] for x in hotkeys_that_exists)
+        )
+        sames = set(x[1] for x in hotkeys_to_stake_to).intersection(
+            set(x[1] for x in hotkeys_that_exists)
+        )
+        msg = (
+            "Some hotkeys attempting to stake to are not present: "
+            + ", ".join(difference)
+            + ". Using hotkeys:\n"
+            + "\n".join(sames)
+        )
+        console.print(msg)
+        if prompt:
+            if not confirm_action("Do you want to continue?"):
+                return None
+    hotkeys_to_stake_to = hotkeys_that_exists
     all_subnets = {di.netuid: di for di in _all_subnets}
 
     # Map current stake balances for hotkeys
