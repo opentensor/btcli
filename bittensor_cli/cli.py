@@ -585,7 +585,7 @@ def parse_mnemonic(mnemonic: str) -> str:
         )
         if int(items[0][0]) != 1:
             print_error("Numbered mnemonics must begin with 1")
-            raise typer.Exit()
+            raise typer.Exit(1)
         if [int(x[0]) for x in items] != list(
             range(int(items[0][0]), int(items[-1][0]) + 1)
         ):
@@ -593,7 +593,7 @@ def parse_mnemonic(mnemonic: str) -> str:
                 "Missing or duplicate numbers in a numbered mnemonic. "
                 "Double-check your numbered mnemonics and try again."
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
         response = " ".join(item[1] for item in items)
     else:
         response = mnemonic
@@ -639,7 +639,7 @@ def get_creation_data(
     if json_path:
         if not os.path.exists(json_path):
             print_error(f"The JSON file '{json_path}' does not exist.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
     if json_path and not json_password:
         json_password = Prompt.ask(
@@ -747,7 +747,7 @@ def debug_callback(value: bool) -> None:
                 f"file was created using the {arg__('BTCLI_DEBUG_FILE')} environment variable, please set the value for"
                 f" the same location, and re-run this {arg__('btcli --debug')} command."
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
         save_file_loc_ = Prompt.ask(
             "Enter the file location to save the debug log for the previous command.",
             default="~/.bittensor/debug-export",
@@ -1639,7 +1639,7 @@ class CLIManager:
             )
         if quiet and verbose:
             print_error("Cannot specify both `--quiet` and `--verbose`")
-            raise typer.Exit()
+            raise typer.Exit(1)
         if json_output and verbose:
             verbosity_console_handler(3)
         elif json_output or quiet:
@@ -1838,7 +1838,7 @@ class CLIManager:
                             raise typer.Exit()
                 else:
                     print_error(f"{error}")
-                    raise typer.Exit()
+                    raise typer.Exit(1)
 
         for arg, val in args.items():
             if val is not None:
@@ -2029,7 +2029,7 @@ class CLIManager:
             print_error(
                 f"Proxy {name} already exists. Use `btcli config update-proxy` to update it."
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
         proxy_type_val: str
         if isinstance(proxy_type, ProxyType):
             proxy_type_val = proxy_type.value
@@ -2440,7 +2440,7 @@ class CLIManager:
 
         if mechanism_count is None or mechanism_count <= 0:
             print_error(f"Subnet {netuid} does not exist.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if mechanism_id is not None:
             if mechanism_id < 0 or mechanism_id >= mechanism_count:
@@ -2448,7 +2448,7 @@ class CLIManager:
                     f"Mechanism ID {mechanism_id} is out of range for subnet {netuid}. "
                     f"Valid range: [bold cyan]0 to {mechanism_count - 1}[/bold cyan]."
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
             return mechanism_id
 
         if mechanism_count == 1:
@@ -2547,14 +2547,14 @@ class CLIManager:
                     f"Error: Wallet does not exist. \n"
                     f"Please verify your wallet information: {wallet}"
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
 
             if validate == WV.WALLET_AND_HOTKEY and not valid[1]:
                 print_error(
                     f"Error: Wallet '{wallet.name}' exists but the hotkey '{wallet.hotkey_str}' does not. \n"
                     f"Please verify your wallet information: {wallet}"
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
         if return_wallet_and_hotkey:
             valid = utils.is_valid_wallet(wallet)
             if valid[1]:
@@ -2672,7 +2672,7 @@ class CLIManager:
             print_error(
                 "You have specified both the inclusion and exclusion options. Only one of these options is allowed currently."
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if netuids:
             netuids = parse_to_list(
@@ -2782,7 +2782,7 @@ class CLIManager:
         """
         if not is_valid_ss58_address(destination_ss58_address):
             print_error("You have entered an incorrect ss58 address. Please try again.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         self.verbosity_handler(quiet, verbose, json_output, prompt)
         proxy = self.is_valid_proxy_name_or_ss58(proxy, announce_only)
@@ -3816,7 +3816,7 @@ class CLIManager:
             if valid_ss58s:
                 ss58_addresses = valid_ss58s
             else:
-                raise typer.Exit()
+                raise typer.Exit(1)
         else:
             if wallet_name:
                 coldkey_or_ss58 = wallet_name
@@ -3839,7 +3839,7 @@ class CLIManager:
                 if valid_ss58s:
                     ss58_addresses = valid_ss58s
                 else:
-                    raise typer.Exit()
+                    raise typer.Exit(1)
             else:
                 wallet_name = (
                     coldkey_or_ss58_list[0] if coldkey_or_ss58_list else wallet_name
@@ -3898,7 +3898,7 @@ class CLIManager:
             "This command is currently disabled as it used external APIs which are no longer "
             "feasible; meanwhile a chain native data fetching solution is being investigated."
         )
-        raise typer.Exit()
+        raise typer.Exit(1)
 
         self.verbosity_handler(quiet, verbose, False, False)
         wallet = self.wallet_ask(
@@ -4067,7 +4067,7 @@ class CLIManager:
             if coldkey_ss58:
                 if not is_valid_ss58_address(coldkey_ss58):
                     print_error("You entered an invalid ss58 address")
-                    raise typer.Exit()
+                    raise typer.Exit(1)
             else:
                 coldkey_or_ss58 = Prompt.ask(
                     "Enter the [blue]wallet name[/blue] or [blue]coldkey ss58 address[/blue]",
@@ -4569,7 +4569,7 @@ class CLIManager:
         if coldkey_ss58:
             if not is_valid_ss58_address(coldkey_ss58):
                 print_error("You entered an invalid ss58 address")
-                raise typer.Exit()
+                raise typer.Exit(1)
         else:
             if wallet_name:
                 coldkey_or_ss58 = wallet_name
@@ -4719,7 +4719,7 @@ class CLIManager:
         if coldkey_ss58:
             if not is_valid_ss58_address(coldkey_ss58):
                 print_error("You entered an invalid ss58 address")
-                raise typer.Exit()
+                raise typer.Exit(1)
         else:
             if wallet_name:
                 coldkey_or_ss58 = wallet_name
@@ -5033,12 +5033,12 @@ class CLIManager:
 
             if amount <= 0:
                 print_error(f"You entered an incorrect stake amount: {amount}")
-                raise typer.Exit()
+                raise typer.Exit(1)
             if Balance.from_tao(amount) > free_balance:
                 print_error(
                     f"You dont have enough balance to stake. Current free Balance: {free_balance}."
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
         logger.debug(
             "args:\n"
             f"network: {network}\n"
@@ -5552,7 +5552,7 @@ class CLIManager:
                 print_error(
                     "Invalid destination hotkey ss58 address. Please enter a valid ss58 address."
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
         else:
             if is_valid_ss58_address(destination_hotkey):
                 destination_hotkey = destination_hotkey
@@ -5560,7 +5560,7 @@ class CLIManager:
                 print_error(
                     "Invalid destination hotkey ss58 address. Please enter a valid ss58 address or wallet name."
                 )
-                raise typer.Exit()
+                raise typer.Exit(1)
 
         if not wallet_name:
             wallet_name = Prompt.ask(
@@ -6348,7 +6348,7 @@ class CLIManager:
 
         if all_netuids and netuid:
             print_error("Specify either a netuid or `--all`, not both.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if all_netuids:
             netuid = None
@@ -6423,11 +6423,11 @@ class CLIManager:
 
         if len(proportions) != len(children):
             print_error("You must have as many proportions as you have children.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if sum(proportions) > 1.0:
             print_error("Your proportion total must not exceed 1.0.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         wallet = self.wallet_ask(
             wallet_name,
@@ -6507,7 +6507,7 @@ class CLIManager:
         )
         if all_netuids and netuid:
             print_error("Specify either a netuid or '--all', not both.")
-            raise typer.Exit()
+            raise typer.Exit(1)
         if all_netuids:
             netuid = None
         elif not netuid:
@@ -6602,7 +6602,7 @@ class CLIManager:
         )
         if all_netuids and netuid:
             print_error("Specify either a netuid or '--all', not both.")
-            raise typer.Exit()
+            raise typer.Exit(1)
         if all_netuids:
             netuid = None
         elif not netuid:
@@ -7361,7 +7361,7 @@ class CLIManager:
             print_error(
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
         logger.debug(f"args:\nnetwork: {network}\ntake: {take}\nproxy: {proxy}\n")
         result, ext_id = self._run_command(
             sudo.set_take(
@@ -7543,11 +7543,11 @@ class CLIManager:
 
         if amount <= 0:
             print_error(f"You entered an incorrect stake and burn amount: {amount}")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if netuid == 0:
             print_error("Cannot stake and burn on the root subnet.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         self._run_command(
             sudo.stake_burn(
@@ -8267,18 +8267,18 @@ class CLIManager:
                 "Unable to use `--reuse-last` or `--html` when config `no-cache` is set to `True`. "
                 "Set the`no-cache` field to `False` by using `btcli config set` or editing the config.yml file."
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         # For Rao games
         effective_network = get_effective_network(self.config, network)
         if is_rao_network(effective_network):
             print_error("This command is disabled on the 'rao' network.")
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         if reuse_last:
             if netuid is not None:
                 console.print("Cannot specify netuid when using `--reuse-last`")
-                raise typer.Exit()
+                raise typer.Exit(1)
             subtensor = None
         else:
             if netuid is None:
@@ -8605,7 +8605,7 @@ class CLIManager:
         if coldkey_ss58:
             if not is_valid_ss58_address(coldkey_ss58):
                 print_error(f"Invalid SS58 address: {coldkey_ss58}")
-                raise typer.Exit()
+                raise typer.Exit(1)
             wallet = None
         else:
             wallet = self.wallet_ask(
@@ -10220,7 +10220,7 @@ class CLIManager:
         """
         if from_tao is None and from_rao is None:
             print_error("Specify `--rao` and/or `--tao`.")
-            raise typer.Exit()
+            raise typer.Exit(1)
         if from_rao is not None:
             rao = int(float(from_rao))
             console.print(
