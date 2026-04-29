@@ -6,6 +6,8 @@
 
 * Bumps Cyscale and ASI by @thewhaleking
   in https://github.com/latent-to/btcli/commit/ff711fd84a75f0d6dba8206ebf4391cbf06058e5
+* fix(cli): exit non-zero on validation and lookup errors by @dhgoal
+  in https://github.com/latent-to/btcli/pull/947
 
 **Full Changelog**: https://github.com/latent-to/btcli/compare/v9.21.0...v9.21.1
 
