@@ -34,7 +34,6 @@ dependencies = [
     "bittensor-drand>=1.3.0",
     "GitPython>=3.0.0",
     "netaddr~=1.3.0",
-    "numpy>=2.0.1,<3.0.0",
     "Jinja2",
     "PyYAML~=6.0",
     "rich>=13.7,<15.0",
