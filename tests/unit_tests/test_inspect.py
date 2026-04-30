@@ -74,8 +74,15 @@ class TestBuildHotkeyTable:
 
 
 class TestResolveDelegateName:
+    def _identity_map_with_hotkey_name(hotkey_ss58: str, name: str) -> dict:
+    """Shape returned by fetch_coldkey_hotkey_identities (see get_hotkey_identity_name)."""
+    return {
+        "hotkeys": {hotkey_ss58: {"identity": {"name": name}}},
+        "coldkeys": {},
+    }
+
     def test_known_delegate_returns_display_name(self):
-        info = {"5abc": MagicMock(display="MyDelegate")}
+        info = _identity_map_with_hotkey_name("5abc", "MyDelegate")
         assert _resolve_delegate_name("5abc", info) == "MyDelegate"
 
     def test_unknown_delegate_returns_ss58(self):
@@ -100,7 +107,7 @@ class TestMakeDelegateRows:
     def test_yields_rows_for_positive_stakes(self):
         delegate = _make_mock_delegate("5abc", 100.0, 10.0)
         delegates = [(delegate, Balance.from_tao(50.0))]
-        info = {"5abc": MagicMock(display="MyDelegate")}
+        info = _identity_map_with_hotkey_name("5abc", "MyDelegate")
         rows = list(_make_delegate_rows(delegates, info))
         assert len(rows) == 1
         assert rows[0][2] == "MyDelegate"

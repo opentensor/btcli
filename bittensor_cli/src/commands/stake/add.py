@@ -315,14 +315,58 @@ async def stake_add(
 
     # Get subnet data and stake information for coldkey
     chain_head = await subtensor.substrate.get_chain_head()
-    _all_subnets, _stake_info, current_wallet_balance = await asyncio.gather(
+    (
+        _all_subnets,
+        _stake_info,
+        current_wallet_balance,
+        hotkey_existence,
+    ) = await asyncio.gather(
         subtensor.all_subnets(block_hash=chain_head),
         subtensor.get_stake_for_coldkey(
             coldkey_ss58=coldkey_ss58,
             block_hash=chain_head,
         ),
         subtensor.get_balance(coldkey_ss58, block_hash=chain_head),
+        subtensor.do_hotkeys_exist(
+            [x[1] for x in hotkeys_to_stake_to],
+            block_hash=chain_head,
+        ),
     )
+    hotkeys_that_exists = [
+        x for x in hotkeys_to_stake_to if hotkey_existence[x[1]] is True
+    ]
+    if not hotkeys_that_exists:
+        err_msg = "No keys existing on chain that can be staked to."
+        if json_output:
+            json_console.print_json(
+                data={
+                    "staking_success": False,
+                    "error_messages": [err_msg],
+                    "extrinsic_ids": None,
+                }
+            )
+        else:
+            print_error(err_msg)
+        return None
+
+    if hotkeys_that_exists != hotkeys_to_stake_to:
+        difference = set(x[1] for x in hotkeys_to_stake_to).symmetric_difference(
+            set(x[1] for x in hotkeys_that_exists)
+        )
+        sames = set(x[1] for x in hotkeys_to_stake_to).intersection(
+            set(x[1] for x in hotkeys_that_exists)
+        )
+        msg = (
+            "Some hotkeys attempting to stake to are not present: "
+            + ", ".join(difference)
+            + ". Using hotkeys:\n"
+            + "\n".join(sames)
+        )
+        console.print(msg)
+        if prompt:
+            if not confirm_action("Do you want to continue?"):
+                return None
+    hotkeys_to_stake_to = hotkeys_that_exists
     all_subnets = {di.netuid: di for di in _all_subnets}
 
     # Map current stake balances for hotkeys
@@ -339,13 +383,7 @@ async def stake_add(
             )
 
     # Determine the amount we are staking.
-    rows = []
-    amounts_to_stake = []
-    current_stake_balances = []
-    prices_with_tolerance = []
-    remaining_wallet_balance = current_wallet_balance
-    max_slippage = 0.0
-
+    operation_targets = []
     for hotkey in hotkeys_to_stake_to:
         for netuid in netuids:
             # Check that the subnet exists.
@@ -353,105 +391,126 @@ async def stake_add(
             if not subnet_info:
                 print_error(f"Subnet with netuid: {netuid} does not exist.")
                 continue
-            current_stake_balances.append(hotkey_stake_map[hotkey[1]][netuid])
+            operation_targets.append(
+                (hotkey, netuid, subnet_info, hotkey_stake_map[hotkey[1]][netuid])
+            )
 
-            # Get the amount.
-            amount_to_stake = Balance(0)
-            if amount:
-                amount_to_stake = Balance.from_tao(amount)
-            elif stake_all:
-                amount_to_stake = current_wallet_balance / len(netuids)
-            elif not amount:
-                amount_to_stake, _ = _prompt_stake_amount(
-                    current_balance=remaining_wallet_balance,
-                    netuid=netuid,
-                    action_name="stake",
-                )
-            amounts_to_stake.append(amount_to_stake)
+    if stake_all and not operation_targets:
+        print_error("No valid staking operations to perform.")
+        return
 
-            # Check enough to stake.
-            if amount_to_stake > remaining_wallet_balance:
-                print_error(
-                    f"Not enough stake:[bold white]\n wallet balance:{remaining_wallet_balance} < "
-                    f"staking amount: {amount_to_stake}[/bold white]"
-                )
-                return
-            remaining_wallet_balance -= amount_to_stake
+    rows = []
+    operations = []
+    remaining_wallet_balance = current_wallet_balance
+    max_slippage = 0.0
 
-            # Calculate slippage
-            # TODO: Update for V3, slippage calculation is significantly different in v3
-            # try:
-            #     received_amount, slippage_pct, slippage_pct_float, rate = (
-            #         _calculate_slippage(subnet_info, amount_to_stake, stake_fee)
-            #     )
-            # except ValueError:
-            #     return False
-            #
-            # max_slippage = max(slippage_pct_float, max_slippage)
+    for hotkey, netuid, subnet_info, current_stake_balance in operation_targets:
+        staking_address = hotkey[1]
 
-            # Temporary workaround - calculations without slippage
-            current_price_float = float(subnet_info.price.tao)
-            rate = 1.0 / current_price_float
+        # Get the amount.
+        amount_to_stake = Balance(0)
+        if amount:
+            amount_to_stake = Balance.from_tao(amount)
+        elif stake_all:
+            amount_to_stake = current_wallet_balance / len(operation_targets)
+        elif not amount:
+            amount_to_stake, _ = _prompt_stake_amount(
+                current_balance=remaining_wallet_balance,
+                netuid=netuid,
+                action_name="stake",
+            )
 
-            # If we are staking safe, add price tolerance
-            if safe_staking:
-                if subnet_info.is_dynamic:
-                    price_with_tolerance = current_price_float * (1 + rate_tolerance)
-                    _rate_with_tolerance = (
-                        1.0 / price_with_tolerance
-                    )  # Rate only for display
-                    rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
-                    price_with_tolerance = Balance.from_tao(
-                        price_with_tolerance
-                    )  # Actual price to pass to extrinsic
-                else:
-                    rate_with_tolerance = "1"
-                    price_with_tolerance = Balance.from_rao(1)
-                extrinsic_fee = await get_stake_extrinsic_fee(
-                    netuid_=netuid,
-                    amount_=amount_to_stake,
-                    staking_address_=hotkey[1],
-                    safe_staking_=safe_staking,
-                    price_limit=price_with_tolerance,
-                )
-                prices_with_tolerance.append(price_with_tolerance)
-                row_extension = [
-                    f"{rate_with_tolerance} {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
-                    f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]"
-                    # safe staking
-                    f"{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",
-                ]
+        # Check enough to stake.
+        if amount_to_stake > remaining_wallet_balance:
+            print_error(
+                f"Not enough stake:[bold white]\n wallet balance:{remaining_wallet_balance} < "
+                f"staking amount: {amount_to_stake}[/bold white]"
+            )
+            return
+        remaining_wallet_balance -= amount_to_stake
+
+        # Calculate slippage
+        # TODO: Update for V3, slippage calculation is significantly different in v3
+        # try:
+        #     received_amount, slippage_pct, slippage_pct_float, rate = (
+        #         _calculate_slippage(subnet_info, amount_to_stake, stake_fee)
+        #     )
+        # except ValueError:
+        #     return False
+        #
+        # max_slippage = max(slippage_pct_float, max_slippage)
+
+        # Temporary workaround - calculations without slippage
+        current_price_float = float(subnet_info.price.tao)
+        rate = _safe_inverse_rate(current_price_float)
+        price_with_tolerance = None
+
+        # If we are staking safe, add price tolerance
+        if safe_staking:
+            if subnet_info.is_dynamic:
+                price_with_tolerance = current_price_float * (1 + rate_tolerance)
+                _rate_with_tolerance = _safe_inverse_rate(
+                    price_with_tolerance
+                )  # Rate only for display
+                rate_with_tolerance = f"{_rate_with_tolerance:.4f}"
+                price_with_tolerance = Balance.from_tao(
+                    price_with_tolerance
+                )  # Actual price to pass to extrinsic
             else:
-                extrinsic_fee = await get_stake_extrinsic_fee(
-                    netuid_=netuid,
-                    amount_=amount_to_stake,
-                    staking_address_=hotkey[1],
-                    safe_staking_=safe_staking,
-                )
-                row_extension = []
-            # TODO this should be asyncio gathered before the for loop
-            amount_minus_fee = (
-                (amount_to_stake - extrinsic_fee) if not proxy else amount_to_stake
+                rate_with_tolerance = "1"
+                price_with_tolerance = Balance.from_rao(1)
+            extrinsic_fee = await get_stake_extrinsic_fee(
+                netuid_=netuid,
+                amount_=amount_to_stake,
+                staking_address_=staking_address,
+                safe_staking_=safe_staking,
+                price_limit=price_with_tolerance,
             )
-            sim_swap = await subtensor.sim_swap(
-                origin_netuid=0,
-                destination_netuid=netuid,
-                amount=amount_minus_fee.rao,
+            row_extension = [
+                f"{rate_with_tolerance} {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",
+                f"[{'dark_sea_green3' if allow_partial_stake else 'red'}]"
+                # safe staking
+                f"{allow_partial_stake}[/{'dark_sea_green3' if allow_partial_stake else 'red'}]",
+            ]
+        else:
+            extrinsic_fee = await get_stake_extrinsic_fee(
+                netuid_=netuid,
+                amount_=amount_to_stake,
+                staking_address_=staking_address,
+                safe_staking_=safe_staking,
             )
-            received_amount = sim_swap.alpha_amount
-            # Add rows for the table
-            base_row = [
-                str(netuid),  # netuid
-                f"{hotkey[1]}",  # hotkey
-                str(amount_to_stake),  # amount
-                str(rate)
-                + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
-                str(received_amount.set_unit(netuid)),  # received
-                str(sim_swap.tao_fee),  # fee
-                str(extrinsic_fee),
-                # str(slippage_pct),  # slippage
-            ] + row_extension
-            rows.append(tuple(base_row))
+            row_extension = []
+        # TODO this should be asyncio gathered before the for loop
+        amount_minus_fee = (
+            (amount_to_stake - extrinsic_fee) if not proxy else amount_to_stake
+        )
+        sim_swap = await subtensor.sim_swap(
+            origin_netuid=0,
+            destination_netuid=netuid,
+            amount=amount_minus_fee.rao,
+        )
+        received_amount = sim_swap.alpha_amount
+        # Add rows for the table
+        base_row = [
+            str(netuid),  # netuid
+            f"{staking_address}",  # hotkey
+            str(amount_to_stake),  # amount
+            str(rate) + f" {Balance.get_unit(netuid)}/{Balance.get_unit(0)} ",  # rate
+            str(received_amount.set_unit(netuid)),  # received
+            str(sim_swap.tao_fee),  # fee
+            str(extrinsic_fee),
+            # str(slippage_pct),  # slippage
+        ] + row_extension
+        rows.append(tuple(base_row))
+        operations.append(
+            (
+                netuid,
+                staking_address,
+                amount_to_stake,
+                current_stake_balance,
+                price_with_tolerance,
+            )
+        )
 
     # Define and print stake table + slippage warning
     table = _define_stake_table(wallet, subtensor, safe_staking, rate_tolerance)
@@ -467,62 +526,152 @@ async def stake_add(
     if not unlock_key(wallet).success:
         return
 
+    total_ops = len(operations)
+    use_batch = total_ops > 1
+
     successes = defaultdict(dict)
     error_messages = defaultdict(dict)
     extrinsic_ids = defaultdict(dict)
-    with console.status(f"\n:satellite: Staking on netuid(s): {netuids} ...") as status:
-        if safe_staking:
-            stake_coroutines = {}
-            for i, (ni, am, curr, price_with_tolerance) in enumerate(
-                zip(
-                    netuids,
-                    amounts_to_stake,
-                    current_stake_balances,
-                    prices_with_tolerance,
-                )
-            ):
-                for _, staking_address in hotkeys_to_stake_to:
-                    # Regular extrinsic for root subnet
-                    if ni == 0:
-                        stake_coroutines[(ni, staking_address)] = stake_extrinsic(
-                            netuid_i=ni,
-                            amount_=am,
-                            current=curr,
-                            staking_address_ss58=staking_address,
-                            status_=status,
+
+    if use_batch:
+        # Batch path: compose all calls, submit as a single Utility.batch_all transaction
+        with console.status(
+            f"\n:satellite: Batching {total_ops} stake operations on netuid(s): {netuids} ..."
+        ) as status:
+            batch_block_hash = await subtensor.substrate.get_chain_head()
+            current_balance = await subtensor.get_balance(
+                coldkey_ss58, block_hash=batch_block_hash
+            )
+
+            # compose_call with a block_hash does no I/O, so no need for gather
+            calls = []
+            for ni, hk, am, _, price in operations:
+                if safe_staking and ni != 0:
+                    calls.append(
+                        await subtensor.substrate.compose_call(
+                            call_module="SubtensorModule",
+                            call_function="add_stake_limit",
+                            call_params={
+                                "hotkey": hk,
+                                "netuid": ni,
+                                "amount_staked": am.rao,
+                                "limit_price": price.rao,
+                                "allow_partial": allow_partial_stake,
+                            },
+                            block_hash=batch_block_hash,
                         )
-                    else:
-                        stake_coroutines[(ni, staking_address)] = safe_stake_extrinsic(
-                            netuid_=ni,
-                            amount_=am,
-                            current_stake=curr,
-                            hotkey_ss58_=staking_address,
-                            price_limit=price_with_tolerance,
-                            status_=status,
+                    )
+                else:
+                    calls.append(
+                        await subtensor.substrate.compose_call(
+                            call_module="SubtensorModule",
+                            call_function="add_stake",
+                            call_params={
+                                "hotkey": hk,
+                                "netuid": ni,
+                                "amount_staked": am.rao,
+                            },
+                            block_hash=batch_block_hash,
                         )
-        else:
-            stake_coroutines = {
-                (ni, staking_address): stake_extrinsic(
-                    netuid_i=ni,
-                    amount_=am,
-                    current=curr,
-                    staking_address_ss58=staking_address,
-                    status_=status,
+                    )
+
+            success, err_msg, response = await subtensor.sign_and_send_batch_extrinsic(
+                calls=list(calls),
+                wallet=wallet,
+                era={"period": era},
+                proxy=proxy,
+                mev_protection=mev_protection,
+                block_hash=batch_block_hash,
+            )
+
+            if success and mev_protection:
+                inner_hash = err_msg
+                success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    submit_block_hash=response.block_hash,
+                    status=status,
                 )
-                for i, (ni, am, curr) in enumerate(
-                    zip(netuids, amounts_to_stake, current_stake_balances)
-                )
-                for _, staking_address in hotkeys_to_stake_to
-            }
-        # We can gather them all at once but balance reporting will be in race-condition.
-        for (ni, staking_address), coroutine in stake_coroutines.items():
-            success, er_msg, ext_receipt = await coroutine
-            successes[ni][staking_address] = success
-            error_messages[ni][staking_address] = er_msg
+                if not success:
+                    err_msg = mev_error
+
+            # batch_all is atomic: all succeed or all revert
+            for ni, hk, am, curr, _ in operations:
+                successes[ni][hk] = success
+                error_messages[ni][hk] = "" if success else err_msg
+
             if success:
-                extrinsic_ids[ni][
-                    staking_address
-                ] = await ext_receipt.get_extrinsic_identifier()
+                ext_id = await response.get_extrinsic_identifier()
+                for ni, hk, _, _, _ in operations:
+                    extrinsic_ids[ni][hk] = ext_id
+
+                if not json_output:
+                    await print_extrinsic_id(response)
+                    new_block_hash = await subtensor.substrate.get_chain_head()
+                    new_balance = await subtensor.get_balance(
+                        coldkey_ss58, block_hash=new_block_hash
+                    )
+                    print_success(
+                        f"[dark_sea_green3]Batch finalized. "
+                        f"Staked across {total_ops} operations.[/dark_sea_green3]"
+                    )
+                    console.print(
+                        f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
+                        f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+                    )
+                    for ni, hk, am, curr, _ in operations:
+                        new_stake = await subtensor.get_stake(
+                            hotkey_ss58=hk,
+                            coldkey_ss58=coldkey_ss58,
+                            netuid=ni,
+                            block_hash=new_block_hash,
+                        )
+                        console.print(
+                            f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
+                            f"{ni}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
+                            f"Hotkey: [{COLOR_PALETTE['GENERAL']['HOTKEY']}]{hk}"
+                            f"[/{COLOR_PALETTE['GENERAL']['HOTKEY']}] "
+                            f"Stake:\n"
+                            f"  [blue]{curr}[/blue] "
+                            f":arrow_right: "
+                            f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+                        )
+            else:
+                print_error(
+                    f":cross_mark: [red]Batch staking failed[/red]: {err_msg}",
+                    status=status,
+                )
+    else:
+        # Single operation path: use the existing per-operation extrinsics
+        with console.status(
+            f"\n:satellite: Staking on netuid(s): {netuids} ..."
+        ) as status:
+            for ni, staking_address, am, curr, price in operations:
+                if safe_staking and ni != 0:
+                    result = await safe_stake_extrinsic(
+                        netuid_=ni,
+                        amount_=am,
+                        current_stake=curr,
+                        hotkey_ss58_=staking_address,
+                        price_limit=price,
+                        status_=status,
+                    )
+                else:
+                    result = await stake_extrinsic(
+                        netuid_i=ni,
+                        amount_=am,
+                        current=curr,
+                        staking_address_ss58=staking_address,
+                        status_=status,
+                    )
+                success, er_msg, ext_receipt = result
+                successes[ni][staking_address] = success
+                error_messages[ni][staking_address] = er_msg
+                if success and ext_receipt:
+                    extrinsic_ids[ni][
+                        staking_address
+                    ] = await ext_receipt.get_extrinsic_identifier()
+
     if json_output:
         json_console.print_json(
             data={
@@ -742,6 +891,11 @@ The columns are as follows:
     console.print(base_description + (safe_staking_description if safe_staking else ""))
 
 
+def _safe_inverse_rate(value: float) -> float:
+    """Returns the inverse of a positive rate, otherwise zero."""
+    return 1.0 / value if value > 0 else 0.0
+
+
 def _calculate_slippage(
     subnet_info, amount: Balance, stake_fee: Balance
 ) -> tuple[Balance, str, float, str]:
@@ -775,7 +929,7 @@ def _calculate_slippage(
         total_slippage = ideal_amount - received_amount
         slippage_pct_float = 100 * (total_slippage.tao / ideal_amount.tao)
         slippage_str = f"{slippage_pct_float:.4f} %"
-        rate = f"{(1 / subnet_info.price.tao or 1):.4f}"
+        rate = f"{_safe_inverse_rate(float(subnet_info.price.tao)):.4f}"
     else:
         # TODO: Fix this. Slippage is always zero for static networks.
         slippage_pct_float = (

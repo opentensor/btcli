@@ -1,6 +1,4 @@
 from enum import Enum
-from dataclasses import dataclass
-from typing import Any, Optional
 
 
 class Constants:
@@ -35,47 +33,6 @@ class Constants:
         "test": "0x8f9cf856bf558a14440e75569c9e58594757048d7b3a84b5d25f6bd978263105",
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
-
-
-@dataclass
-class DelegatesDetails:
-    display: str
-    additional: list[tuple[str, str]]
-    web: str
-    legal: Optional[str] = None
-    riot: Optional[str] = None
-    email: Optional[str] = None
-    pgp_fingerprint: Optional[str] = None
-    image: Optional[str] = None
-    twitter: Optional[str] = None
-
-    @classmethod
-    def from_chain_data(cls, data: dict[str, Any]) -> "DelegatesDetails":
-        def decode(key: str, default=""):
-            try:
-                if isinstance(data.get(key), dict):
-                    value = next(data.get(key).values())
-                    return bytes(value[0]).decode("utf-8")
-                elif isinstance(data.get(key), int):
-                    return data.get(key)
-                elif isinstance(data.get(key), tuple):
-                    return bytes(data.get(key)[0]).decode("utf-8")
-                else:
-                    return default
-            except (UnicodeDecodeError, TypeError):
-                return default
-
-        return cls(
-            display=decode("display"),
-            additional=decode("additional", []),
-            web=decode("web"),
-            legal=decode("legal"),
-            riot=decode("riot"),
-            email=decode("email"),
-            pgp_fingerprint=decode("pgp_fingerprint", None),
-            image=decode("image"),
-            twitter=decode("twitter"),
-        )
 
 
 class Defaults:
@@ -652,7 +609,7 @@ HYPERPARAMS = {
         RootSudoOnly.TRUE,
     ),
     "min_burn": ("sudo_set_min_burn", RootSudoOnly.FALSE),
-    "max_burn": ("sudo_set_max_burn", RootSudoOnly.TRUE),
+    "max_burn": ("sudo_set_max_burn", RootSudoOnly.COMPLICATED),
     "bonds_moving_avg": ("sudo_set_bonds_moving_average", RootSudoOnly.FALSE),
     "max_regs_per_block": ("sudo_set_max_registrations_per_block", RootSudoOnly.TRUE),
     "serving_rate_limit": ("sudo_set_serving_rate_limit", RootSudoOnly.FALSE),
@@ -693,6 +650,8 @@ HYPERPARAMS = {
     "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
     "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
     "max_allowed_uids": ("sudo_set_max_allowed_uids", RootSudoOnly.FALSE),
+    "burn_increase_mult": ("sudo_set_burn_increase_mult", RootSudoOnly.FALSE),
+    "burn_half_life": ("sudo_set_burn_half_life", RootSudoOnly.FALSE),
 }
 
 HYPERPARAMS_MODULE = {
@@ -788,7 +747,7 @@ HYPERPARAMS_METADATA = {
     "max_burn": {
         "description": "Maximum TAO burn amount cap for subnet registration.",
         "side_effects": "Caps registration costs, ensuring registration remains accessible even as difficulty increases.",
-        "owner_settable": False,
+        "owner_settable": True,
         "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxburn",
     },
     "bonds_moving_avg": {
