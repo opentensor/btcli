@@ -16,6 +16,14 @@ from bittensor_cli.src.commands.wallets import (
 )
 
 
+def _identity_map_with_hotkey_name(hotkey_ss58: str, name: str) -> dict:
+    """Shape returned by fetch_coldkey_hotkey_identities (see get_hotkey_identity_name)."""
+    return {
+        "hotkeys": {hotkey_ss58: {"identity": {"name": name}}},
+        "coldkeys": {},
+    }
+
+
 def _make_mock_delegate(
     hotkey_ss58: str,
     total_stake_tao: float,
@@ -74,13 +82,6 @@ class TestBuildHotkeyTable:
 
 
 class TestResolveDelegateName:
-    def _identity_map_with_hotkey_name(hotkey_ss58: str, name: str) -> dict:
-    """Shape returned by fetch_coldkey_hotkey_identities (see get_hotkey_identity_name)."""
-    return {
-        "hotkeys": {hotkey_ss58: {"identity": {"name": name}}},
-        "coldkeys": {},
-    }
-
     def test_known_delegate_returns_display_name(self):
         info = _identity_map_with_hotkey_name("5abc", "MyDelegate")
         assert _resolve_delegate_name("5abc", info) == "MyDelegate"
