@@ -17,11 +17,9 @@
 
 import asyncio
 import hashlib
-from typing import Union, List, Sequence, TYPE_CHECKING, Optional
+from typing import List, Sequence, Optional
 
 from bittensor_wallet import Wallet, Keypair
-import numpy as np
-from numpy.typing import NDArray
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
 from async_substrate_interface.errors import SubstrateRequestException
@@ -40,9 +38,6 @@ from bittensor_cli.src.bittensor.utils import (
     get_hotkey_pub_ss58,
     print_extrinsic_id,
 )
-
-if TYPE_CHECKING:
-    from bittensor_cli.src.bittensor.minigraph import MiniGraph
 
 U32_MAX = 4294967295
 U16_MAX = 65535
@@ -186,88 +181,6 @@ def convert_weights_and_uids_for_emit(
     return weight_uids, weight_vals
 
 
-async def process_weights_for_netuid(
-    uids: NDArray[np.int64],
-    weights: NDArray[np.float32],
-    netuid: int,
-    subtensor: SubtensorInterface,
-    metagraph: "MiniGraph" = None,
-    exclude_quantile: int = 0,
-) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
-    # bittensor.logging.debug("process_weights_for_netuid()")
-    # bittensor.logging.debug("weights", weights)
-    # bittensor.logging.debug("netuid", netuid)
-    # bittensor.logging.debug("subtensor", subtensor)
-    # bittensor.logging.debug("metagraph", metagraph)
-
-    # Get latest metagraph from chain if metagraph is None.
-    if metagraph is None:
-        metagraph = subtensor.metagraph(netuid)
-
-    if not isinstance(weights, np.float32):
-        weights = weights.astype(np.float32)
-
-    # Network configuration parameters from a subtensor.
-    # These parameters determine the range of acceptable weights for each neuron.
-    quantile = exclude_quantile / U16_MAX
-    min_allowed_weights, max_weight_limit = await get_limits(subtensor)
-    # bittensor.logging.debug("quantile", quantile)
-    # bittensor.logging.debug("min_allowed_weights", min_allowed_weights)
-    # bittensor.logging.debug("max_weight_limit", max_weight_limit)
-
-    # Find all non zero weights.
-    non_zero_weight_idx = np.argwhere(weights > 0).squeeze(axis=1)
-    non_zero_weight_uids = uids[non_zero_weight_idx]
-    non_zero_weights = weights[non_zero_weight_idx]
-    nzw_size = non_zero_weights.size
-    n_neurons = metagraph.n[0]
-    if nzw_size == 0 or n_neurons < min_allowed_weights:
-        # bittensor.logging.warning("No non-zero weights returning all ones.")
-        final_weights = np.ones(n_neurons, dtype=np.int64) / n_neurons
-        # bittensor.logging.debug("final_weights", final_weights)
-        final_weights_count = np.arange(len(final_weights))
-        return final_weights_count, final_weights
-
-    elif nzw_size < min_allowed_weights:
-        # bittensor.logging.warning(
-        #     "No non-zero weights less than min allowed weight, returning all ones."
-        # )
-        weights = (
-            np.ones(n_neurons, dtype=np.int64) * 1e-5
-        )  # creating minimum even non-zero weights
-        weights[non_zero_weight_idx] += non_zero_weights
-        # bittensor.logging.debug("final_weights", weights)
-        normalized_weights = normalize_max_weight(x=weights, limit=max_weight_limit)
-        nw_arange = np.arange(len(normalized_weights))
-        return nw_arange, normalized_weights
-
-    # bittensor.logging.debug("non_zero_weights", non_zero_weights)
-
-    # Compute the exclude quantile and find the weights in the lowest quantile
-    max_exclude = max(0, len(non_zero_weights) - min_allowed_weights) / len(
-        non_zero_weights
-    )
-    exclude_quantile = min([quantile, max_exclude])
-    lowest_quantile = np.quantile(non_zero_weights, exclude_quantile)
-    # bittensor.logging.debug("max_exclude", max_exclude)
-    # bittensor.logging.debug("exclude_quantile", exclude_quantile)
-    # bittensor.logging.debug("lowest_quantile", lowest_quantile)
-
-    # Exclude all weights below the allowed quantile.
-    non_zero_weight_uids = non_zero_weight_uids[lowest_quantile <= non_zero_weights]
-    non_zero_weights = non_zero_weights[lowest_quantile <= non_zero_weights]
-    # bittensor.logging.debug("non_zero_weight_uids", non_zero_weight_uids)
-    # bittensor.logging.debug("non_zero_weights", non_zero_weights)
-
-    # Normalize weights and return.
-    normalized_weights = normalize_max_weight(
-        x=non_zero_weights, limit=max_weight_limit
-    )
-    # bittensor.logging.debug("final_weights", normalized_weights)
-
-    return non_zero_weight_uids, normalized_weights
-
-
 def generate_weight_hash(
     address: str,
     netuid: int,
@@ -391,8 +304,8 @@ async def root_register_extrinsic(
 async def set_root_weights_extrinsic(
     subtensor: SubtensorInterface,
     wallet: Wallet,
-    netuids: Union[NDArray[np.int64], list[int]],
-    weights: Union[NDArray[np.float32], list[float]],
+    netuids: Sequence[int],
+    weights: Sequence[float],
     version_key: int = 0,
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
@@ -459,22 +372,18 @@ async def set_root_weights_extrinsic(
     if not unlock_key(wallet).success:
         return False
 
-    # First convert types.
-    if isinstance(netuids, list):
-        netuids = np.array(netuids, dtype=np.int64)
-    if isinstance(weights, list):
-        weights = np.array(weights, dtype=np.float32)
+    netuids = list(netuids)
+    weights = [float(w) for w in weights]
 
     print_verbose("Fetching weight limits")
     min_allowed_weights, max_weight_limit = await get_limits(subtensor)
 
     # Get non zero values.
-    non_zero_weight_idx = np.argwhere(weights > 0).squeeze(axis=1)
-    non_zero_weights = weights[non_zero_weight_idx]
-    if non_zero_weights.size < min_allowed_weights:
+    non_zero_count = sum(1 for w in weights if w > 0)
+    if non_zero_count < min_allowed_weights:
         raise ValueError(
             "The minimum number of weights required to set weights is {}, got {}".format(
-                min_allowed_weights, non_zero_weights.size
+                min_allowed_weights, non_zero_count
             )
         )
 
