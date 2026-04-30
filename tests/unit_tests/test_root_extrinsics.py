@@ -100,7 +100,9 @@ class TestConvertWeightsAndUidsForEmit:
         assert len(result_uids) == len(result_vals)
 
     def test_uids_preserved_in_output(self):
-        result_uids, _ = convert_weights_and_uids_for_emit([5, 10, 15], [1.0, 0.5, 0.25])
+        result_uids, _ = convert_weights_and_uids_for_emit(
+            [5, 10, 15], [1.0, 0.5, 0.25]
+        )
         for uid in result_uids:
             assert uid in [5, 10, 15]
 

@@ -82,9 +82,7 @@ async def get_limits(subtensor: SubtensorInterface) -> tuple[int, float]:
     return min_allowed_weights, max_weight_limit
 
 
-def normalize_max_weight(
-    x: Sequence[float], limit: float = 0.1
-) -> list[float]:
+def normalize_max_weight(x: Sequence[float], limit: float = 0.1) -> list[float]:
     """
     Normalizes the sequence x so that sum(x) = 1 and the max value is not greater than the limit.
 
