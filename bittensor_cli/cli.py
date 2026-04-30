@@ -1062,9 +1062,6 @@ class CLIManager:
             hidden=True,
         )(self.wallet_inspect)
         self.wallet_app.command(
-            "faucet", rich_help_panel=HELP_PANELS["WALLET"]["OPERATIONS"]
-        )(self.wallet_faucet)
-        self.wallet_app.command(
             "set-identity", rich_help_panel=HELP_PANELS["WALLET"]["IDENTITY"]
         )(self.wallet_set_id)
         self.wallet_app.command(
@@ -3039,112 +3036,6 @@ class CLIManager:
                 self.initialize_chain(network),
                 netuids_filter=netuids,
                 all_wallets=all_wallets,
-            )
-        )
-
-    def wallet_faucet(
-        self,
-        wallet_name: Optional[str] = Options.wallet_name,
-        wallet_path: Optional[str] = Options.wallet_path,
-        wallet_hotkey: Optional[str] = Options.wallet_hotkey,
-        network: Optional[list[str]] = Options.network,
-        # TODO add the following to config
-        processors: Optional[int] = typer.Option(
-            defaults.pow_register.num_processes,
-            "--processors",
-            help="Number of processors to use for proof of work (POW) registration.",
-        ),
-        update_interval: Optional[int] = typer.Option(
-            defaults.pow_register.update_interval,
-            "--update-interval",
-            "-u",
-            help="The number of nonces to process before checking for next block during registration",
-        ),
-        output_in_place: Optional[bool] = typer.Option(
-            defaults.pow_register.output_in_place,
-            help="Whether to output the registration statistics in-place.",
-        ),
-        verbose: Optional[bool] = typer.Option(  # TODO verbosity handler
-            defaults.pow_register.verbose,
-            "--verbose",
-            "-v",
-            help="Whether to output the registration statistics verbosely.",
-        ),
-        use_cuda: Optional[bool] = typer.Option(
-            defaults.pow_register.cuda.use_cuda,
-            "--use-cuda/--no-use-cuda",
-            "--cuda/--no-cuda",
-            help="Set flag to use CUDA for proof of work (POW) registration.",
-        ),
-        dev_id: Optional[int] = typer.Option(
-            defaults.pow_register.cuda.dev_id,
-            "--dev-id",
-            "-d",
-            help="Set the CUDA device id(s) in the order of speed, where 0 is the fastest.",
-        ),
-        threads_per_block: Optional[int] = typer.Option(
-            defaults.pow_register.cuda.tpb,
-            "--threads-per-block",
-            "-tbp",
-            help="Set the number of threads per block for CUDA.",
-        ),
-        max_successes: Optional[int] = typer.Option(
-            3,
-            "--max-successes",
-            help="Set the maximum number of times to successfully run the faucet for this command.",
-        ),
-        prompt: bool = Options.prompt,
-    ):
-        """
-        Obtain test TAO tokens by performing Proof of Work (PoW).
-
-        This command is useful for users who need test tokens for operations on a local blockchain.
-
-        [blue bold]IMPORTANT[/blue bold]: THIS COMMAND IS DISABLED ON FINNEY AND TESTNET.
-
-        USAGE
-
-        The command uses the proof-of-work (POW) mechanism to validate the user's effort and rewards them with test TAO tokens. It is
-        typically used in local blockchain environments where transactions do not use real TAO tokens.
-
-        EXAMPLE
-
-        [green]$[/green] btcli wallet faucet --faucet.num_processes 4 --faucet.cuda.use_cuda
-
-        [bold]Note[/bold]: This command is meant for used in local environments where users can experiment with the blockchain without using real TAO tokens. Users must have the necessary hardware setup, especially when opting for CUDA-based GPU calculations. It is currently disabled on testnet and mainnet (finney). You can only use this command on a local blockchain.
-        """
-        # TODO should we add json_output?
-        wallet = self.wallet_ask(
-            wallet_name,
-            wallet_path,
-            wallet_hotkey,
-            ask_for=[WO.NAME, WO.PATH],
-            validate=WV.WALLET,
-        )
-        logger.debug(
-            "args:\n"
-            f"network {network}\n"
-            f"threads_per_block {threads_per_block}\n"
-            f"update_interval {update_interval}\n"
-            f"processors {processors}\n"
-            f"use_cuda {use_cuda}\n"
-            f"dev_id {dev_id}\n"
-            f"output_in_place {output_in_place}\n"
-            f"max_successes {max_successes}\n"
-        )
-        return self._run_command(
-            wallets.faucet(
-                wallet,
-                self.initialize_chain(network),
-                threads_per_block,
-                update_interval,
-                processors,
-                use_cuda,
-                dev_id,
-                output_in_place,
-                verbose,
-                max_successes,
-                prompt,
             )
         )
 
