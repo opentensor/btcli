@@ -81,17 +81,6 @@ class Defaults:
         chain_endpoint = None
         _mock = False
 
-    class pow_register:
-        num_processes = None
-        update_interval = 50_000
-        output_in_place = True
-        verbose = False
-
-        class cuda:
-            dev_id = 0
-            use_cuda = False
-            tpb = 256
-
     class wallet:
         name = "default"
         hotkey = "default"

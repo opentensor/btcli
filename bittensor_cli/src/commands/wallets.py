@@ -26,7 +26,6 @@ from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
     wait_for_extrinsic_by_hash,
 )
 from bittensor_cli.src.bittensor.extrinsics.registration import (
-    run_faucet_extrinsic,
     swap_hotkey_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
@@ -1810,37 +1809,6 @@ async def inspect(
 
     if not coldkey_rows and not hotkey_rows:
         console.print("[yellow]No wallet data found.[/yellow]")
-
-
-async def faucet(
-    wallet: Wallet,
-    subtensor: SubtensorInterface,
-    threads_per_block: int,
-    update_interval: int,
-    processes: int,
-    use_cuda: bool,
-    dev_id: int,
-    output_in_place: bool,
-    log_verbose: bool,
-    max_successes: int = 3,
-    prompt: bool = True,
-):
-    # TODO: - work out prompts to be passed through the cli
-    success = await run_faucet_extrinsic(
-        subtensor,
-        wallet,
-        tpb=threads_per_block,
-        prompt=prompt,
-        update_interval=update_interval,
-        num_processes=processes,
-        cuda=use_cuda,
-        dev_id=dev_id,
-        output_in_place=output_in_place,
-        log_verbose=log_verbose,
-        max_successes=max_successes,
-    )
-    if not success:
-        print_error("Faucet run failed.")
 
 
 async def swap_hotkey(
