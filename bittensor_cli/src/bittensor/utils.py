@@ -9,7 +9,7 @@ import webbrowser
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
+from typing import TYPE_CHECKING, Any, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
 from functools import partial
 import re
@@ -22,8 +22,6 @@ from bittensor_wallet.errors import KeyFileError, PasswordError
 from bittensor_wallet import utils
 from jinja2 import Template, Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
-import numpy as np
-from numpy.typing import NDArray
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
@@ -369,82 +367,6 @@ def u16_to_float(value: int) -> float:
     # Calculate the float representation
     u16_max = 65535
     return value / u16_max
-
-
-def convert_weight_uids_and_vals_to_tensor(
-    n: int, uids: Collection[int], weights: Collection[int]
-) -> NDArray[np.float32]:
-    """
-    Converts weights and uids from chain representation into a `np.array` (inverse operation from
-    convert_weights_and_uids_for_emit)
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed weights.
-    :param weights: Tensor of weights.
-
-    :return: row_weights: Converted row weights.
-    """
-    row_weights = np.zeros([n], dtype=np.float32)
-    for uid_j, wij in list(zip(uids, weights)):
-        row_weights[uid_j] = float(
-            wij
-        )  # assumes max-upscaled values (w_max = U16_MAX).
-    row_sum = row_weights.sum()
-    if row_sum > 0:
-        row_weights /= row_sum  # normalize
-    return row_weights
-
-
-def convert_bond_uids_and_vals_to_tensor(
-    n: int, uids: list[int], bonds: list[int]
-) -> NDArray[np.int64]:
-    """Converts bond and uids from chain representation into a np.array.
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed bonds.
-    :param bonds: Tensor of bonds.
-
-    :return: Converted row bonds.
-    """
-    row_bonds = np.zeros([n], dtype=np.int64)
-
-    for uid_j, bij in list(zip(uids, bonds)):
-        row_bonds[uid_j] = int(bij)
-    return row_bonds
-
-
-def convert_root_weight_uids_and_vals_to_tensor(
-    n: int, uids: list[int], weights: list[int], subnets: list[int]
-) -> NDArray:
-    """
-    Converts root weights and uids from chain representation into a `np.array` or `torch.FloatTensor` (inverse operation
-    from `convert_weights_and_uids_for_emit`)
-
-    :param n: number of neurons on network.
-    :param uids: Tensor of uids as destinations for passed weights.
-    :param weights: Tensor of weights.
-    :param subnets: list of subnets on the network
-
-    :return: row_weights: Converted row weights.
-    """
-
-    row_weights = np.zeros([n], dtype=np.float32)
-    for uid_j, wij in list(zip(uids, weights)):
-        if uid_j in subnets:
-            index_s = subnets.index(uid_j)
-            row_weights[index_s] = float(
-                wij
-            )  # assumes max-upscaled values (w_max = U16_MAX).
-        else:
-            # TODO standardise logging
-            # logging.warning(
-            #     f"Incorrect Subnet uid {uid_j} in Subnets {subnets}. The subnet is unavailable at the moment."
-            # )
-            continue
-    row_sum = row_weights.sum()
-    if row_sum > 0:
-        row_weights /= row_sum  # normalize
-    return row_weights
 
 
 def get_hotkey_wallets_for_wallet(

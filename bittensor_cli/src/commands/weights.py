@@ -2,11 +2,9 @@ import asyncio
 import json
 import os
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from bittensor_wallet import Wallet
-import numpy as np
-from numpy.typing import NDArray
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import (
@@ -38,8 +36,8 @@ class SetWeightsExtrinsic:
         wallet: Wallet,
         netuid: int,
         proxy: Optional[str],
-        uids: NDArray,
-        weights: NDArray,
+        uids: Sequence[int],
+        weights: Sequence[float],
         salt: list[int],
         version_key: int,
         prompt: bool = False,
@@ -119,8 +117,8 @@ class SetWeightsExtrinsic:
         This action serves as a commitment or snapshot of the neuron's current weight distribution.
 
         Args:
-            uids (np.ndarray): NumPy array of neuron UIDs for which weights are being committed.
-            weights (np.ndarray): NumPy array of weight values corresponding to each UID.
+            uids (Sequence[int]): Sequence of neuron UIDs for which weights are being committed.
+            weights (Sequence[int]): Sequence of weight values corresponding to each UID.
 
         Returns:
             Tuple[bool, str]: ``True`` if the weight commitment is successful, False otherwise. And `msg`, a string
@@ -374,29 +372,17 @@ async def reveal_weights(
     prompt: bool = True,
 ) -> None:
     """Reveal weights for a specific subnet."""
-    uids_ = np.array(
-        uids,
-        dtype=np.int64,
-    )
-    weights_ = np.array(
-        weights,
-        dtype=np.float32,
-    )
-    salt_ = np.array(
-        salt,
-        dtype=np.int64,
-    )
     weight_uids, weight_vals = convert_weights_and_uids_for_emit(
-        uids=uids_, weights=weights_
+        uids=uids, weights=weights
     )
     # Call the reveal function in the module set_weights from extrinsics package
     extrinsic = SetWeightsExtrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
-        uids=uids_,
-        weights=weights_,
-        salt=list(salt_),
+        uids=uids,
+        weights=weights,
+        salt=list(salt),
         version_key=version,
         prompt=prompt,
         proxy=proxy,
@@ -428,25 +414,13 @@ async def commit_weights(
     prompt: bool = True,
 ):
     """Commits weights and then reveals them for a specific subnet"""
-    uids_ = np.array(
-        uids,
-        dtype=np.int64,
-    )
-    weights_ = np.array(
-        weights,
-        dtype=np.float32,
-    )
-    salt_ = np.array(
-        salt,
-        dtype=np.int64,
-    )
     extrinsic = SetWeightsExtrinsic(
         subtensor=subtensor,
         wallet=wallet,
         netuid=netuid,
-        uids=uids_,
-        weights=weights_,
-        salt=list(salt_),
+        uids=uids,
+        weights=weights,
+        salt=list(salt),
         version_key=version,
         prompt=prompt,
         proxy=proxy,
