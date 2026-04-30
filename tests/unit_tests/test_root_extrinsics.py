@@ -7,7 +7,6 @@ async helper functions (get_current_weights_for_uid, get_limits).
 """
 
 import pytest
-import numpy as np
 from unittest.mock import AsyncMock
 
 from bittensor_cli.src.bittensor.extrinsics.root import (
@@ -29,39 +28,33 @@ U16_MAX = 65535
 
 class TestNormalizeMaxWeight:
     def test_all_zero_returns_uniform(self):
-        x = np.zeros(4, dtype=np.float32)
-        result = normalize_max_weight(x, limit=0.5)
-        np.testing.assert_allclose(result, [0.25, 0.25, 0.25, 0.25], atol=1e-6)
+        result = normalize_max_weight([0.0, 0.0, 0.0, 0.0], limit=0.5)
+        assert result == pytest.approx([0.25, 0.25, 0.25, 0.25], abs=1e-6)
 
     def test_uniform_input_below_limit(self):
-        x = np.ones(4, dtype=np.float32)
-        result = normalize_max_weight(x, limit=0.5)
+        result = normalize_max_weight([1.0, 1.0, 1.0, 1.0], limit=0.5)
         # Each element is 0.25, which is below limit=0.5 → normalized by sum
-        np.testing.assert_allclose(result.sum(), 1.0, atol=1e-6)
-        assert result.max() <= 0.5 + 1e-6
+        assert sum(result) == pytest.approx(1.0, abs=1e-6)
+        assert max(result) <= 0.5 + 1e-6
 
     def test_single_element_returns_one(self):
-        x = np.array([1.0], dtype=np.float32)
-        result = normalize_max_weight(x, limit=0.5)
-        # x.shape[0]*limit = 0.5 <= 1 → uniform = 1.0
-        np.testing.assert_allclose(result, [1.0], atol=1e-6)
+        # n*limit = 0.5 <= 1 → uniform = 1.0
+        result = normalize_max_weight([1.0], limit=0.5)
+        assert result == pytest.approx([1.0], abs=1e-6)
 
     def test_clipping_reduces_max(self):
         # One very large weight, others small
-        x = np.array([100.0, 1.0, 1.0, 1.0], dtype=np.float32)
-        result = normalize_max_weight(x, limit=0.4)
-        assert result.max() <= 0.4 + 1e-5
-        np.testing.assert_allclose(result.sum(), 1.0, atol=1e-5)
+        result = normalize_max_weight([100.0, 1.0, 1.0, 1.0], limit=0.4)
+        assert max(result) <= 0.4 + 1e-5
+        assert sum(result) == pytest.approx(1.0, abs=1e-5)
 
     def test_output_sums_to_one(self):
-        x = np.array([0.1, 0.5, 0.3, 0.8], dtype=np.float32)
-        result = normalize_max_weight(x, limit=0.4)
-        np.testing.assert_allclose(result.sum(), 1.0, atol=1e-5)
+        result = normalize_max_weight([0.1, 0.5, 0.3, 0.8], limit=0.4)
+        assert sum(result) == pytest.approx(1.0, abs=1e-5)
 
     def test_limit_of_one_allows_any_weight(self):
-        x = np.array([0.2, 0.3, 0.5], dtype=np.float32)
-        result = normalize_max_weight(x, limit=1.0)
-        np.testing.assert_allclose(result.sum(), 1.0, atol=1e-6)
+        result = normalize_max_weight([0.2, 0.3, 0.5], limit=1.0)
+        assert sum(result) == pytest.approx(1.0, abs=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -72,54 +65,42 @@ class TestNormalizeMaxWeight:
 class TestConvertWeightsAndUidsForEmit:
     def test_empty_input_raises(self):
         # min() on an empty list raises ValueError in the current implementation
-        uids = np.array([], dtype=np.int64)
-        weights = np.array([], dtype=np.float32)
         with pytest.raises(ValueError):
-            convert_weights_and_uids_for_emit(uids, weights)
+            convert_weights_and_uids_for_emit([], [])
 
     def test_all_zero_weights_returns_empty(self):
-        uids = np.array([0, 1, 2], dtype=np.int64)
-        weights = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-        result_uids, result_vals = convert_weights_and_uids_for_emit(uids, weights)
+        result_uids, result_vals = convert_weights_and_uids_for_emit(
+            [0, 1, 2], [0.0, 0.0, 0.0]
+        )
         assert result_uids == []
         assert result_vals == []
 
     def test_mismatched_lengths_raise_value_error(self):
-        uids = np.array([0, 1], dtype=np.int64)
-        weights = np.array([0.5, 0.3, 0.2], dtype=np.float32)
         with pytest.raises(ValueError):
-            convert_weights_and_uids_for_emit(uids, weights)
+            convert_weights_and_uids_for_emit([0, 1], [0.5, 0.3, 0.2])
 
     def test_negative_weight_raises_value_error(self):
-        uids = np.array([0, 1], dtype=np.int64)
-        weights = np.array([0.5, -0.1], dtype=np.float32)
         with pytest.raises(ValueError):
-            convert_weights_and_uids_for_emit(uids, weights)
+            convert_weights_and_uids_for_emit([0, 1], [0.5, -0.1])
 
     def test_normal_case_filters_zeros(self):
-        uids = np.array([0, 1, 2], dtype=np.int64)
-        weights = np.array([1.0, 0.0, 0.5], dtype=np.float32)
-        result_uids, result_vals = convert_weights_and_uids_for_emit(uids, weights)
+        result_uids, _ = convert_weights_and_uids_for_emit([0, 1, 2], [1.0, 0.0, 0.5])
         # uid 1 has weight 0 → filtered
         assert 1 not in result_uids
 
     def test_max_weight_is_u16_max(self):
-        uids = np.array([0, 1], dtype=np.int64)
-        weights = np.array([1.0, 0.5], dtype=np.float32)
-        result_uids, result_vals = convert_weights_and_uids_for_emit(uids, weights)
+        _, result_vals = convert_weights_and_uids_for_emit([0, 1], [1.0, 0.5])
         # The max weight should be U16_MAX
         assert max(result_vals) == U16_MAX
 
     def test_output_lengths_match(self):
-        uids = np.array([0, 1, 2], dtype=np.int64)
-        weights = np.array([0.3, 0.5, 0.2], dtype=np.float32)
-        result_uids, result_vals = convert_weights_and_uids_for_emit(uids, weights)
+        result_uids, result_vals = convert_weights_and_uids_for_emit(
+            [0, 1, 2], [0.3, 0.5, 0.2]
+        )
         assert len(result_uids) == len(result_vals)
 
     def test_uids_preserved_in_output(self):
-        uids = np.array([5, 10, 15], dtype=np.int64)
-        weights = np.array([1.0, 0.5, 0.25], dtype=np.float32)
-        result_uids, _ = convert_weights_and_uids_for_emit(uids, weights)
+        result_uids, _ = convert_weights_and_uids_for_emit([5, 10, 15], [1.0, 0.5, 0.25])
         for uid in result_uids:
             assert uid in [5, 10, 15]
 

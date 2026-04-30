@@ -17,7 +17,7 @@
 
 import asyncio
 import hashlib
-from typing import Union, List, TYPE_CHECKING, Optional
+from typing import Union, List, Sequence, TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet, Keypair
 import numpy as np
@@ -88,66 +88,69 @@ async def get_limits(subtensor: SubtensorInterface) -> tuple[int, float]:
 
 
 def normalize_max_weight(
-    x: NDArray[np.float32], limit: float = 0.1
-) -> NDArray[np.float32]:
+    x: Sequence[float], limit: float = 0.1
+) -> list[float]:
     """
-    Normalizes the tensor x so that sum(x) = 1 and the max value is not greater than the limit.
+    Normalizes the sequence x so that sum(x) = 1 and the max value is not greater than the limit.
 
-    :param x: Tensor to be max_value normalized.
+    :param x: Sequence of weights to be max_value normalized.
     :param limit: Max value after normalization.
 
-    :return: Normalized x tensor.
+    :return: Normalized weights as a Python list of floats.
     """
     epsilon = 1e-7  # For numerical stability after normalization
 
-    weights = x.copy()
-    values = np.sort(weights)
+    weights = list(x)
+    n = len(weights)
+    values = sorted(weights)
+    values_sum = sum(values)
 
-    if x.sum() == 0 or x.shape[0] * limit <= 1:
-        return np.ones_like(x) / x.shape[0]
-    else:
-        estimation = values / values.sum()
+    if values_sum == 0 or n * limit <= 1:
+        return [1.0 / n] * n
 
-        if estimation.max() <= limit:
-            return weights / weights.sum()
+    estimation = [v / values_sum for v in values]
 
-        # Find the cumulative sum and sorted tensor
-        cumsum = np.cumsum(estimation, 0)
+    if max(estimation) <= limit:
+        weights_sum = sum(weights)
+        return [w / weights_sum for w in weights]
 
-        # Determine the index of cutoff
-        estimation_sum = np.array(
-            [(len(values) - i - 1) * estimation[i] for i in range(len(values))]
-        )
-        n_values = (estimation / (estimation_sum + cumsum + epsilon) < limit).sum()
+    # Cumulative sum of the sorted, sum-normalized values.
+    cumsum = []
+    running = 0.0
+    for v in estimation:
+        running += v
+        cumsum.append(running)
 
-        # Determine the cutoff based on the index
-        cutoff_scale = (limit * cumsum[n_values - 1] - epsilon) / (
-            1 - (limit * (len(estimation) - n_values))
-        )
-        cutoff = cutoff_scale * values.sum()
+    estimation_sum = [(n - i - 1) * estimation[i] for i in range(n)]
+    n_values = sum(
+        1
+        for i in range(n)
+        if estimation[i] / (estimation_sum[i] + cumsum[i] + epsilon) < limit
+    )
 
-        # Applying the cutoff
-        weights[weights > cutoff] = cutoff
+    cutoff_scale = (limit * cumsum[n_values - 1] - epsilon) / (
+        1 - (limit * (n - n_values))
+    )
+    cutoff = cutoff_scale * values_sum
 
-        y = weights / weights.sum()
-
-        return y
+    clipped = [min(w, cutoff) for w in weights]
+    clipped_sum = sum(clipped)
+    return [w / clipped_sum for w in clipped]
 
 
 def convert_weights_and_uids_for_emit(
-    uids: NDArray[np.int64],
-    weights: NDArray[np.float32],
+    uids: Sequence[int],
+    weights: Sequence[float],
 ) -> tuple[List[int], List[int]]:
     """Converts weights into integer u32 representation that sum to MAX_INT_WEIGHT.
 
-    :param uids: Tensor of uids as destinations for passed weights.
-    :param weights: Tensor of weights.
+    :param uids: Sequence of uids as destinations for passed weights.
+    :param weights: Sequence of weights.
 
     :return: (weight_uids, weight_vals)
     """
-    # Checks.
-    weights = weights.tolist()
-    uids = uids.tolist()
+    weights = list(weights)
+    uids = list(uids)
     if min(weights) < 0:
         raise ValueError(
             "Passed weight is negative cannot exist on chain {}".format(weights)
@@ -217,9 +220,10 @@ async def process_weights_for_netuid(
     non_zero_weight_uids = uids[non_zero_weight_idx]
     non_zero_weights = weights[non_zero_weight_idx]
     nzw_size = non_zero_weights.size
-    if nzw_size == 0 or metagraph.n < min_allowed_weights:
+    n_neurons = metagraph.n[0]
+    if nzw_size == 0 or n_neurons < min_allowed_weights:
         # bittensor.logging.warning("No non-zero weights returning all ones.")
-        final_weights = np.ones(metagraph.n, dtype=np.int64) / metagraph.n
+        final_weights = np.ones(n_neurons, dtype=np.int64) / n_neurons
         # bittensor.logging.debug("final_weights", final_weights)
         final_weights_count = np.arange(len(final_weights))
         return final_weights_count, final_weights
@@ -229,7 +233,7 @@ async def process_weights_for_netuid(
         #     "No non-zero weights less than min allowed weight, returning all ones."
         # )
         weights = (
-            np.ones(metagraph.n, dtype=np.int64) * 1e-5
+            np.ones(n_neurons, dtype=np.int64) * 1e-5
         )  # creating minimum even non-zero weights
         weights[non_zero_weight_idx] += non_zero_weights
         # bittensor.logging.debug("final_weights", weights)

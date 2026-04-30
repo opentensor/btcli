@@ -16,7 +16,6 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Coroutine, Optional, Union
 
-import numpy as np
 import rich
 import typer
 from async_substrate_interface.errors import (
@@ -123,8 +122,6 @@ except ImportError:
 
 logger = logging.getLogger("btcli")
 _epilog = "Made with [bold red]:heart:[/bold red] by The Openτensor Foundaτion"
-
-np.set_printoptions(precision=8, suppress=True, floatmode="fixed")
 
 
 def arg__(arg_name: str) -> str:

@@ -1,15 +1,9 @@
 import asyncio
 
-import numpy as np
-from numpy.typing import NDArray
+from array import array
 
 from bittensor_cli.src.bittensor.chain_data import NeuronInfo, SubnetState
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
-from bittensor_cli.src.bittensor.utils import (
-    convert_root_weight_uids_and_vals_to_tensor,
-    convert_weight_uids_and_vals_to_tensor,
-    convert_bond_uids_and_vals_to_tensor,
-)
 
 
 class MiniGraph:
@@ -28,49 +22,47 @@ class MiniGraph:
         self.network = subtensor.network
 
         self.axons = [n.axon_info for n in self.neurons]
-        self.n = self._create_tensor(len(self.neurons), dtype=np.int64)
-        self.block = self._create_tensor(block, dtype=np.int64)
-        self.uids = self._create_tensor(
-            [neuron.uid for neuron in self.neurons], dtype=np.int64
-        )
+        self.n = self._create_tensor([len(self.neurons)], ctype="q")
+        self.block = self._create_tensor([block], "q")
+        self.uids = self._create_tensor([neuron.uid for neuron in self.neurons], "q")
         self.trust = self._create_tensor(
-            [neuron.trust for neuron in self.neurons], dtype=np.float32
+            [neuron.trust for neuron in self.neurons], ctype="f"
         )
         self.consensus = self._create_tensor(
-            [neuron.consensus for neuron in self.neurons], dtype=np.float32
+            [neuron.consensus for neuron in self.neurons], ctype="f"
         )
         self.incentive = self._create_tensor(
-            [neuron.incentive for neuron in self.neurons], dtype=np.float32
+            [neuron.incentive for neuron in self.neurons], ctype="f"
         )
         self.dividends = self._create_tensor(
-            [neuron.dividends for neuron in self.neurons], dtype=np.float32
+            [neuron.dividends for neuron in self.neurons], ctype="f"
         )
         self.ranks = self._create_tensor(
-            [neuron.rank for neuron in self.neurons], dtype=np.float32
+            [neuron.rank for neuron in self.neurons], ctype="f"
         )
         self.emission = self._create_tensor(
-            [neuron.emission for neuron in self.neurons], dtype=np.float32
+            [neuron.emission for neuron in self.neurons], ctype="f"
         )
         self.active = self._create_tensor(
-            [neuron.active for neuron in self.neurons], dtype=np.int64
+            [neuron.active for neuron in self.neurons], ctype="q"
         )
         self.last_update = self._create_tensor(
-            [neuron.last_update for neuron in self.neurons], dtype=np.int64
+            [neuron.last_update for neuron in self.neurons], ctype="q"
         )
         self.validator_permit = self._create_tensor(
-            [neuron.validator_permit for neuron in self.neurons], dtype=bool
+            [neuron.validator_permit for neuron in self.neurons], ctype="B"
         )
         self.validator_trust = self._create_tensor(
-            [neuron.validator_trust for neuron in self.neurons], dtype=np.float32
+            [neuron.validator_trust for neuron in self.neurons], ctype="f"
         )
 
         # Fetch stakes from subnet_state until we get updated data in NeuronInfo
         global_stake_list, local_stake_list, stake_weights_list = self._process_stakes(
             neurons, subnet_state
         )
-        self.global_stake = self._create_tensor(global_stake_list, dtype=np.float32)
-        self.local_stake = self._create_tensor(local_stake_list, dtype=np.float32)
-        self.stake_weights = self._create_tensor(stake_weights_list, dtype=np.float32)
+        self.global_stake = self._create_tensor(global_stake_list, ctype="f")
+        self.local_stake = self._create_tensor(local_stake_list, ctype="f")
+        self.stake_weights = self._create_tensor(stake_weights_list, ctype="f")
 
     async def __aenter__(self):
         if not self.weights:
@@ -85,13 +77,13 @@ class MiniGraph:
         return [axon.hotkey for axon in self.axons]
 
     @staticmethod
-    def _create_tensor(data, dtype) -> NDArray:
+    def _create_tensor(data, ctype) -> array:
         """
-        Creates a numpy array with the given data and data type. This method is a utility function used internally to encapsulate data into a np.array, making it compatible with the metagraph's numpy model structure.
+        Creates an array of the given data.
 
         Args:
             data: The data to be included in the tensor. This could be any numeric data, like stakes, ranks, etc.
-            dtype: The data type for the tensor, typically a numpy data type like ``np.float32`` or ``np.int64``.
+            ctype: The data type for the tensor, see the docstring for array.ArrayType
 
         Returns:
             A tensor parameter encapsulating the provided data.
@@ -99,10 +91,9 @@ class MiniGraph:
         Internal Usage:
             Used internally to create tensor parameters for various metagraph attributes::
 
-                self.stake = self._create_tensor(neuron_stakes, dtype=np.float32)
+                self.stake = self._create_tensor(neuron_stakes, dtype="f")
         """
-        # TODO: Check and test the creation of tensor
-        return np.array(data, dtype=dtype)
+        return array(ctype, data)
 
     async def _set_weights_and_bonds(self):
         """
@@ -158,60 +149,46 @@ class MiniGraph:
 
         return global_stake_list, local_stake_list, stake_weights_list
 
-    def _process_weights_or_bonds(self, data, attribute: str) -> NDArray:
+    def _process_weights_or_bonds(self, data, attribute: str) -> list[array]:
         """
-        Processes the raw weights or bonds data and converts it into a structured tensor format. This method handles
-        the transformation of neuron connection data (`weights` or `bonds`) from a list or other unstructured
-        format into a tensor that can be utilized within the metagraph model.
+        Processes the raw weights or bonds data and converts it into a list of per-neuron float32 rows.
 
         :param data: The raw weights or bonds data to be processed. This data typically comes from the subtensor.
-                     attribute: A string indicating whether the data is `weights` or `bonds`, which determines the
-                     specific processing steps to be applied.
+        :param attribute: ``"weights"`` (normalized to sum to 1.0) or ``"bonds"`` (no normalization).
 
-        :return: A tensor parameter encapsulating the processed weights or bonds data.
+        :return: One ``array("f", ...)`` row per input item, each of length ``len(self.neurons)``.
         """
-        data_array = []
+        n = len(self.neurons)
+        data_array: list[array] = []
         for item in data:
+            row = array("f", bytes(4 * n))
             if len(item) == 0:
-                data_array.append(np.zeros(len(self.neurons), dtype=np.float32))  # type: ignore
-            else:
-                uids, values = zip(*item)
-                # TODO: Validate and test the conversion of uids and values to tensor
-                if attribute == "weights":
-                    data_array.append(
-                        convert_weight_uids_and_vals_to_tensor(
-                            len(self.neurons),
-                            list(uids),
-                            list(values),  # type: ignore
-                        )
-                    )
-                else:
-                    data_array.append(
-                        convert_bond_uids_and_vals_to_tensor(  # type: ignore
-                            len(self.neurons), list(uids), list(values)
-                        ).astype(np.float32)
-                    )
-        tensor_param: NDArray = (
-            np.stack(data_array) if len(data_array) else np.array([], dtype=np.float32)
-        )
-        if len(data_array) == 0:
-            # bittensor.logging.warning(
-            #     f"Empty {attribute}_array on metagraph.sync(). The '{attribute}' tensor is empty."
-            # )
-            pass
-        return tensor_param
+                data_array.append(row)
+                continue
 
-    async def _process_root_weights(self, data, attribute: str) -> NDArray:
+            uids, values = zip(*item)
+            if attribute == "weights":
+                for uid_j, wij in zip(uids, values):
+                    row[uid_j] = float(wij)
+                row_sum = sum(row)
+                if row_sum > 0:
+                    row = array("f", (v / row_sum for v in row))
+            else:  # bonds
+                for uid_j, bij in zip(uids, values):
+                    row[uid_j] = float(int(bij))
+            data_array.append(row)
+        return data_array
+
+    async def _process_root_weights(self, data, attribute: str) -> list[array]:
         """
         Specifically processes the root weights data for the metagraph. This method is similar to
         `_process_weights_or_bonds` but is tailored for processing root weights, which have a different structure and
         significance in the network.
 
-        Args:
         :param data: The raw root weights data to be processed.
         :param attribute: A string indicating the attribute type, here it's typically `weights`.
 
-        :return: A tensor parameter encapsulating the processed root weights data.
+        :return: One ``array("f", ...)`` row per input item, each of length ``n_subnets``.
         """
 
         async def get_total_subnets():
@@ -229,25 +206,21 @@ class MiniGraph:
             )
             return [i for i in range(_result)]
 
-        data_array = []
         n_subnets, subnets = await asyncio.gather(get_total_subnets(), get_subnets())
+        data_array: list[array] = []
         for item in data:
+            row = array("f", bytes(4 * n_subnets))
             if len(item) == 0:
-                data_array.append(np.zeros(n_subnets, dtype=np.float32))  # type: ignore
-            else:
-                uids, values = zip(*item)
-                data_array.append(
-                    convert_root_weight_uids_and_vals_to_tensor(  # type: ignore
-                        n_subnets, list(uids), list(values), subnets
-                    )
-                )
+                data_array.append(row)
+                continue
 
-        tensor_param: NDArray = (
-            np.stack(data_array) if len(data_array) else np.array([], dtype=np.float32)
-        )
-        if len(data_array) == 0:
-            pass
-            # bittensor.logging.warning(
-            #     f"Empty {attribute}_array on metagraph.sync(). The '{attribute}' tensor is empty."
-            # )
-        return tensor_param
+            uids, values = zip(*item)
+            for uid_j, wij in zip(uids, values):
+                if uid_j in subnets:
+                    index_s = subnets.index(uid_j)
+                    row[index_s] = float(wij)
+            row_sum = sum(row)
+            if row_sum > 0:
+                row = array("f", (v / row_sum for v in row))
+            data_array.append(row)
+        return data_array
