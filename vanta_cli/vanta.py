@@ -239,7 +239,7 @@ class VantaCLIManager(CLIManager):
             validate=WV.WALLET_AND_HOTKEY,
         )
 
-        assets = ["crypto", "forex", "equities"]
+        assets = ["crypto", "forex", "equities", "hl_all"]
 
         for idx, asset in enumerate(assets, start=1):
             console.print(f"{idx}. {asset}")
@@ -340,7 +340,7 @@ class VantaCLIManager(CLIManager):
 
         # Prompt for asset_class if not provided
         if asset_class is None:
-            assets = ["crypto", "forex", "equities"]
+            assets = ["crypto", "forex", "equities", "hl_all"]
             console.print("\nAvailable asset classes:")
             for idx, asset in enumerate(assets, start=1):
                 console.print(f"{idx}. {asset}")
