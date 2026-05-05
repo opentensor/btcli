@@ -703,7 +703,7 @@ def format_error_message(error_message: Union[dict, Exception]) -> str:
                 " ".join(err_docs) if not isinstance(err_docs, str) else err_docs
             )
             err_description += (
-                f" | Please consult {BT_DOCS_LINK}/errors/subtensor#{err_name.lower()}"
+                f" | Please consult {BT_DOCS_LINK}/subtensor-api/errors#{err_name.lower()}"
             )
 
         elif error_message.get("code") and error_message.get("message"):
