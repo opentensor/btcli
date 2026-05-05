@@ -39,7 +39,7 @@ async def deposit(
         console=console,
     ) as progress:
         task = progress.add_task("Fetching stake information...", total=None)
-        source_stake: Any = manager.subtensor_api.staking.get_stake_for_coldkey(coldkey.ss58_address)
+        source_stake: Any = manager.subtensor_api.staking.get_stake_info_for_coldkey(coldkey.ss58_address)
 
         progress.update(task, description="Checking Wallet Information...")
         balance: Any = manager.balance_of(hotkey.ss58_address) / 10 ** 9

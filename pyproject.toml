@@ -4,14 +4,14 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "vanta-cli"
-version = "2.1.2"
+version = "2.1.4"
 description = "Vanta Network CLI"
 readme = "README.md"
 authors = [
     {name = "taoshi.io" }
 ]
 license = "MIT"
-scripts = { vanta = "vanta_cli.vanta:main" }
+scripts = { vanta = "vanta_cli.vanta:main", btcli = "bittensor_cli.cli:main" }
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -47,7 +47,7 @@ dependencies = [
     "packaging",
     "plotille>=5.0.0",
     "plotly>=6.0.0",
-    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.7",
+    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.8",
 ]
 
 [project.optional-dependencies]
