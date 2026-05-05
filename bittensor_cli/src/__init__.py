@@ -1,6 +1,4 @@
 from enum import Enum
-from dataclasses import dataclass
-from typing import Any, Optional
 
 
 class Constants:
@@ -9,7 +7,6 @@ class Constants:
         "finney",
         "test",
         "archive",
-        "subvortex",
         "rao",
         "dev",
         "latent-lite",
@@ -17,12 +14,11 @@ class Constants:
     finney_entrypoint = "wss://entrypoint-finney.opentensor.ai:443"
     finney_test_entrypoint = "wss://test.finney.opentensor.ai:443"
     archive_entrypoint = "wss://archive.chain.opentensor.ai:443"
-    subvortex_entrypoint = "ws://subvortex.info:9944"
     local_entrypoint = "ws://127.0.0.1:9944"
     rao_entrypoint = "wss://rao.chain.opentensor.ai:443"
     dev_entrypoint = "wss://dev.chain.opentensor.ai:443"
-    local_entrypoint = "ws://127.0.0.1:9944"
     latent_lite_entrypoint = "wss://lite.sub.latent.to:443"
+    lite_nodes = [finney_entrypoint, latent_lite_entrypoint]
     network_map = {
         "finney": finney_entrypoint,
         "test": finney_test_entrypoint,
@@ -31,54 +27,12 @@ class Constants:
         "dev": dev_entrypoint,
         "rao": rao_entrypoint,
         "latent-lite": latent_lite_entrypoint,
-        "subvortex": subvortex_entrypoint,
     }
     genesis_block_hash_map = {
         "finney": "0x2f0555cc76fc2840a25a6ea3b9637146806f1f44b090c175ffde2a7e5ab36c03",
         "test": "0x8f9cf856bf558a14440e75569c9e58594757048d7b3a84b5d25f6bd978263105",
     }
     delegates_detail_url = "https://raw.githubusercontent.com/opentensor/bittensor-delegates/main/public/delegates.json"
-
-
-@dataclass
-class DelegatesDetails:
-    display: str
-    additional: list[tuple[str, str]]
-    web: str
-    legal: Optional[str] = None
-    riot: Optional[str] = None
-    email: Optional[str] = None
-    pgp_fingerprint: Optional[str] = None
-    image: Optional[str] = None
-    twitter: Optional[str] = None
-
-    @classmethod
-    def from_chain_data(cls, data: dict[str, Any]) -> "DelegatesDetails":
-        def decode(key: str, default=""):
-            try:
-                if isinstance(data.get(key), dict):
-                    value = next(data.get(key).values())
-                    return bytes(value[0]).decode("utf-8")
-                elif isinstance(data.get(key), int):
-                    return data.get(key)
-                elif isinstance(data.get(key), tuple):
-                    return bytes(data.get(key)[0]).decode("utf-8")
-                else:
-                    return default
-            except (UnicodeDecodeError, TypeError):
-                return default
-
-        return cls(
-            display=decode("display"),
-            additional=decode("additional", []),
-            web=decode("web"),
-            legal=decode("legal"),
-            riot=decode("riot"),
-            email=decode("email"),
-            pgp_fingerprint=decode("pgp_fingerprint", None),
-            image=decode("image"),
-            twitter=decode("twitter"),
-        )
 
 
 class Defaults:
@@ -88,12 +42,14 @@ class Defaults:
     class config:
         base_path = "~/.bittensor"
         path = "~/.bittensor/config.yml"
+        debug_file_path = "~/.bittensor/debug.txt"
         dictionary = {
             "network": None,
             "wallet_path": None,
             "wallet_name": None,
             "wallet_hotkey": None,
             "use_cache": True,
+            "disk_cache": False,
             "metagraph_cols": {
                 "UID": True,
                 "GLOBAL_STAKE": True,
@@ -114,6 +70,11 @@ class Defaults:
                 "COLDKEY": True,
             },
         }
+
+    class proxies:
+        base_path = "~/.bittensor"
+        path = "~/.bittensor/bittensor.db"
+        dictionary = {}
 
     class subtensor:
         network = "finney"
@@ -623,50 +584,329 @@ NETWORK_EXPLORER_MAP = {
 }
 
 
+class RootSudoOnly(Enum):
+    FALSE = 0
+    TRUE = 1
+    COMPLICATED = 2
+
+
 HYPERPARAMS = {
-    # btcli name: (subtensor method, root-only bool)
-    "rho": ("sudo_set_rho", False),
-    "kappa": ("sudo_set_kappa", False),
-    "immunity_period": ("sudo_set_immunity_period", False),
-    "min_allowed_weights": ("sudo_set_min_allowed_weights", False),
-    "max_weights_limit": ("sudo_set_max_weight_limit", False),
-    "tempo": ("sudo_set_tempo", True),
-    "min_difficulty": ("sudo_set_min_difficulty", False),
-    "max_difficulty": ("sudo_set_max_difficulty", False),
-    "weights_version": ("sudo_set_weights_version_key", False),
-    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", False),
-    "adjustment_interval": ("sudo_set_adjustment_interval", True),
-    "activity_cutoff": ("sudo_set_activity_cutoff", False),
-    "target_regs_per_interval": ("sudo_set_target_registrations_per_interval", True),
-    "min_burn": ("sudo_set_min_burn", True),
-    "max_burn": ("sudo_set_max_burn", True),
-    "bonds_moving_avg": ("sudo_set_bonds_moving_average", False),
-    "max_regs_per_block": ("sudo_set_max_registrations_per_block", True),
-    "serving_rate_limit": ("sudo_set_serving_rate_limit", False),
-    "max_validators": ("sudo_set_max_allowed_validators", True),
-    "adjustment_alpha": ("sudo_set_adjustment_alpha", False),
-    "difficulty": ("sudo_set_difficulty", False),
+    # btcli name: (subtensor method, root-only enum)
+    "rho": ("sudo_set_rho", RootSudoOnly.FALSE),
+    "kappa": ("sudo_set_kappa", RootSudoOnly.TRUE),
+    "immunity_period": ("sudo_set_immunity_period", RootSudoOnly.FALSE),
+    "min_allowed_weights": ("sudo_set_min_allowed_weights", RootSudoOnly.FALSE),
+    "max_weights_limit": ("sudo_set_max_weight_limit", RootSudoOnly.FALSE),
+    "tempo": ("sudo_set_tempo", RootSudoOnly.TRUE),
+    "min_difficulty": ("sudo_set_min_difficulty", RootSudoOnly.TRUE),
+    "max_difficulty": ("sudo_set_max_difficulty", RootSudoOnly.FALSE),
+    "weights_version": ("sudo_set_weights_version_key", RootSudoOnly.FALSE),
+    "weights_rate_limit": ("sudo_set_weights_set_rate_limit", RootSudoOnly.TRUE),
+    "adjustment_interval": ("sudo_set_adjustment_interval", RootSudoOnly.TRUE),
+    "activity_cutoff": ("sudo_set_activity_cutoff", RootSudoOnly.FALSE),
+    "target_regs_per_interval": (
+        "sudo_set_target_registrations_per_interval",
+        RootSudoOnly.TRUE,
+    ),
+    "min_burn": ("sudo_set_min_burn", RootSudoOnly.FALSE),
+    "max_burn": ("sudo_set_max_burn", RootSudoOnly.COMPLICATED),
+    "bonds_moving_avg": ("sudo_set_bonds_moving_average", RootSudoOnly.FALSE),
+    "max_regs_per_block": ("sudo_set_max_registrations_per_block", RootSudoOnly.TRUE),
+    "serving_rate_limit": ("sudo_set_serving_rate_limit", RootSudoOnly.FALSE),
+    "max_validators": ("sudo_set_max_allowed_validators", RootSudoOnly.TRUE),
+    "adjustment_alpha": ("sudo_set_adjustment_alpha", RootSudoOnly.FALSE),
+    "difficulty": ("sudo_set_difficulty", RootSudoOnly.TRUE),
     "commit_reveal_period": (
         "sudo_set_commit_reveal_weights_interval",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "commit_reveal_weights_enabled": ("sudo_set_commit_reveal_weights_enabled", False),
-    "alpha_values": ("sudo_set_alpha_values", False),
-    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", False),
-    "registration_allowed": ("sudo_set_network_registration_allowed", False),
+    "commit_reveal_weights_enabled": (
+        "sudo_set_commit_reveal_weights_enabled",
+        RootSudoOnly.FALSE,
+    ),
+    "alpha_values": ("sudo_set_alpha_values", RootSudoOnly.FALSE),
+    "liquid_alpha_enabled": ("sudo_set_liquid_alpha_enabled", RootSudoOnly.FALSE),
+    "registration_allowed": (
+        "sudo_set_network_registration_allowed",
+        RootSudoOnly.TRUE,
+    ),
     "network_pow_registration_allowed": (
         "sudo_set_network_pow_registration_allowed",
-        False,
+        RootSudoOnly.FALSE,
     ),
-    "yuma3_enabled": ("sudo_set_yuma3_enabled", False),
-    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", True),
-    "user_liquidity_enabled": ("toggle_user_liquidity", False),
-    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", False),
-    "transfers_enabled": ("sudo_set_toggle_transfer", False),
+    "yuma3_enabled": ("sudo_set_yuma3_enabled", RootSudoOnly.FALSE),
+    "alpha_sigmoid_steepness": ("sudo_set_alpha_sigmoid_steepness", RootSudoOnly.TRUE),
+    "user_liquidity_enabled": ("toggle_user_liquidity", RootSudoOnly.COMPLICATED),
+    "bonds_reset_enabled": ("sudo_set_bonds_reset_enabled", RootSudoOnly.FALSE),
+    "transfers_enabled": ("sudo_set_toggle_transfer", RootSudoOnly.FALSE),
+    "min_allowed_uids": ("sudo_set_min_allowed_uids", RootSudoOnly.TRUE),
+    "sn_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
+    "subnet_owner_hotkey": ("sudo_set_sn_owner_hotkey", RootSudoOnly.FALSE),
+    "recycle_or_burn": ("sudo_set_recycle_or_burn", RootSudoOnly.FALSE),
+    # Note: These are displayed but not directly settable via HYPERPARAMS
+    # They are derived or set via other mechanisms
+    "alpha_high": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
+    "alpha_low": ("", RootSudoOnly.FALSE),  # Derived from alpha_values
+    "subnet_is_active": ("", RootSudoOnly.FALSE),  # Set via btcli subnets start
+    "yuma_version": ("", RootSudoOnly.FALSE),  # Related to yuma3_enabled
+    "max_allowed_uids": ("sudo_set_max_allowed_uids", RootSudoOnly.FALSE),
+    "burn_increase_mult": ("sudo_set_burn_increase_mult", RootSudoOnly.FALSE),
+    "burn_half_life": ("sudo_set_burn_half_life", RootSudoOnly.FALSE),
 }
 
 HYPERPARAMS_MODULE = {
     "user_liquidity_enabled": "Swap",
+}
+
+# Hyperparameter metadata: descriptions, side-effects, ownership, and documentation links
+HYPERPARAMS_METADATA = {
+    "rho": {
+        "description": "Rho controls the rate at which weights decay over time.",
+        "side_effects": "Changing rho affects how quickly neurons' influence diminishes, impacting consensus dynamics.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#rho",
+    },
+    "kappa": {
+        "description": "Kappa determines the scaling factor for consensus calculations.",
+        "side_effects": "Modifying kappa changes how validator votes are weighted in consensus mechanisms.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#kappa",
+    },
+    "immunity_period": {
+        "description": "Duration (in blocks) during which newly registered neurons are protected from certain penalties.",
+        "side_effects": "Increasing immunity period gives new neurons more time to establish themselves before facing penalties.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#immunityperiod",
+    },
+    "min_allowed_weights": {
+        "description": "Minimum number of weight connections a neuron must maintain to stay active.",
+        "side_effects": "Lower values allow neurons with fewer connections to remain active; higher values enforce stricter connectivity requirements.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#minallowedweights",
+    },
+    "max_weights_limit": {
+        "description": "Maximum number of weight connections a neuron can have with other neurons.",
+        "side_effects": "Limits the maximum out-degree of the network graph, affecting network topology and consensus.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxweightslimit",
+    },
+    "tempo": {
+        "description": "Number of blocks between epoch transitions",
+        "side_effects": "Lower tempo means more frequent updates but higher chain load. Higher tempo reduces frequency but may slow responsiveness.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#tempo",
+    },
+    "min_difficulty": {
+        "description": "Minimum proof-of-work difficulty required for registration",
+        "side_effects": "Increasing min_difficulty raises the computational barrier for new neuron registrations.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#mindifficulty",
+    },
+    "max_difficulty": {
+        "description": "Maximum proof-of-work difficulty cap.",
+        "side_effects": "Caps the maximum computational requirement, ensuring registration remains feasible.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxdifficulty",
+    },
+    "weights_version": {
+        "description": "Version key for weight sets.",
+        "side_effects": "Changing this invalidates all existing weights, forcing neurons to resubmit weights.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#weightsversion",
+    },
+    "weights_rate_limit": {
+        "description": "Maximum number of weight updates allowed per epoch.",
+        "side_effects": "Lower values reduce chain load but may limit legitimate weight updates. Higher values allow more flexibility.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#weightsratelimit--commitmentratelimit",
+    },
+    "adjustment_interval": {
+        "description": "Number of blocks between automatic difficulty adjustments.",
+        "side_effects": "Shorter intervals make difficulty more responsive but may cause volatility. Longer intervals provide stability.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#adjustmentinterval",
+    },
+    "activity_cutoff": {
+        "description": "Minimum activity level required for neurons to remain active.",
+        "side_effects": "Lower values keep more neurons active; higher values prune inactive neurons more aggressively.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#activitycutoff",
+    },
+    "target_regs_per_interval": {
+        "description": "Target number of new registrations per adjustment interval.",
+        "side_effects": "Affects how the difficulty adjustment algorithm targets registration rates.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#targetregistrationsperinterval",
+    },
+    "min_burn": {
+        "description": "Minimum TAO burn amount required for subnet registration.",
+        "side_effects": "Increasing min_burn raises the barrier to entry, potentially reducing spam but also limiting participation.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#minburn",
+    },
+    "max_burn": {
+        "description": "Maximum TAO burn amount cap for subnet registration.",
+        "side_effects": "Caps registration costs, ensuring registration remains accessible even as difficulty increases.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxburn",
+    },
+    "bonds_moving_avg": {
+        "description": "Moving average window size for bond calculations.",
+        "side_effects": "Larger windows provide smoother bond values but slower response to changes. Smaller windows react faster but may be more volatile.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#bondsmovingaverage",
+    },
+    "max_regs_per_block": {
+        "description": "Maximum number of registrations allowed per block.",
+        "side_effects": "Lower values reduce chain load but may create registration bottlenecks. Higher values allow more throughput.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxregistrationsperblock",
+    },
+    "serving_rate_limit": {
+        "description": "Rate limit for serving requests.",
+        "side_effects": "Affects network throughput and prevents individual neurons from monopolizing serving capacity.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#servingratelimit",
+    },
+    "max_validators": {
+        "description": "Maximum number of validators allowed in the subnet.",
+        "side_effects": "Lower values reduce consensus overhead but limit decentralization. Higher values increase decentralization but may slow consensus.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxallowedvalidators",
+    },
+    "adjustment_alpha": {
+        "description": "Alpha parameter for difficulty adjustment algorithm.",
+        "side_effects": "Higher values make difficulty adjustments more aggressive; lower values provide smoother transitions.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#adjustmentalpha",
+    },
+    "difficulty": {
+        "description": "Current proof-of-work difficulty for registration.",
+        "side_effects": "Directly affects registration cost and time. Higher difficulty makes registration harder and more expensive.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#difficulty",
+    },
+    "commit_reveal_period": {
+        "description": "Duration (in blocks) for commit-reveal weight submission scheme.",
+        "side_effects": "Longer periods provide more time for commits but delay weight revelation. Shorter periods increase frequency.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#commitrevealperiod",
+    },
+    "commit_reveal_weights_enabled": {
+        "description": "Enable or disable commit-reveal scheme for weight submissions.",
+        "side_effects": "Enabling prevents front-running of weight submissions. Disabling allows immediate weight visibility.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#commitrevealweightsenabled",
+    },
+    "alpha_values": {
+        "description": "Alpha range [low, high] for stake calculations.",
+        "side_effects": "Affects how stake is converted and calculated. Changing these values impacts staking economics.",
+        "owner_settable": True,
+        "docs_link": "",
+    },
+    "liquid_alpha_enabled": {
+        "description": "Enable or disable liquid alpha staking mechanism.",
+        "side_effects": "Enabling provides more staking flexibility. Disabling uses traditional staking mechanisms.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#liquidalphaenabled",
+    },
+    "registration_allowed": {
+        "description": "Enable or disable new registrations to the subnet.",
+        "side_effects": "Disabling registration closes the subnet to new participants. Enabling allows open registration.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#networkregistrationallowed",
+    },
+    "network_pow_registration_allowed": {
+        "description": "Enable or disable proof-of-work based registration.",
+        "side_effects": "Disabling removes PoW requirement, potentially allowing easier registration. Enabling enforces computational proof.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#networkpowregistrationallowed",
+    },
+    "yuma3_enabled": {
+        "description": "Enable or disable Yuma3 consensus mechanism.",
+        "side_effects": "Enabling Yuma3 activates advanced consensus features. Disabling uses standard consensus mechanisms.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#yumaversion",
+    },
+    "alpha_sigmoid_steepness": {
+        "description": "Steepness parameter for alpha sigmoid function.",
+        "side_effects": "Affects how alpha values are transformed in staking calculations. Higher values create steeper curves.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
+    },
+    "user_liquidity_enabled": {
+        "description": "Enable or disable user liquidity features.",
+        "side_effects": "Enabling allows liquidity provision and swaps. Disabling restricts liquidity operations.",
+        "owner_settable": True,  # COMPLICATED - can be set by owner or sudo
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#userliquidityenabled",
+    },
+    "bonds_reset_enabled": {
+        "description": "Enable or disable periodic bond resets.",
+        "side_effects": "Enabling provides periodic bond resets, preventing bond accumulation. Disabling allows bonds to accumulate.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#bondsresetenabled",
+    },
+    "transfers_enabled": {
+        "description": "Enable or disable TAO transfers within the subnet.",
+        "side_effects": "Enabling allows TAO transfers between neurons. Disabling prevents all transfer operations.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#toggletransfer",
+    },
+    "min_allowed_uids": {
+        "description": "Minimum number of UIDs (neurons) required for the subnet to remain active.",
+        "side_effects": "If subnet falls below this threshold, it may be deactivated. Higher values enforce stricter minimums.",
+        "owner_settable": False,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#minalloweduids",
+    },
+    "sn_owner_hotkey": {
+        "description": "Set the subnet owner hotkey.",
+        "side_effects": "Changes which hotkey is authorized as subnet owner for the given subnet.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
+    },
+    "subnet_owner_hotkey": {
+        "description": "Alias for sn_owner_hotkey; sets the subnet owner hotkey.",
+        "side_effects": "Same as sn_owner_hotkey.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
+    },
+    "recycle_or_burn": {
+        "description": "Set whether subnet TAO is recycled or burned.",
+        "side_effects": "Controls whether unstaked TAO is recycled back into the subnet or burned.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters",
+    },
+    # Additional hyperparameters that appear in chain data but aren't directly settable via HYPERPARAMS
+    "alpha_high": {
+        "description": "High bound of the alpha range for stake calculations.",
+        "side_effects": "Affects the upper bound of alpha conversion in staking mechanisms. Set via alpha_values parameter.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
+    },
+    "alpha_low": {
+        "description": "Low bound of the alpha range for stake calculations.",
+        "side_effects": "Affects the lower bound of alpha conversion in staking mechanisms. Set via alpha_values parameter.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#alphasigmoidsteepness",
+    },
+    "subnet_is_active": {
+        "description": "Whether the subnet is currently active and operational.",
+        "side_effects": "When inactive, the subnet cannot process requests or participate in network operations. Set via 'btcli subnets start' command.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#subnetisactive",
+    },
+    "yuma_version": {
+        "description": "Version of the Yuma consensus mechanism.",
+        "side_effects": "Changing the version affects which Yuma consensus features are active. Use yuma3_enabled to toggle Yuma3.",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#yuma3",
+    },
+    "max_allowed_uids": {
+        "description": "Maximum number of UIDs (neurons) on the subnet, essentially 'untrimming'.",
+        "side_effects": "See description for min_allowed_uids",
+        "owner_settable": True,
+        "docs_link": "docs.learnbittensor.org/subnets/subnet-hyperparameters#maxalloweduids",
+    },
 }
 
 # Help Panels for cli help
@@ -690,11 +930,16 @@ HELP_PANELS = {
         "STAKE_MGMT": "Stake Management",
         "CHILD": "Child Hotkeys",
         "MOVEMENT": "Stake Movement",
+        "CLAIM": "Root Claim Management",
     },
     "SUDO": {
         "CONFIG": "Subnet Configuration",
         "GOVERNANCE": "Governance",
         "TAKE": "Delegate take configuration",
+    },
+    "MECHANISMS": {
+        "CONFIG": "Mechanism Configuration",
+        "EMISSION": "Mechanism Emission",
     },
     "SUBNETS": {
         "INFO": "Subnet Information",
@@ -708,6 +953,14 @@ HELP_PANELS = {
     },
     "LIQUIDITY": {
         "LIQUIDITY_MGMT": "Liquidity Management",
+    },
+    "CROWD": {
+        "INITIATOR": "Crowdloan Creation & Management",
+        "PARTICIPANT": "Crowdloan Participation",
+        "INFO": "Crowdloan Information",
+    },
+    "PROXY": {
+        "MGMT": "Proxy Account Management",
     },
 }
 

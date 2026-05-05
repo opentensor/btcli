@@ -1,14 +1,20 @@
+import asyncio
+import importlib
 import inspect
 import os
 import re
 import shutil
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Optional
+import time
+from typing import TYPE_CHECKING, Optional, Protocol
+
+from bittensor_wallet import Keypair, Wallet
+from click.testing import Result
+from packaging.version import parse as parse_version, Version
+from typer.testing import CliRunner
 
 from bittensor_cli.cli import CLIManager
-from bittensor_wallet import Keypair, Wallet
-from typer.testing import CliRunner
 
 if TYPE_CHECKING:
     from async_substrate_interface.async_substrate import AsyncSubstrateInterface
@@ -17,7 +23,19 @@ template_path = os.getcwd() + "/neurons/"
 templates_repo = "templates repository"
 
 
-def setup_wallet(uri: str):
+class ExecCommand(Protocol):
+    """Type Protocol for setup_wallet's exec_command fn"""
+
+    def __call__(
+        self,
+        command: str,
+        sub_command: str,
+        extra_args: Optional[list[str]] = None,
+        inputs: Optional[list[str]] = None,
+    ) -> Result: ...
+
+
+def setup_wallet(uri: str) -> tuple[Keypair, Wallet, str, ExecCommand]:
     keypair = Keypair.create_from_uri(uri)
     wallet_path = f"/tmp/btcli-e2e-wallet-{uri.strip('/')}"
     wallet = Wallet(path=wallet_path)
@@ -29,7 +47,7 @@ def setup_wallet(uri: str):
         command: str,
         sub_command: str,
         extra_args: Optional[list[str]] = None,
-        inputs: list[str] = None,
+        inputs: Optional[list[str]] = None,
     ):
         extra_args = extra_args or []
         cli_manager = CLIManager()
@@ -55,7 +73,10 @@ def setup_wallet(uri: str):
                             extra_args.extend(["--network", "ws://127.0.0.1:9945"])
 
         # Capture stderr separately from stdout
-        runner = CliRunner(mix_stderr=False)
+        if parse_version(importlib.metadata.version("click")) < Version("8.2.0"):
+            runner = CliRunner(mix_stderr=False)
+        else:
+            runner = CliRunner()
         # Prepare the command arguments
         args = [
             command,
@@ -113,6 +134,34 @@ def extract_coldkey_balance(
     }
 
 
+def find_stake_entries(
+    stake_payload: dict, netuid: int, hotkey_ss58: Optional[str] = None
+) -> list[dict]:
+    """
+    Return stake entries matching a given netuid, optionally scoped to a specific hotkey.
+    Requires json payload using `--json-output` flag.
+
+    Args:
+        stake_payload: Parsed JSON payload containing `stake_info`.
+        netuid: The subnet identifier to filter on.
+        hotkey_ss58: Optional hotkey address to further narrow results.
+
+    Returns:
+        A list of stake dicts matching the criteria (may be empty).
+    """
+    stake_info = stake_payload.get("stake_info", {}) or {}
+    matching_stakes: list[dict] = []
+
+    for stake_hotkey, stakes in stake_info.items():
+        if hotkey_ss58 and stake_hotkey != hotkey_ss58:
+            continue
+        for stake in stakes or []:
+            if stake.get("netuid") == netuid:
+                matching_stakes.append(stake)
+
+    return matching_stakes
+
+
 def verify_subnet_entry(output_text: str, netuid: str, ss58_address: str) -> bool:
     """
     Verifies the presence of a specific subnet entry subnets list output.
@@ -153,7 +202,7 @@ def validate_wallet_overview(
     pattern += rf"{hotkey}\s+"  # HOTKEY
     pattern += rf"{uid}\s+"  # UID
     pattern += r"True\s+"  # ACTIVE
-    pattern += r"[\d.]+\s+"  # STAKE
+    pattern += r"[\d.,]+[k]?\s+"  # STAKE
     pattern += r"[\d.]+\s+"  # RANK
     pattern += r"[\d.]+\s+"  # TRUST
     pattern += r"[\d.]+\s+"  # CONSENSUS
@@ -364,3 +413,41 @@ async def set_storage_extrinsic(
         print(":white_heavy_check_mark: [dark_sea_green_3]Success[/dark_sea_green_3]")
 
     return response
+
+
+async def turn_off_hyperparam_freeze_window(
+    substrate: "AsyncSubstrateInterface", wallet: Wallet
+):
+    call = await substrate.compose_call(
+        call_module="Sudo",
+        call_function="sudo",
+        call_params={
+            "call": await substrate.compose_call(
+                call_module="AdminUtils",
+                call_function="sudo_set_admin_freeze_window",
+                call_params={"window": 0},
+            )
+        },
+    )
+    extrinsic = await substrate.create_signed_extrinsic(
+        call=call, keypair=wallet.coldkey
+    )
+    response = await substrate.submit_extrinsic(
+        extrinsic,
+        wait_for_inclusion=True,
+        wait_for_finalization=True,
+    )
+
+    return await response.is_success, await response.error_message
+
+
+def execute_turn_off_hyperparam_freeze_window(
+    local_chain: "AsyncSubstrateInterface", wallet: Wallet
+):
+    try:
+        asyncio.run(turn_off_hyperparam_freeze_window(local_chain, wallet))
+        time.sleep(3)
+    except ValueError:
+        print(
+            "Skipping turning off hyperparams freeze window. This indicates the call does not exist on the chain you are testing."
+        )

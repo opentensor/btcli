@@ -12,13 +12,15 @@ jobs:
   build:
     name: Build Python distribution
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
-        python-version: '3.10'
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
@@ -45,25 +47,33 @@ jobs:
         fi
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: dist
         path: dist/
 
   approve-and-publish:
+    name: Approve and publish to PyPI
     needs: build
     runs-on: ubuntu-latest
     environment: release
     permissions:
       contents: read
       id-token: write
-
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: dist
         path: dist/
+
+    - name: Verify artifact checksums
+      run: |
+        echo "Artifacts to be published:"
+        ls -la dist/
+        echo ""
+        echo "SHA256 checksums:"
+        sha256sum dist/*
 
     - name: Publish package distributions to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

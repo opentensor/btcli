@@ -9,10 +9,14 @@ Verify commands:
 
 import asyncio
 import json
+import pytest
 
 from .utils import call_add_proposal
 
 
+@pytest.mark.skip(
+    reason="See: https://github.com/opentensor/bittensor/pull/3102. Skipping until new governance is set up."
+)
 def test_senate(local_chain, wallet_setup):
     """
     Test the senate functionality in Bittensor
@@ -77,6 +81,9 @@ def test_senate(local_chain, wallet_setup):
         ],
     )
     assert "✅ Registered" in root_register.stdout, root_register.stderr
+    assert "Your extrinsic has been included " in root_register.stdout, (
+        root_register.stderr
+    )
 
     # Fetch the senate members after registering to root
     root_senate_after_reg = exec_command_bob(
@@ -156,6 +163,7 @@ def test_senate(local_chain, wallet_setup):
         ],
     )
     assert "✅ Vote cast" in vote_aye.stdout
+    assert "Your extrinsic has been included " in vote_aye.stdout
 
     # Fetch proposals after voting aye
     proposals_after_aye = exec_command_bob(
@@ -219,6 +227,7 @@ def test_senate(local_chain, wallet_setup):
         ],
     )
     assert "✅ Registered" in root_register.stdout
+    assert "Your extrinsic has been included " in root_register.stdout
 
     # Vote on the proposal by Alice (vote nay)
     vote_nay = exec_command_alice(
@@ -240,6 +249,7 @@ def test_senate(local_chain, wallet_setup):
         ],
     )
     assert "✅ Vote cast" in vote_nay.stdout
+    assert "Your extrinsic has been included " in vote_nay.stdout
 
     # Fetch proposals after voting
     proposals_after_nay = exec_command_bob(

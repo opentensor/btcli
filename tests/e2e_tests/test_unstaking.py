@@ -1,12 +1,14 @@
 import asyncio
 import json
+import os.path
 import re
-
+import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 
-from btcli.tests.e2e_tests.utils import set_storage_extrinsic
+from .utils import set_storage_extrinsic
 
 
+@pytest.mark.parametrize("local_chain", [False], indirect=True)
 def test_unstaking(local_chain, wallet_setup):
     """
     Test various unstaking scenarios including partial unstake, unstake all alpha, and unstake all.
@@ -88,7 +90,8 @@ def test_unstaking(local_chain, wallet_setup):
             "--no-prompt",
         ],
     )
-    assert "✅ Registered subnetwork with netuid: 2" in result.stdout
+    assert "✅ Registered subnetwork with netuid: 2" in result.stdout, result.stderr
+    assert "Your extrinsic has been included" in result.stdout, result.stderr
 
     # Create second subnet (netuid = 3)
     result = exec_command_alice(
@@ -123,6 +126,7 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Registered subnetwork with netuid: 3" in result.stdout
+    assert "Your extrinsic has been included" in result.stdout, result.stdout
 
     # Start emission schedule for subnets
     start_call_netuid_0 = exec_command_alice(
@@ -144,6 +148,9 @@ def test_unstaking(local_chain, wallet_setup):
         "Successfully started subnet 0's emission schedule."
         in start_call_netuid_0.stdout
     )
+    assert "Your extrinsic has been included" in start_call_netuid_0.stdout, (
+        start_call_netuid_0.stdout
+    )
     start_call_netuid_2 = exec_command_alice(
         command="subnets",
         sub_command="start",
@@ -163,6 +170,7 @@ def test_unstaking(local_chain, wallet_setup):
         "Successfully started subnet 2's emission schedule."
         in start_call_netuid_2.stdout
     )
+    assert "Your extrinsic has been included" in start_call_netuid_2.stdout
 
     start_call_netuid_3 = exec_command_alice(
         command="subnets",
@@ -183,6 +191,7 @@ def test_unstaking(local_chain, wallet_setup):
         "Successfully started subnet 3's emission schedule."
         in start_call_netuid_3.stdout
     )
+    assert "Your extrinsic has been included" in start_call_netuid_3.stdout
     # Register Bob in one subnet
     register_result = exec_command_bob(
         command="subnets",
@@ -204,6 +213,35 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Registered" in register_result.stdout, register_result.stderr
+    assert "Your extrinsic has been included" in register_result.stdout, (
+        register_result.stdout
+    )
+
+    # Add initial stake to enable V3
+    for netuid_ in [0, 2, 3]:
+        stake_to_enable_v3 = exec_command_bob(
+            command="stake",
+            sub_command="add",
+            extra_args=[
+                "--netuid",
+                netuid_,
+                "--wallet-path",
+                wallet_path_bob,
+                "--wallet-name",
+                wallet_bob.name,
+                "--hotkey",
+                wallet_bob.hotkey_str,
+                "--chain",
+                "ws://127.0.0.1:9945",
+                "--amount",
+                "1",
+                "--unsafe",
+                "--no-prompt",
+                "--era",
+                "144",
+            ],
+        )
+        assert "✅ Finalized" in stake_to_enable_v3.stdout, stake_to_enable_v3.stderr
 
     # Add stake to subnets
     for netuid in [0, 2, 3]:
@@ -232,6 +270,9 @@ def test_unstaking(local_chain, wallet_setup):
             ],
         )
         assert "✅ Finalized" in stake_result.stdout, stake_result.stderr
+        assert "Your extrinsic has been included" in stake_result.stdout, (
+            stake_result.stdout
+        )
 
     stake_list = exec_command_bob(
         command="stake",
@@ -279,6 +320,9 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
     assert "✅ Finalized" in partial_unstake_netuid_2.stdout
+    assert "Your extrinsic has been included" in partial_unstake_netuid_2.stdout, (
+        partial_unstake_netuid_2.stdout
+    )
 
     # Verify partial unstake
     stake_list = exec_command_bob(
@@ -345,8 +389,9 @@ def test_unstaking(local_chain, wallet_setup):
         ],
     )
 
-    assert (
-        "✅ Finalized: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
+    assert "✅ Included: Successfully unstaked all Alpha stakes" in unstake_alpha.stdout
+    assert "Your extrinsic has been included" in unstake_alpha.stdout, (
+        unstake_alpha.stdout
     )
 
     # Add stake again to subnets
@@ -376,6 +421,18 @@ def test_unstaking(local_chain, wallet_setup):
             ],
         )
         assert "✅ Finalized" in stake_result.stdout
+        assert "Your extrinsic has been included" in stake_result.stdout
+
+    # add a dummy wallet to bob (hotkey and hotkeypub)
+    dummy_hk_pub = '{"ss58Address":"5GWN73LyFw8u5L38CHKh1EogaC4rbYUMPffrmU8PzPfK4oH3","accountId":"0xc482d28f38382438ea64652a6d26c1a6309cd8a91ef8e16af9c307238bea1b57","publicKey":"0xc482d28f38382438ea64652a6d26c1a6309cd8a91ef8e16af9c307238bea1b57"}'
+    with open(
+        os.path.join(wallet_path_bob, wallet_bob.name, "hotkeys", "dummypub.txt"), "w+"
+    ) as f:
+        f.write(dummy_hk_pub)
+    with open(
+        os.path.join(wallet_path_bob, wallet_bob.name, "hotkeys", "dummy"), "w+"
+    ) as f:
+        f.write(dummy_hk_pub)
 
     # Remove all stakes
     unstake_all = exec_command_bob(
@@ -391,10 +448,17 @@ def test_unstaking(local_chain, wallet_setup):
             "--chain",
             "ws://127.0.0.1:9945",
             "--all",
+            "--all-hotkeys",
             "--no-prompt",
             "--era",
             "144",
         ],
     )
-    assert "✅ Finalized: Successfully unstaked all stakes from" in unstake_all.stdout
+    print(unstake_all.stdout, unstake_all.stderr)
+    assert (
+        "Some hotkeys attempting to unstake are not present: 5GWN73LyFw8u5L38CHKh1EogaC4rbYUMPffrmU8PzPfK4oH3."
+        in unstake_all.stdout
+    )
+    assert "✅ Included: Successfully unstaked all stakes from" in unstake_all.stdout
+    assert "Your extrinsic has been included" in unstake_all.stdout, unstake_all.stdout
     print("Passed unstaking tests 🎉")

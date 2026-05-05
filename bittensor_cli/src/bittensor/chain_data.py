@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Optional, Any, Union
 
 import netaddr
+from scalecodec.utils.math import FixedPoint
 from scalecodec.utils.ss58 import ss58_encode
 
 from bittensor_cli.src.bittensor.balances import Balance, fixed_to_float
@@ -12,8 +13,13 @@ from bittensor_cli.src.bittensor.utils import (
     SS58_FORMAT,
     u16_normalized_float as u16tf,
     u64_normalized_float as u64tf,
-    decode_account_id,
+    get_netuid_and_subuid_by_storage_index,
 )
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class ChainDataType(Enum):
@@ -30,28 +36,9 @@ class ChainDataType(Enum):
     SubnetIdentity = 11
 
 
-def decode_hex_identity(info_dictionary):
-    decoded_info = {}
-    for k, v in info_dictionary.items():
-        if isinstance(v, dict):
-            item = next(iter(v.values()))
-        else:
-            item = v
-
-        if isinstance(item, tuple):
-            try:
-                decoded_info[k] = bytes(item).decode()
-            except UnicodeDecodeError:
-                print(f"Could not decode: {k}: {item}")
-        else:
-            decoded_info[k] = item
-    return decoded_info
-
-
 def process_stake_data(stake_data, netuid):
     decoded_stake_data = {}
-    for account_id_bytes, stake_ in stake_data:
-        account_id = decode_account_id(account_id_bytes)
+    for account_id, stake_ in stake_data:
         decoded_stake_data.update(
             {account_id: Balance.from_rao(stake_).set_unit(netuid)}
         )
@@ -61,26 +48,6 @@ def process_stake_data(stake_data, netuid):
 def _tbwu(val: int, netuid: Optional[int] = 0) -> Balance:
     """Returns a Balance object from a value and unit."""
     return Balance.from_rao(val).set_unit(netuid)
-
-
-def _chr_str(codes: tuple[int]) -> str:
-    """Converts a tuple of integer Unicode code points into a string."""
-    return "".join(map(chr, codes))
-
-
-def process_nested(data: Union[tuple, dict], chr_transform):
-    """Processes nested data structures by applying a transformation function to their elements."""
-    if isinstance(data, (list, tuple)):
-        if len(data) > 0 and isinstance(data[0], dict):
-            return [
-                {k: chr_transform(v) for k, v in item.items()}
-                if item is not None
-                else None
-                for item in data
-            ]
-        return {}
-    elif isinstance(data, dict):
-        return {k: chr_transform(v) for k, v in data.items()}
 
 
 @dataclass
@@ -126,17 +93,17 @@ class InfoBase:
     """Base dataclass for info objects."""
 
     @abstractmethod
-    def _fix_decoded(self, decoded: Any) -> "InfoBase":
+    def _fix_decoded(self, decoded: Any) -> Self:
         raise NotImplementedError(
             "This is an abstract method and must be implemented in a subclass."
         )
 
     @classmethod
-    def from_any(cls, data: Any) -> "InfoBase":
+    def from_any(cls, data: Any) -> Self:
         return cls._fix_decoded(data)
 
     @classmethod
-    def list_from_any(cls, data_list: list[Any]) -> list["InfoBase"]:
+    def list_from_any(cls, data_list: list[Any]) -> list[Self]:
         return [cls.from_any(data) for data in data_list]
 
     def __getitem__(self, item):
@@ -219,11 +186,16 @@ class SubnetHyperparameters(InfoBase):
     transfers_enabled: bool
     bonds_reset_enabled: bool
     user_liquidity_enabled: bool
+    burn_increase_mult: FixedPoint
+    burn_half_life: int
 
     @classmethod
     def _fix_decoded(
-        cls, decoded: Union[dict, "SubnetHyperparameters"]
+        cls,
+        decoded: Union[dict, "SubnetHyperparameters"],
     ) -> "SubnetHyperparameters":
+        burn_increase_mult: FixedPoint = decoded["burn_increase_mult"]
+        burn_half_life: int = decoded["burn_half_life"]
         return cls(
             activity_cutoff=decoded["activity_cutoff"],
             adjustment_alpha=decoded["adjustment_alpha"],
@@ -260,6 +232,8 @@ class SubnetHyperparameters(InfoBase):
             weights_rate_limit=decoded["weights_rate_limit"],
             weights_version=decoded["weights_version"],
             yuma_version=decoded["yuma_version"],
+            burn_increase_mult=burn_increase_mult,
+            burn_half_life=burn_half_life,
         )
 
 
@@ -279,8 +253,8 @@ class StakeInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "StakeInfo":
-        hotkey = decode_account_id(decoded.get("hotkey"))
-        coldkey = decode_account_id(decoded.get("coldkey"))
+        hotkey = decoded.get("hotkey")
+        coldkey = decoded.get("coldkey")
         netuid = int(decoded.get("netuid"))
         stake = Balance.from_rao(decoded.get("stake")).set_unit(netuid)
         locked = Balance.from_rao(decoded.get("locked")).set_unit(netuid)
@@ -377,8 +351,8 @@ class NeuronInfo(InfoBase):
         stake_dict = process_stake_data(decoded.get("stake"), netuid=netuid)
         total_stake = sum(stake_dict.values()) if stake_dict else Balance(0)
         axon_info = decoded.get("axon_info", {})
-        coldkey = decode_account_id(decoded.get("coldkey"))
-        hotkey = decode_account_id(decoded.get("hotkey"))
+        coldkey = decoded.get("coldkey")
+        hotkey = decoded.get("hotkey")
         return cls(
             hotkey=hotkey,
             coldkey=coldkey,
@@ -471,11 +445,11 @@ class NeuronInfoLite(InfoBase):
     def _fix_decoded(cls, decoded: Union[dict, "NeuronInfoLite"]) -> "NeuronInfoLite":
         active = decoded.get("active")
         axon_info = decoded.get("axon_info", {})
-        coldkey = decode_account_id(decoded.get("coldkey"))
+        coldkey = decoded.get("coldkey")
         consensus = decoded.get("consensus")
         dividends = decoded.get("dividends")
         emission = decoded.get("emission")
-        hotkey = decode_account_id(decoded.get("hotkey"))
+        hotkey = decoded.get("hotkey")
         incentive = decoded.get("incentive")
         last_update = decoded.get("last_update")
         netuid = decoded.get("netuid")
@@ -556,12 +530,9 @@ class DelegateInfo(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: "DelegateInfo") -> "DelegateInfo":
-        hotkey = decode_account_id(decoded.get("hotkey_ss58"))
-        owner = decode_account_id(decoded.get("owner_ss58"))
-        nominators = [
-            (decode_account_id(x), Balance.from_rao(y))
-            for x, y in decoded.get("nominators")
-        ]
+        hotkey = decoded.get("hotkey_ss58")
+        owner = decoded.get("owner_ss58")
+        nominators = [(x, Balance.from_rao(y)) for x, y in decoded.get("nominators")]
         total_stake = sum((x[1] for x in nominators)) if nominators else Balance(0)
         return cls(
             hotkey_ss58=hotkey,
@@ -662,7 +633,7 @@ class SubnetInfo(InfoBase):
             },
             emission_value=decoded.get("emission_value"),
             burn=Balance.from_rao(decoded.get("burn")),
-            owner_ss58=decode_account_id(decoded.get("owner")),
+            owner_ss58=decoded.get("owner"),
         )
 
 
@@ -681,15 +652,17 @@ class SubnetIdentity(InfoBase):
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "SubnetIdentity":
+        if isinstance(subnet_name := decoded["subnet_name"], list):
+            subnet_name = bytes(subnet_name).decode("utf-8")
         return cls(
-            subnet_name=bytes(decoded["subnet_name"]).decode(),
-            github_repo=bytes(decoded["github_repo"]).decode(),
-            subnet_contact=bytes(decoded["subnet_contact"]).decode(),
-            subnet_url=bytes(decoded["subnet_url"]).decode(),
-            discord=bytes(decoded["discord"]).decode(),
-            description=bytes(decoded["description"]).decode(),
-            logo_url=bytes(decoded["logo_url"]).decode(),
-            additional=bytes(decoded["additional"]).decode(),
+            subnet_name=subnet_name,
+            github_repo=decoded["github_repo"],
+            subnet_contact=decoded["subnet_contact"],
+            subnet_url=decoded["subnet_url"],
+            discord=decoded["discord"],
+            description=decoded["description"],
+            logo_url=decoded["logo_url"],
+            additional=decoded["additional"],
         )
 
 
@@ -718,18 +691,25 @@ class DynamicInfo(InfoBase):
     network_registered_at: int
     subnet_identity: Optional[SubnetIdentity]
     subnet_volume: Balance
+    moving_price: float
 
     @classmethod
     def _fix_decoded(cls, decoded: Any) -> "DynamicInfo":
         """Returns a DynamicInfo object from a decoded DynamicInfo dictionary."""
 
         netuid = int(decoded.get("netuid"))
-        symbol = bytes([int(b) for b in decoded.get("token_symbol")]).decode()
-        subnet_name = bytes([int(b) for b in decoded.get("subnet_name")]).decode()
+        if isinstance(token_symbol := decoded.get("token_symbol", ""), list):
+            symbol = bytes(token_symbol).decode("utf-8")
+        else:
+            symbol = token_symbol
+        if isinstance(sn_name := decoded.get("subnet_name", ""), list):
+            subnet_name = bytes(sn_name).decode("utf-8")
+        else:
+            subnet_name = sn_name
         is_dynamic = True if netuid > 0 else False  # Patching for netuid 0
 
-        owner_hotkey = decode_account_id(decoded.get("owner_hotkey"))
-        owner_coldkey = decode_account_id(decoded.get("owner_coldkey"))
+        owner_hotkey = decoded.get("owner_hotkey")
+        owner_coldkey = decoded.get("owner_coldkey")
 
         emission = Balance.from_rao(decoded.get("emission")).set_unit(0)
         alpha_in = Balance.from_rao(decoded.get("alpha_in")).set_unit(netuid)
@@ -786,6 +766,7 @@ class DynamicInfo(InfoBase):
             network_registered_at=int(decoded.get("network_registered_at")),
             subnet_identity=subnet_identity,
             subnet_volume=subnet_volume,
+            moving_price=fixed_to_float(decoded["moving_price"], 32),
         )
 
     def tao_to_alpha(self, tao: Balance) -> Balance:
@@ -814,7 +795,7 @@ class DynamicInfo(InfoBase):
         if self.is_dynamic:
             new_tao_in = self.tao_in + tao
             if new_tao_in == 0:
-                return tao, Balance.from_rao(0)
+                return tao, Balance.from_rao(0), 0.0
             new_alpha_in = self.k / new_tao_in
 
             # Amount of alpha given to the staker
@@ -881,20 +862,33 @@ class DynamicInfo(InfoBase):
 
 
 @dataclass
-class ScheduledColdkeySwapInfo(InfoBase):
-    """Dataclass for scheduled coldkey swap information."""
+class ColdkeySwapAnnouncementInfo(InfoBase):
+    """
+    Information about a coldkey swap announcement.
 
-    old_coldkey: str
-    new_coldkey: str
-    arbitration_block: int
+    Contains information about a pending coldkey swap announcement when a coldkey
+    wants to declare its intent to swap to a new coldkey address.
+    The announcement is made before the actual swap can be executed,
+    allowing time for verification and security checks.
+
+    The destination coldkey address is stored as a hash.
+    This is to prevent the actual coldkey address from being exposed
+    to the network. The hash is computed using the BlakeTwo256 hashing algorithm.
+    """
+
+    coldkey: str
+    execution_block: int
+    new_coldkey_hash: str
 
     @classmethod
-    def _fix_decoded(cls, decoded: Any) -> "ScheduledColdkeySwapInfo":
-        """Fixes the decoded values."""
+    def _fix_decoded(
+        cls, coldkey: str, decoded: tuple
+    ) -> "ColdkeySwapAnnouncementInfo":
+        execution_block, new_coldkey_hash = decoded
         return cls(
-            old_coldkey=decode_account_id(decoded.get("old_coldkey")),
-            new_coldkey=decode_account_id(decoded.get("new_coldkey")),
-            arbitration_block=decoded.get("arbitration_block"),
+            coldkey=coldkey,
+            execution_block=int(execution_block),
+            new_coldkey_hash=new_coldkey_hash,
         )
 
 
@@ -924,8 +918,8 @@ class SubnetState(InfoBase):
         netuid = decoded.get("netuid")
         return cls(
             netuid=netuid,
-            hotkeys=[decode_account_id(val) for val in decoded.get("hotkeys")],
-            coldkeys=[decode_account_id(val) for val in decoded.get("coldkeys")],
+            hotkeys=decoded.get("hotkeys"),
+            coldkeys=decoded.get("coldkeys"),
             active=decoded.get("active"),
             validator_permit=decoded.get("validator_permit"),
             pruning_score=[u16tf(val) for val in decoded.get("pruning_score")],
@@ -1082,24 +1076,22 @@ class MetagraphInfo(InfoBase):
     alpha_dividends_per_hotkey: list[
         tuple[str, Balance]
     ]  # List of dividend payout in alpha via subnet.
+    subuid: int = 0
 
     @classmethod
     def _fix_decoded(cls, decoded: dict) -> "MetagraphInfo":
         """Returns a MetagraphInfo object from decoded chain data."""
         # Subnet index
-        _netuid = decoded["netuid"]
+        _netuid, _subuid = get_netuid_and_subuid_by_storage_index(decoded["netuid"])
 
         # Name and symbol
         decoded.update({"name": bytes(decoded.get("name")).decode()})
         decoded.update({"symbol": bytes(decoded.get("symbol")).decode()})
-        for key in ["identities", "identity"]:
-            raw_data = decoded.get(key)
-            processed = process_nested(raw_data, _chr_str)
-            decoded.update({key: processed})
 
         return cls(
             # Subnet index
             netuid=_netuid,
+            subuid=_subuid,
             # Name and symbol
             name=decoded["name"],
             symbol=decoded["symbol"],
@@ -1163,8 +1155,8 @@ class MetagraphInfo(InfoBase):
             alpha_low=u16tf(decoded["alpha_low"]),
             bonds_moving_avg=u64tf(decoded["bonds_moving_avg"]),
             # Metagraph info.
-            hotkeys=[decode_account_id(ck) for ck in decoded.get("hotkeys", [])],
-            coldkeys=[decode_account_id(hk) for hk in decoded.get("coldkeys", [])],
+            hotkeys=decoded.get("hotkeys", []),
+            coldkeys=decoded.get("coldkeys", []),
             identities=decoded["identities"],
             axons=decoded.get("axons", []),
             active=decoded["active"],
@@ -1183,11 +1175,64 @@ class MetagraphInfo(InfoBase):
             total_stake=[_tbwu(ts, _netuid) for ts in decoded["total_stake"]],
             # Dividend break down
             tao_dividends_per_hotkey=[
-                (decode_account_id(alpha[0]), _tbwu(alpha[1]))
+                (alpha[0], _tbwu(alpha[1]))
                 for alpha in decoded["tao_dividends_per_hotkey"]
             ],
             alpha_dividends_per_hotkey=[
-                (decode_account_id(adphk[0]), _tbwu(adphk[1], _netuid))
+                (adphk[0], _tbwu(adphk[1], _netuid))
                 for adphk in decoded["alpha_dividends_per_hotkey"]
             ],
+        )
+
+
+@dataclass
+class SimSwapResult:
+    tao_amount: Balance
+    alpha_amount: Balance
+    tao_fee: Balance
+    alpha_fee: Balance
+
+    @classmethod
+    def from_dict(cls, d: dict, netuid: int) -> "SimSwapResult":
+        return cls(
+            tao_amount=Balance.from_rao(d["tao_amount"]).set_unit(0),
+            alpha_amount=Balance.from_rao(d["alpha_amount"]).set_unit(netuid),
+            tao_fee=Balance.from_rao(d["tao_fee"]).set_unit(0),
+            alpha_fee=Balance.from_rao(d["alpha_fee"]).set_unit(netuid),
+        )
+
+
+@dataclass
+class CrowdloanData(InfoBase):
+    creator: Optional[str]
+    funds_account: Optional[str]
+    deposit: Balance
+    min_contribution: Balance
+    cap: Balance
+    raised: Balance
+    end: int
+    finalized: bool
+    contributors_count: int
+    target_address: Optional[str]
+    has_call: bool
+    call_details: Optional[dict] = None
+
+    @classmethod
+    def _fix_decoded(cls, decoded: dict[str, Any]) -> "CrowdloanData":
+        creator = decoded.get("creator")
+        funds_account = decoded.get("funds_account")
+        target_address = decoded.get("target_address")
+        return cls(
+            creator=creator,
+            funds_account=funds_account,
+            deposit=Balance.from_rao(int(decoded["deposit"])),
+            min_contribution=Balance.from_rao(int(decoded["min_contribution"])),
+            cap=Balance.from_rao(int(decoded["cap"])),
+            raised=Balance.from_rao(int(decoded["raised"])),
+            end=int(decoded["end"]),
+            finalized=bool(decoded["finalized"]),
+            contributors_count=int(decoded["contributors_count"]),
+            target_address=target_address,
+            has_call=bool(decoded["call"]),
+            call_details=decoded["call_details"],
         )

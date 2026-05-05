@@ -20,6 +20,7 @@ from bittensor_cli.src.bittensor.utils import (
     millify_tao,
     get_subnet_name,
     json_console,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -40,22 +41,36 @@ async def stake_list(
     async def get_stake_data(block_hash_: str = None):
         (
             sub_stakes_,
-            registered_delegate_info_,
+            hotkey_identity_map_,
             _dynamic_info,
         ) = await asyncio.gather(
             subtensor.get_stake_for_coldkey(
                 coldkey_ss58=coldkey_address, block_hash=block_hash_
             ),
-            subtensor.get_delegate_identities(block_hash=block_hash_),
+            subtensor.fetch_coldkey_hotkey_identities(block_hash=block_hash_),
             subtensor.all_subnets(block_hash=block_hash_),
         )
+
+        hotkey_identity_map_ = hotkey_identity_map_ or {"hotkeys": {}, "coldkeys": {}}
+        claimable_amounts_ = {}
+        if sub_stakes_:
+            claimable_amounts_ = await subtensor.get_claimable_stakes_for_coldkey(
+                coldkey_ss58=coldkey_address,
+                stakes_info=sub_stakes_,
+                block_hash=block_hash_,
+            )
         # sub_stakes = substakes[coldkey_address]
         dynamic_info__ = {info.netuid: info for info in _dynamic_info}
         return (
             sub_stakes_,
-            registered_delegate_info_,
+            hotkey_identity_map_,
             dynamic_info__,
+            claimable_amounts_,
         )
+
+    def format_hotkey_name(hotkey_ss58_: str, hotkey_identity_map_: dict) -> str:
+        display_name = get_hotkey_identity_name(hotkey_identity_map_, hotkey_ss58_)
+        return f"{display_name} ({hotkey_ss58_})" if display_name else hotkey_ss58_
 
     def define_table(
         hotkey_name_: str,
@@ -135,23 +150,30 @@ async def stake_list(
             style=COLOR_PALETTE["POOLS"]["EMISSION"],
             justify="right",
         )
+        defined_table.add_column(
+            f"[white]Claimable \n({Balance.get_unit(1)})",
+            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+            justify="right",
+        )
         return defined_table
 
-    def create_table(hotkey_: str, substakes: list[StakeInfo]):
-        name_ = (
-            f"{registered_delegate_info[hotkey_].display} ({hotkey_})"
-            if hotkey_ in registered_delegate_info
-            else hotkey_
-        )
+    def create_table(
+        hotkey_: str,
+        substakes_: list[StakeInfo],
+        claimable_amounts_: dict[str, dict[int, Balance]],
+    ):
+        name_ = format_hotkey_name(hotkey_, hotkey_identity_map)
         rows = []
         total_tao_value_ = Balance(0)
         total_swapped_tao_value_ = Balance(0)
-        root_stakes = [s for s in substakes if s.netuid == 0]
+        root_stakes = [s for s in substakes_ if s.netuid == 0]
         other_stakes = sorted(
-            [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info[x.netuid]
-            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
-            .tao,
+            [s for s in substakes_ if s.netuid != 0],
+            key=lambda x: (
+                dynamic_info[x.netuid]
+                .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+                .tao
+            ),
             reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
@@ -172,6 +194,7 @@ async def stake_list(
             tao_value_ = pool.alpha_to_tao(substake_.stake)
             total_swapped_tao_value_ += tao_value_
 
+            # TODO why is nothing done with `swap_value`?
             if netuid == 0:
                 swap_value = f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A[/{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]"
             else:
@@ -194,6 +217,23 @@ async def stake_list(
                 subnet_name = get_subnet_name(dynamic_info[netuid])
                 subnet_name_cell = f"[{COLOR_PALETTE['GENERAL']['SYMBOL']}]{symbol if netuid != 0 else 'τ'}[/{COLOR_PALETTE['GENERAL']['SYMBOL']}] {subnet_name}"
 
+                # Claimable amount cell
+                claimable_amount = Balance.from_rao(0)
+                if (
+                    hotkey_ in claimable_amounts_
+                    and netuid in claimable_amounts_[hotkey_]
+                ):
+                    claimable_amount = claimable_amounts_[hotkey_][netuid]
+
+                if claimable_amount.tao > 0.00001:
+                    claimable_cell = (
+                        f"{claimable_amount.tao:.5f} {symbol}"
+                        if not verbose
+                        else f"{claimable_amount}"
+                    )
+                else:
+                    claimable_cell = "-"
+
                 rows.append(
                     [
                         str(netuid),  # Number
@@ -215,6 +255,7 @@ async def stake_list(
                         # if substake_.is_registered
                         # else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]N/A",  # Emission(α/block)
                         str(Balance.from_tao(per_block_tao_emission)),
+                        claimable_cell,  # Claimable amount
                     ]
                 )
                 substakes_values.append(
@@ -230,6 +271,7 @@ async def stake_list(
                             "alpha": per_block_emission,
                             "tao": per_block_tao_emission,
                         },
+                        "claimable": claimable_amount.tao,
                     }
                 )
         created_table = define_table(
@@ -244,6 +286,7 @@ async def stake_list(
         substakes: list,
         dynamic_info_for_lt: dict,
         hotkey_name_: str,
+        claimable_amounts_: dict,
         previous_data_: Optional[dict] = None,
     ) -> tuple[Table, dict]:
         rows = []
@@ -290,9 +333,11 @@ async def stake_list(
         root_stakes = [s for s in substakes if s.netuid == 0]
         other_stakes = sorted(
             [s for s in substakes if s.netuid != 0],
-            key=lambda x: dynamic_info_for_lt[x.netuid]
-            .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
-            .tao,
+            key=lambda x: (
+                dynamic_info_for_lt[x.netuid]
+                .alpha_to_tao(Balance.from_rao(int(x.stake.rao)).set_unit(x.netuid))
+                .tao
+            ),
             reverse=True,
         )
         sorted_substakes = root_stakes + other_stakes
@@ -352,7 +397,7 @@ async def stake_list(
                 precision=4,
                 millify=True if not verbose else False,
             )
-
+            # TODO why is nothing done with swap_cell
             if netuid != 0:
                 swap_cell = format_cell(
                     swapped_tao_value_.tao,
@@ -388,6 +433,26 @@ async def stake_list(
                 f" {get_subnet_name(dynamic_info_for_lt[netuid])}"
             )
 
+            # Claimable amount cell
+            hotkey_ss58 = substake_.hotkey_ss58
+            claimable_amount = Balance.from_rao(0)
+            if (
+                hotkey_ss58 in claimable_amounts_
+                and netuid in claimable_amounts_[hotkey_ss58]
+            ):
+                claimable_amount = claimable_amounts_[hotkey_ss58][netuid]
+
+            current_data_[netuid]["claimable"] = claimable_amount.tao
+
+            claimable_cell = format_cell(
+                claimable_amount.tao,
+                prev.get("claimable"),
+                unit=symbol,
+                unit_first_=unit_first,
+                precision=5,
+                millify=True if not verbose else False,
+            )
+
             rows.append(
                 [
                     str(netuid),  # Netuid
@@ -401,6 +466,7 @@ async def stake_list(
                     else f"[{COLOR_PALETTE['STAKE']['NOT_REGISTERED']}]NO",  # Registration status
                     emission_cell,  # Emission rate
                     tao_emission_cell,  # TAO emission rate
+                    claimable_cell,  # Claimable amount
                 ]
             )
 
@@ -418,8 +484,9 @@ async def stake_list(
     (
         (
             sub_stakes,
-            registered_delegate_info,
+            hotkey_identity_map,
             dynamic_info,
+            claimable_amounts,
         ),
         balance,
     ) = await asyncio.gather(
@@ -445,11 +512,7 @@ async def stake_list(
                 "\n[bold]Multiple hotkeys found. Please select one for live monitoring:[/bold]"
             )
             for idx, hotkey in enumerate(hotkeys_to_substakes.keys()):
-                name = (
-                    f"{registered_delegate_info[hotkey].display} ({hotkey})"
-                    if hotkey in registered_delegate_info
-                    else hotkey
-                )
+                name = format_hotkey_name(hotkey, hotkey_identity_map)
                 console.print(f"[{idx}] [{COLOR_PALETTE['GENERAL']['HEADER']}]{name}")
 
             selected_idx = Prompt.ask(
@@ -460,11 +523,7 @@ async def stake_list(
         else:
             selected_hotkey = list(hotkeys_to_substakes.keys())[0]
 
-        hotkey_name = (
-            f"{registered_delegate_info[selected_hotkey].display} ({selected_hotkey})"
-            if selected_hotkey in registered_delegate_info
-            else selected_hotkey
-        )
+        hotkey_name = format_hotkey_name(selected_hotkey, hotkey_identity_map)
 
         refresh_interval = 10  # seconds
         progress = Progress(
@@ -479,14 +538,15 @@ async def stake_list(
         current_block = None
         previous_data = None
 
-        with Live(console=console, screen=True, auto_refresh=True) as live:
+        with Live(console=console, auto_refresh=True) as live:
             try:
                 while True:
                     block_hash = await subtensor.substrate.get_chain_head()
                     (
                         sub_stakes,
-                        registered_delegate_info,
+                        _hotkey_identity_map,
                         dynamic_info_,
+                        claimable_amounts_live,
                     ) = await get_stake_data(block_hash)
                     selected_stakes = [
                         stake
@@ -508,6 +568,7 @@ async def stake_list(
                         selected_stakes,
                         dynamic_info_,
                         hotkey_name,
+                        claimable_amounts_live,
                         previous_data,
                     )
 
@@ -553,7 +614,7 @@ async def stake_list(
         for hotkey, substakes in hotkeys_to_substakes.items():
             counter += 1
             tao_value, swapped_tao_value, substake_values_ = create_table(
-                hotkey, substakes
+                hotkey, substakes, claimable_amounts
             )
             dict_output["stake_info"][hotkey] = substake_values_
             all_hks_tao_value += tao_value
@@ -564,9 +625,9 @@ async def stake_list(
                 input()
 
         total_tao_value = (
-            f"τ {millify_tao(all_hks_tao_value.tao)}"
+            f"τ {millify_tao(all_hks_tao_value.tao + balance.tao)}"
             if not verbose
-            else all_hks_tao_value
+            else all_hks_tao_value + balance
         )
         total_swapped_tao_value = (
             f"τ {millify_tao(all_hks_swapped_tao_value.tao)}"
@@ -576,14 +637,18 @@ async def stake_list(
         console.print("\n\n")
         console.print(
             f"Wallet:\n"
-            f"  Coldkey SS58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{coldkey_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-            f"  Free Balance: [{COLOR_PALETTE['GENERAL']['BALANCE']}]{balance}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]\n"
-            f"  Total TAO Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
-            # f"\n  Total TAO Swapped Value ({Balance.unit}): [{COLOR_PALETTE['GENERAL']['BALANCE']}]{total_swapped_tao_value}[/{COLOR_PALETTE['GENERAL']['BALANCE']}]"
+            f"  Coldkey SS58: "
+            f"[{COLOR_PALETTE.G.CK}]{coldkey_address}[/{COLOR_PALETTE.G.CK}]\n"
+            f"  Free Balance: "
+            f"[{COLOR_PALETTE.G.BALANCE}]{balance}[/{COLOR_PALETTE.G.BALANCE}]\n"
+            f"  Total TAO Swapped Value ({Balance.unit}): "
+            f"[{COLOR_PALETTE.G.BALANCE}]{total_swapped_tao_value}[/{COLOR_PALETTE.G.BALANCE}]\n"
+            f"  Total TAO Value (including free balance) ({Balance.unit}): "
+            f"[{COLOR_PALETTE.G.BALANCE}]{total_tao_value}[/{COLOR_PALETTE.G.BALANCE}]\n"
         )
         dict_output["free_balance"] = balance.tao
-        dict_output["total_tao_value"] = all_hks_tao_value.tao
-        # dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
+        dict_output["total_tao_value"] = all_hks_tao_value.tao + balance.tao
+        dict_output["total_swapped_tao_value"] = all_hks_swapped_tao_value.tao
         if json_output:
             json_console.print(json.dumps(dict_output))
         if not sub_stakes:

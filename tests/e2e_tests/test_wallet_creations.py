@@ -16,6 +16,7 @@ Verify commands:
 * btcli w regen_coldkey
 * btcli w regen_coldkeypub
 * btcli w regen_hotkey
+* btcli w regen_hotkeypub
 """
 
 
@@ -327,7 +328,7 @@ def test_wallet_creations(wallet_setup):
         command="wallet", sub_command="list", extra_args=["--wallet-path", wallet_path]
     )
 
-    # Verify hotkey "new_hotkey" is displyed with key
+    # Verify hotkey "new_hotkey" is displayed with key
     verify_key_pattern(result.stdout, "new_hotkey")
 
     # Physically verify "new_coldkey" and "new_hotkey" are present
@@ -541,6 +542,36 @@ def test_wallet_regen(wallet_setup, capfd):
         "Hotkey file was not regenerated as expected"
     )
     print("Passed wallet regen_hotkey command ✅")
+
+    hotkeypub_path = os.path.join(
+        wallet_path, "new_wallet", "hotkeys", "new_hotkeypub.txt"
+    )
+    initial_hotkeypub_mod_time = os.path.getmtime(hotkeypub_path)
+    result = exec_command(
+        command="wallet",
+        sub_command="regen-hotkeypub",
+        extra_args=[
+            "--wallet-name",
+            "new_wallet",
+            "--hotkey",
+            "new_hotkey",
+            "--wallet-path",
+            wallet_path,
+            "--ss58-address",
+            ss58_address,
+            "--overwrite",
+        ],
+    )
+
+    # Wait a bit to ensure file system updates modification time
+    time.sleep(2)
+
+    new_hotkeypub_mod_time = os.path.getmtime(hotkeypub_path)
+
+    assert initial_hotkeypub_mod_time != new_hotkeypub_mod_time, (
+        "Hotkey file was not regenerated as expected"
+    )
+    print("Passed wallet regen_hotkeypub command ✅")
 
 
 def test_wallet_balance_all(local_chain, wallet_setup, capfd):

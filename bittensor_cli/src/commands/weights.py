@@ -2,19 +2,22 @@ import asyncio
 import json
 import os
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet
 import numpy as np
 from numpy.typing import NDArray
-from rich.prompt import Confirm
 from async_substrate_interface.errors import SubstrateRequestException
 
 from bittensor_cli.src.bittensor.utils import (
-    err_console,
+    confirm_action,
+    print_error,
+    print_success,
     console,
     format_error_message,
     json_console,
+    get_hotkey_pub_ss58,
+    print_extrinsic_id,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import (
     convert_weights_and_uids_for_emit,
@@ -34,26 +37,32 @@ class SetWeightsExtrinsic:
         subtensor: "SubtensorInterface",
         wallet: Wallet,
         netuid: int,
+        proxy: Optional[str],
         uids: NDArray,
         weights: NDArray,
         salt: list[int],
         version_key: int,
         prompt: bool = False,
+        decline: bool = False,
+        quiet: bool = False,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = False,
     ):
         self.subtensor = subtensor
         self.wallet = wallet
         self.netuid = netuid
+        self.proxy = proxy
         self.uids = uids
         self.weights = weights
         self.salt = salt
         self.version_key = version_key
         self.prompt = prompt
+        self.decline = decline
+        self.quiet = quiet
         self.wait_for_inclusion = wait_for_inclusion
         self.wait_for_finalization = wait_for_finalization
 
-    async def set_weights_extrinsic(self) -> tuple[bool, str]:
+    async def set_weights_extrinsic(self) -> tuple[bool, str, Optional[str]]:
         """
         Sets the inter-neuronal weights for the specified neuron. This process involves specifying the
         influence or trust a neuron places on other neurons in the network, which is a fundamental aspect
@@ -75,18 +84,19 @@ class SetWeightsExtrinsic:
 
         # Ask before moving on.
         formatted_weight_vals = [float(v / 65535) for v in weight_vals]
-        if self.prompt and not Confirm.ask(
+        if self.prompt and not confirm_action(
             f"Do you want to set weights:\n[bold white]"
-            f"  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?"
+            f"  weights: {formatted_weight_vals}\n  uids: {weight_uids}[/bold white ]?",
+            decline=self.decline,
+            quiet=self.quiet,
         ):
-            return False, "Prompt refused."
+            return False, "Prompt refused.", None
 
         # Check if the commit-reveal mechanism is active for the given netuid.
         if bool(
             await self.subtensor.get_hyperparameter(
                 param_name="get_commit_reveal_weights_enabled",
                 netuid=self.netuid,
-                reuse_block=False,
             )
         ):
             return await self._commit_reveal(
@@ -103,7 +113,7 @@ class SetWeightsExtrinsic:
         self,
         uids: list[int],
         weights: list[int],
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, Optional[str], Optional[str]]:
         """
         Commits a hash of the neuron's weights to the Bittensor blockchain using the provided wallet.
         This action serves as a commitment or snapshot of the neuron's current weight distribution.
@@ -120,15 +130,9 @@ class SetWeightsExtrinsic:
         enhancing transparency and accountability within the Bittensor network.
         """
 
-        # _logger.info(
-        #     "Committing weights with params: netuid={}, uids={}, weights={}, version_key={}".format(
-        #         netuid, uids, weights, version_key
-        #     )
-        # )
-
         # Generate the hash of the weights
         commit_hash = generate_weight_hash(
-            address=self.wallet.hotkey.ss58_address,
+            address=get_hotkey_pub_ss58(self.wallet),
             netuid=self.netuid,
             uids=uids,
             values=weights,
@@ -138,23 +142,25 @@ class SetWeightsExtrinsic:
 
         # _logger.info("Commit Hash: {}".format(commit_hash))
         try:
-            success, message = await self.do_commit_weights(commit_hash=commit_hash)
+            success, message, ext_id = await self.do_commit_weights(
+                commit_hash=commit_hash
+            )
         except SubstrateRequestException as e:
-            err_console.print(f"Error committing weights: {format_error_message(e)}")
+            print_error(f"Error committing weights: {format_error_message(e)}")
             # bittensor.logging.error(f"Error committing weights: {e}")
             success = False
             message = "No attempt made. Perhaps it is too soon to commit weights!"
+            ext_id = None
 
-        return success, message
+        return success, message, ext_id
 
     async def _commit_reveal(
         self, weight_uids: list[int], weight_vals: list[int]
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, Optional[str]]:
         interval = int(
             await self.subtensor.get_hyperparameter(
                 param_name="get_commit_reveal_period",
                 netuid=self.netuid,
-                reuse_block=False,
             )
         )
 
@@ -164,7 +170,7 @@ class SetWeightsExtrinsic:
             self.salt = list(os.urandom(salt_length))
 
         # Attempt to commit the weights to the blockchain.
-        commit_success, commit_msg = await self.commit_weights(
+        commit_success, commit_msg, ext_id = await self.commit_weights(
             uids=weight_uids,
             weights=weight_vals,
         )
@@ -174,9 +180,7 @@ class SetWeightsExtrinsic:
             reveal_time = (current_time + timedelta(seconds=interval)).isoformat()
             cli_retry_cmd = f"--netuid {self.netuid} --uids {weight_uids} --weights {self.weights} --reveal-using-salt {self.salt}"
             # Print params to screen and notify user this is a blocking operation
-            console.print(
-                ":white_heavy_check_mark: [green]Weights hash committed to chain[/green]"
-            )
+            print_success("Weights hash committed to chain")
             console.print(
                 f":alarm_clock: [dark_orange3]Weights hash will be revealed at {reveal_time}[/dark_orange3]"
             )
@@ -205,39 +209,36 @@ class SetWeightsExtrinsic:
             async with self.subtensor:
                 return await self.reveal(weight_uids, weight_vals)
         else:
-            console.print(f":cross_mark: [red]Failed[/red]: error:{commit_msg}")
+            print_error(f"Failed: error:{commit_msg}")
             # bittensor.logging.error(msg=commit_msg, prefix="Set weights with hash commit",
             #                         suffix=f"<red>Failed: {commit_msg}</red>")
-            return False, f"Failed to commit weights hash. {commit_msg}"
+            return False, f"Failed to commit weights hash. {commit_msg}", None
 
-    async def reveal(self, weight_uids, weight_vals) -> tuple[bool, str]:
+    async def reveal(self, weight_uids, weight_vals) -> tuple[bool, str, Optional[str]]:
         # Attempt to reveal the weights using the salt.
-        success, msg = await self.reveal_weights_extrinsic(weight_uids, weight_vals)
+        success, msg, ext_id = await self.reveal_weights_extrinsic(
+            weight_uids, weight_vals
+        )
 
         if success:
             if not self.wait_for_finalization and not self.wait_for_inclusion:
-                return True, "Not waiting for finalization or inclusion."
+                return True, "Not waiting for finalization or inclusion.", ext_id
 
-            console.print(
-                ":white_heavy_check_mark: [green]Weights hash revealed on chain[/green]"
+            print_success("Weights hash revealed on chain")
+            return (
+                True,
+                "Successfully revealed previously committed weights hash.",
+                ext_id,
             )
-            # bittensor.logging.success(prefix="Weights hash revealed", suffix=str(msg))
-
-            return True, "Successfully revealed previously commited weights hash."
         else:
-            # bittensor.logging.error(
-            #     msg=msg,
-            #     prefix=f"Failed to reveal previously commited weights hash for salt: {salt}",
-            #     suffix="<red>Failed: </red>",
-            # )
-            return False, "Failed to reveal weights."
+            return False, "Failed to reveal weights.", None
 
     async def _set_weights_without_commit_reveal(
         self,
         weight_uids,
         weight_vals,
-    ) -> tuple[bool, str]:
-        async def _do_set_weights():
+    ) -> tuple[bool, str, Optional[str]]:
+        async def _do_set_weights() -> tuple[bool, str, Optional[str]]:
             call = await self.subtensor.substrate.compose_call(
                 call_module="SubtensorModule",
                 call_function="set_weights",
@@ -249,49 +250,49 @@ class SetWeightsExtrinsic:
                 },
             )
             # Period dictates how long the extrinsic will stay as part of waiting pool
-            extrinsic = await self.subtensor.substrate.create_signed_extrinsic(
+            success, err_msg, response = await self.subtensor.sign_and_send_extrinsic(
                 call=call,
-                keypair=self.wallet.hotkey,
+                sign_with="hotkey",
+                wallet=self.wallet,
                 era={"period": 5},
+                wait_for_finalization=True,
+                wait_for_inclusion=True,
+                proxy=self.proxy,
             )
-            try:
-                response = await self.subtensor.substrate.submit_extrinsic(
-                    extrinsic,
-                    wait_for_inclusion=self.wait_for_inclusion,
-                    wait_for_finalization=self.wait_for_finalization,
-                )
-            except SubstrateRequestException as e:
-                return False, format_error_message(e)
             # We only wait here if we expect finalization.
             if not self.wait_for_finalization and not self.wait_for_inclusion:
-                return True, "Not waiting for finalization or inclusion."
+                return True, "Not waiting for finalization or inclusion.", None
 
-            if await response.is_success:
-                return True, "Successfully set weights."
+            if success:
+                ext_id_ = await response.get_extrinsic_identifier()
+                await print_extrinsic_id(response)
+                return True, "Successfully set weights.", ext_id_
             else:
-                return False, format_error_message(await response.error_message)
+                return False, err_msg, None
 
         with console.status(
             f":satellite: Setting weights on [white]{self.subtensor.network}[/white] ..."
         ):
-            success, error_message = await _do_set_weights()
+            success, error_message, ext_id = await _do_set_weights()
 
             if not self.wait_for_finalization and not self.wait_for_inclusion:
-                return True, "Not waiting for finalization or inclusion."
+                return True, "Not waiting for finalization or inclusion.", None
 
             if success:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 # bittensor.logging.success(prefix="Set weights", suffix="<green>Finalized: </green>" + str(success))
-                return True, "Successfully set weights and finalized."
+                return True, "Successfully set weights and finalized.", ext_id
             else:
                 # bittensor.logging.error(msg=error_message, prefix="Set weights", suffix="<red>Failed: </red>")
-                return False, error_message
+                return False, error_message, None
 
     async def reveal_weights_extrinsic(
         self, weight_uids, weight_vals
-    ) -> tuple[bool, str]:
-        if self.prompt and not Confirm.ask("Would you like to reveal weights?"):
-            return False, "User cancelled the operation."
+    ) -> tuple[bool, str, Optional[str]]:
+        if self.prompt and not confirm_action(
+            "Would you like to reveal weights?", decline=self.decline, quiet=self.quiet
+        ):
+            return False, "User cancelled the operation.", None
 
         call = await self.subtensor.substrate.compose_call(
             call_module="SubtensorModule",
@@ -304,39 +305,31 @@ class SetWeightsExtrinsic:
                 "version_key": self.version_key,
             },
         )
-        extrinsic = await self.subtensor.substrate.create_signed_extrinsic(
+        success, error_message, response = await self.subtensor.sign_and_send_extrinsic(
             call=call,
-            keypair=self.wallet.hotkey,
+            wallet=self.wallet,
+            sign_with="hotkey",
+            wait_for_inclusion=self.wait_for_inclusion,
+            wait_for_finalization=self.wait_for_finalization,
+            proxy=self.proxy,
         )
-        try:
-            response = await self.subtensor.substrate.submit_extrinsic(
-                extrinsic,
-                wait_for_inclusion=self.wait_for_inclusion,
-                wait_for_finalization=self.wait_for_finalization,
-            )
-        except SubstrateRequestException as e:
-            return False, format_error_message(e)
 
         if not self.wait_for_finalization and not self.wait_for_inclusion:
-            success, error_message = True, ""
-
-        else:
-            if await response.is_success:
-                success, error_message = True, ""
-            else:
-                success, error_message = (
-                    False,
-                    format_error_message(await response.error_message),
-                )
+            return True, "", None
 
         if success:
-            # bittensor.logging.info("Successfully revealed weights.")
-            return True, "Successfully revealed weights."
+            await print_extrinsic_id(response)
+            return (
+                True,
+                "Successfully revealed weights.",
+                await response.get_extrinsic_identifier(),
+            )
         else:
-            # bittensor.logging.error(f"Failed to reveal weights: {error_message}")
-            return False, error_message
+            return False, error_message, None
 
-    async def do_commit_weights(self, commit_hash):
+    async def do_commit_weights(
+        self, commit_hash
+    ) -> tuple[bool, Optional[str], Optional[str]]:
         call = await self.subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="commit_weights",
@@ -345,23 +338,24 @@ class SetWeightsExtrinsic:
                 "commit_hash": commit_hash,
             },
         )
-        extrinsic = await self.subtensor.substrate.create_signed_extrinsic(
+        success, err_msg, response = await self.subtensor.sign_and_send_extrinsic(
             call=call,
-            keypair=self.wallet.hotkey,
-        )
-        response = await self.subtensor.substrate.submit_extrinsic(
-            extrinsic,
+            wallet=self.wallet,
+            sign_with="hotkey",
             wait_for_inclusion=self.wait_for_inclusion,
             wait_for_finalization=self.wait_for_finalization,
+            proxy=self.proxy,
         )
 
         if not self.wait_for_finalization and not self.wait_for_inclusion:
-            return True, None
+            return True, None, None
 
-        if await response.is_success:
-            return True, None
+        if success:
+            ext_id = await response.get_extrinsic_identifier()
+            await print_extrinsic_id(response)
+            return True, None, ext_id
         else:
-            return False, await response.error_message
+            return False, err_msg, None
 
 
 # commands
@@ -371,6 +365,7 @@ async def reveal_weights(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     netuid: int,
+    proxy: Optional[str],
     uids: list[int],
     weights: list[float],
     salt: list[int],
@@ -396,16 +391,28 @@ async def reveal_weights(
     )
     # Call the reveal function in the module set_weights from extrinsics package
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        uids=uids_,
+        weights=weights_,
+        salt=list(salt_),
+        version_key=version,
+        prompt=prompt,
+        proxy=proxy,
     )
-    success, message = await extrinsic.reveal(weight_uids, weight_vals)
+    success, message, ext_id = await extrinsic.reveal(weight_uids, weight_vals)
     if json_output:
-        json_console.print(json.dumps({"success": success, "message": message}))
+        json_console.print(
+            json.dumps(
+                {"success": success, "message": message, "extrinsic_identifier": ext_id}
+            )
+        )
     else:
         if success:
             console.print("Weights revealed successfully")
         else:
-            err_console.print(f"Failed to reveal weights: {message}")
+            print_error(f"Failed to reveal weights: {message}")
 
 
 async def commit_weights(
@@ -413,6 +420,7 @@ async def commit_weights(
     wallet: Wallet,
     netuid: int,
     uids: list[int],
+    proxy: Optional[str],
     weights: list[float],
     salt: list[int],
     version: int,
@@ -433,13 +441,25 @@ async def commit_weights(
         dtype=np.int64,
     )
     extrinsic = SetWeightsExtrinsic(
-        subtensor, wallet, netuid, uids_, weights_, list(salt_), version, prompt=prompt
+        subtensor=subtensor,
+        wallet=wallet,
+        netuid=netuid,
+        uids=uids_,
+        weights=weights_,
+        salt=list(salt_),
+        version_key=version,
+        prompt=prompt,
+        proxy=proxy,
     )
-    success, message = await extrinsic.set_weights_extrinsic()
+    success, message, ext_id = await extrinsic.set_weights_extrinsic()
     if json_output:
-        json_console.print(json.dumps({"success": success, "message": message}))
+        json_console.print(
+            json.dumps(
+                {"success": success, "message": message, "extrinsic_identifier": ext_id}
+            )
+        )
     else:
         if success:
             console.print("Weights set successfully")
         else:
-            err_console.print(f"Failed to commit weights: {message}")
+            print_error(f"Failed to commit weights: {message}")
