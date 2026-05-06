@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "vanta-cli"
-version = "2.1.4"
+version = "2.2.0"
 description = "Vanta Network CLI"
 readme = "README.md"
 authors = [
