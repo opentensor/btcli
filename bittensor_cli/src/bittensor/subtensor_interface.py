@@ -197,6 +197,44 @@ class SubtensorInterface:
             "hash": call_value.get("call_hash"),
         }
 
+    async def _decode_inline_call(
+        self,
+        call_option: Any,
+        block_hash: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """
+        Decode an `Option<BoundedCall>` returned from storage into a structured dictionary.
+        """
+        if not call_option or "Inline" not in call_option:
+            return None
+        inline_bytes = bytes(call_option["Inline"][0][0])
+        call_obj = await self.substrate.create_scale_object(
+            "Call",
+            data=ScaleBytes(inline_bytes),
+            block_hash=block_hash,
+        )
+        call_value = call_obj.decode()
+
+        if not isinstance(call_value, dict):
+            return None
+
+        call_args = call_value.get("call_args") or []
+        args_map: dict[str, dict[str, Any]] = {}
+        for arg in call_args:
+            if isinstance(arg, dict) and arg.get("name"):
+                args_map[arg["name"]] = {
+                    "type": arg.get("type"),
+                    "value": arg.get("value"),
+                }
+
+        return {
+            "call_index": call_value.get("call_index"),
+            "pallet": call_value.get("call_module"),
+            "method": call_value.get("call_function"),
+            "args": args_map,
+            "hash": call_value.get("call_hash"),
+        }
+
     async def get_all_subnet_netuids(
         self, block_hash: Optional[str] = None
     ) -> list[int]:
@@ -1441,6 +1479,55 @@ class SubtensorInterface:
 
         return [int(value) for value in result]
 
+    async def get_subnet_mechanisms(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> int:
+        """Return the number of mechanisms that belong to the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if result is None:
+            return 0
+        return int(result)
+
+    async def get_all_subnet_mechanisms(
+        self, block_hash: Optional[str] = None
+    ) -> dict[int, int]:
+        """Return mechanism counts for every subnet with a recorded value."""
+
+        results = await self.substrate.query_map(
+            module="SubtensorModule",
+            storage_function="MechanismCountCurrent",
+            params=[],
+            block_hash=block_hash,
+        )
+        res = {}
+        async for netuid, count in results:
+            res[int(netuid)] = int(count.value)
+        return res
+
+    async def get_mechanism_emission_split(
+        self, netuid: int, block_hash: Optional[str] = None
+    ) -> list[int]:
+        """Return the emission split configured for the provided subnet."""
+
+        result = await self.query(
+            module="SubtensorModule",
+            storage_function="MechanismEmissionSplit",
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+        if not result:
+            return []
+
+        return [int(value) for value in result]
+
     async def burn_cost(self, block_hash: Optional[str] = None) -> Optional[Balance]:
         result = await self.query_runtime_api(
             runtime_api="SubnetRegistrationRuntimeApi",
@@ -1477,6 +1564,25 @@ class SubtensorInterface:
             return None
         else:
             return ProposalVoteData(vote_data)
+
+    async def get_mechagraph_info(
+        self, netuid: int, mech_id: int, block_hash: Optional[str] = None
+    ) -> Optional[MetagraphInfo]:
+        """
+        Returns the metagraph info for a given subnet and mechanism id.
+        And yes, it is indeed 'mecha'graph
+        """
+        query = await self.query_runtime_api(
+            runtime_api="SubnetInfoRuntimeApi",
+            method="get_mechagraph",
+            params=[netuid, mech_id],
+            block_hash=block_hash,
+        )
+
+        if query is None:
+            return None
+
+        return MetagraphInfo.from_any(query)
 
     async def get_mechagraph_info(
         self, netuid: int, mech_id: int, block_hash: Optional[str] = None

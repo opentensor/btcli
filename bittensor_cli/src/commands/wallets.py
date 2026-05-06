@@ -31,7 +31,10 @@ from bittensor_cli.src.bittensor.extrinsics.registration import (
 )
 from bittensor_cli.src.bittensor.extrinsics.transfer import transfer_extrinsic
 from bittensor_cli.src.bittensor.networking import int_to_ip
-from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
+from bittensor_cli.src.bittensor.subtensor_interface import (
+    SubtensorInterface,
+    GENESIS_ADDRESS,
+)
 from bittensor_cli.src.bittensor.utils import (
     RAO_PER_TAO,
     confirm_action,
@@ -872,6 +875,13 @@ async def wallet_list(
         wallets = [wallet for wallet in wallets if wallet.name == wallet_name]
         if not wallets:
             print_error(f"Wallet '{wallet_name}' not found in dir: {wallet_path}")
+
+    if wallet_name:
+        wallets = [wallet for wallet in wallets if wallet.name == wallet_name]
+        if not wallets:
+            err_console.print(
+                f"[red]Wallet '{wallet_name}' not found in dir: {wallet_path}[/red]"
+            )
 
     root = Tree("Wallets")
     main_data_dict = {"wallets": []}
@@ -2357,6 +2367,14 @@ async def announce_coldkey_swap(
         details_table.add_row(
             "Time Until Executable", f"[yellow]{blocks_to_duration(remaining)}[/yellow]"
         )
+        await print_extrinsic_id(ext_receipt)
+        for event in await ext_receipt.triggered_events:
+            if (
+                event.get("event", {}).get("module_id") == "SubtensorModule"
+                and event.get("event", {}).get("event_id") == "ColdkeySwapScheduled"
+            ):
+                attributes = event["event"].get("attributes", {})
+                old_coldkey = decode_account_id(attributes["old_coldkey"][0])
 
         console.print(details_table)
         console.print(

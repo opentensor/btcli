@@ -1150,6 +1150,9 @@ async def show(
             total_subnets = len([n for n in all_subnets if n != 0])
             claim_type = format_claim_type_for_root(claim_type_info, total_subnets)
 
+            coldkey_ss58 = root_state.coldkeys[idx]
+            claim_type = root_claim_types.get(coldkey_ss58, "Swap")
+
             sorted_rows.append(
                 (
                     str((pos + 1)),  # Position

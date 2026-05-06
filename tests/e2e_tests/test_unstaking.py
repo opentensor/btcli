@@ -393,6 +393,9 @@ def test_unstaking(local_chain, wallet_setup):
     assert "Your extrinsic has been included" in unstake_alpha.stdout, (
         unstake_alpha.stdout
     )
+    assert "Your extrinsic has been included" in unstake_alpha.stdout, (
+        unstake_alpha.stdout
+    )
 
     # Add stake again to subnets
     for netuid in [0, 2, 3]:
