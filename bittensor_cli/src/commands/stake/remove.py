@@ -6,25 +6,29 @@ from typing import TYPE_CHECKING, Optional
 
 from async_substrate_interface import AsyncExtrinsicReceipt
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.table import Table
 
-from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src import COLOR_PALETTE
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    wait_for_extrinsic_by_hash,
+)
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    create_table,
+    print_success,
     print_verbose,
     print_error,
     get_hotkey_wallets_for_wallet,
     is_valid_ss58_address,
-    format_error_message,
     group_subnets,
     unlock_key,
     json_console,
     get_hotkey_pub_ss58,
     print_extrinsic_id,
+    get_hotkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -41,6 +45,8 @@ async def unstake(
     exclude_hotkeys: list[str],
     amount: float,
     prompt: bool,
+    decline: bool,
+    quiet: bool,
     interactive: bool,
     netuid: Optional[int],
     safe_staking: bool,
@@ -48,9 +54,11 @@ async def unstake(
     allow_partial_stake: bool,
     json_output: bool,
     era: int,
+    proxy: Optional[str],
+    mev_protection: bool,
 ):
     """Unstake from hotkey(s)."""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     with console.status(
         f"Retrieving subnet data & identities from {subtensor.network}...",
         spinner="earth",
@@ -59,15 +67,11 @@ async def unstake(
         (
             all_sn_dynamic_info_,
             ck_hk_identities,
-            old_identities,
             stake_infos,
         ) = await asyncio.gather(
             subtensor.all_subnets(block_hash=chain_head),
             subtensor.fetch_coldkey_hotkey_identities(block_hash=chain_head),
-            subtensor.get_delegate_identities(block_hash=chain_head),
-            subtensor.get_stake_for_coldkey(
-                wallet.coldkeypub.ss58_address, block_hash=chain_head
-            ),
+            subtensor.get_stake_for_coldkey(coldkey_ss58, block_hash=chain_head),
         )
         all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
 
@@ -76,7 +80,6 @@ async def unstake(
             hotkeys_to_unstake_from, unstake_all_from_hk = await _unstake_selection(
                 all_sn_dynamic_info,
                 ck_hk_identities,
-                old_identities,
                 stake_infos,
                 netuid=netuid,
             )
@@ -84,11 +87,13 @@ async def unstake(
             return False
         if unstake_all_from_hk:
             hotkey_to_unstake_all = hotkeys_to_unstake_from[0]
-            unstake_all_alpha = Confirm.ask(
+            unstake_all_alpha = confirm_action(
                 "\nDo you want to:\n"
                 "[blue]Yes[/blue]: Unstake from all subnets and automatically re-stake to subnet 0 (root)\n"
                 "[blue]No[/blue]: Unstake everything (including subnet 0)",
                 default=True,
+                decline=decline,
+                quiet=quiet,
             )
             return await unstake_all(
                 wallet=wallet,
@@ -117,8 +122,40 @@ async def unstake(
             exclude_hotkeys=exclude_hotkeys,
             stake_infos=stake_infos,
             identities=ck_hk_identities,
-            old_identities=old_identities,
         )
+
+    hotkeys_existence = await subtensor.do_hotkeys_exist(
+        [x[1] for x in hotkeys_to_unstake_from], block_hash=chain_head
+    )
+    hotkeys_to_unstake_from_that_exist = [
+        x for x in hotkeys_to_unstake_from if hotkeys_existence[x[1]] is True
+    ]
+    if not hotkeys_to_unstake_from_that_exist:
+        err_msg = "No keys existing on chain from which to unstake"
+        if json_output:
+            json_console.print_json(data={"success": False, "error": err_msg})
+        else:
+            print_error(err_msg)
+        return False
+
+    if hotkeys_to_unstake_from_that_exist != hotkeys_to_unstake_from:
+        difference = set(x[1] for x in hotkeys_to_unstake_from).symmetric_difference(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        sames = set(x[1] for x in hotkeys_to_unstake_from).intersection(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        msg = (
+            "Some hotkeys attempting to unstake are not present: "
+            + ", ".join(difference)
+            + ". Using hotkeys:\n"
+            + "\n".join(sames)
+        )
+        console.print(msg)
+        if prompt:
+            if not confirm_action("Do you want to continue?"):
+                return False
+    hotkeys_to_unstake_from = hotkeys_to_unstake_from_that_exist
 
     with console.status(
         f"Retrieving stake data from {subtensor.network}...",
@@ -195,8 +232,8 @@ async def unstake(
             # Check enough stake to remove.
             amount_to_unstake_as_balance.set_unit(netuid)
             if amount_to_unstake_as_balance > current_stake_balance:
-                err_console.print(
-                    f"[red]Not enough stake to remove[/red]:\n"
+                print_error(
+                    f"Not enough stake to remove:\n"
                     f" Stake balance: [dark_orange]{current_stake_balance}[/dark_orange]"
                     f" < Unstaking amount: [dark_orange]{amount_to_unstake_as_balance}[/dark_orange]"
                     f" on netuid: {netuid}"
@@ -223,6 +260,7 @@ async def unstake(
                         netuid=netuid,
                         price_limit=price_limit,
                         allow_partial_stake=allow_partial_stake,
+                        proxy=proxy,
                     )
                 else:
                     extrinsic_fee = await _get_extrinsic_fee(
@@ -232,11 +270,14 @@ async def unstake(
                         hotkey_ss58=staking_address_ss58,
                         netuid=netuid,
                         amount=amount_to_unstake_as_balance,
+                        proxy=proxy,
                     )
                 sim_swap = await subtensor.sim_swap(
                     netuid, 0, amount_to_unstake_as_balance.rao
                 )
-                received_amount = sim_swap.tao_amount - extrinsic_fee
+                received_amount = sim_swap.tao_amount
+                if not proxy:
+                    received_amount -= extrinsic_fee
             except ValueError:
                 continue
             total_received_amount += received_amount
@@ -297,7 +338,7 @@ async def unstake(
 
     table = _create_unstake_table(
         wallet_name=wallet.name,
-        wallet_coldkey_ss58=wallet.coldkeypub.ss58_address,
+        wallet_coldkey_ss58=coldkey_ss58,
         network=subtensor.network,
         total_received_amount=total_received_amount,
         safe_staking=safe_staking,
@@ -308,48 +349,172 @@ async def unstake(
 
     _print_table_and_slippage(table, max_float_slippage, safe_staking)
     if prompt:
-        if not Confirm.ask("Would you like to continue?"):
+        if not confirm_action(
+            "Would you like to continue?", decline=decline, quiet=quiet
+        ):
             return False
 
     # Execute extrinsics
     if not unlock_key(wallet).success:
         return False
 
+    total_ops = len(unstake_operations)
+    use_batch = total_ops > 1
     successes = []
-    with console.status("\n:satellite: Performing unstaking operations...") as status:
-        for op in unstake_operations:
-            common_args = {
-                "wallet": wallet,
-                "subtensor": subtensor,
-                "netuid": op["netuid"],
-                "amount": op["amount_to_unstake"],
-                "hotkey_ss58": op["hotkey_ss58"],
-                "status": status,
-                "era": era,
-            }
 
-            if safe_staking and op["netuid"] != 0:
-                func = _safe_unstake_extrinsic
-                specific_args = {
-                    "price_limit": op["price_with_tolerance"],
-                    "allow_partial_stake": allow_partial_stake,
-                }
-            else:
-                func = _unstake_extrinsic
-                specific_args = {"current_stake": op["current_stake_balance"]}
-
-            suc, ext_receipt = await func(**common_args, **specific_args)
-            ext_id = await ext_receipt.get_extrinsic_identifier() if suc else None
-
-            successes.append(
-                {
-                    "netuid": op["netuid"],
-                    "hotkey_ss58": op["hotkey_ss58"],
-                    "unstake_amount": op["amount_to_unstake"].tao,
-                    "success": suc,
-                    "extrinsic_identifier": ext_id,
-                }
+    if use_batch:
+        # Batch path: compose all calls, submit as a single Utility.batch_all transaction
+        with console.status(
+            f"\n:satellite: Batching {total_ops} unstake operations..."
+        ) as status:
+            batch_block_hash = chain_head
+            current_balance = await subtensor.get_balance(
+                coldkey_ss58, block_hash=batch_block_hash
             )
+
+            # compose_call with a block_hash does no I/O, so no need for gather
+            calls = []
+            for op in unstake_operations:
+                if safe_staking and op["netuid"] != 0:
+                    calls.append(
+                        await subtensor.substrate.compose_call(
+                            call_module="SubtensorModule",
+                            call_function="remove_stake_limit",
+                            call_params={
+                                "hotkey": op["hotkey_ss58"],
+                                "netuid": op["netuid"],
+                                "amount_unstaked": op["amount_to_unstake"].rao,
+                                "limit_price": op["price_with_tolerance"],
+                                "allow_partial": allow_partial_stake,
+                            },
+                            block_hash=batch_block_hash,
+                        )
+                    )
+                else:
+                    calls.append(
+                        await subtensor.substrate.compose_call(
+                            call_module="SubtensorModule",
+                            call_function="remove_stake",
+                            call_params={
+                                "hotkey": op["hotkey_ss58"],
+                                "netuid": op["netuid"],
+                                "amount_unstaked": op["amount_to_unstake"].rao,
+                            },
+                            block_hash=batch_block_hash,
+                        )
+                    )
+
+            success, err_msg, response = await subtensor.sign_and_send_batch_extrinsic(
+                calls=list(calls),
+                wallet=wallet,
+                era={"period": era},
+                proxy=proxy,
+                mev_protection=mev_protection,
+                block_hash=batch_block_hash,
+            )
+
+            if success and mev_protection:
+                inner_hash = err_msg
+                success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not success:
+                    err_msg = mev_error
+
+            ext_id = (
+                await response.get_extrinsic_identifier()
+                if success and response
+                else None
+            )
+
+            for op in unstake_operations:
+                successes.append(
+                    {
+                        "netuid": op["netuid"],
+                        "hotkey_ss58": op["hotkey_ss58"],
+                        "unstake_amount": op["amount_to_unstake"].tao,
+                        "success": success,
+                        "extrinsic_identifier": ext_id,
+                    }
+                )
+
+            if success:
+                if not json_output:
+                    await print_extrinsic_id(response)
+                    new_block_hash = await subtensor.substrate.get_chain_head()
+                    new_balance = await subtensor.get_balance(
+                        coldkey_ss58, block_hash=new_block_hash
+                    )
+                    print_success(
+                        f"Batch finalized. Unstaked across {total_ops} operations."
+                    )
+                    console.print(
+                        f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: "
+                        f"[{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
+                    )
+                    for op in unstake_operations:
+                        new_stake = await subtensor.get_stake(
+                            hotkey_ss58=op["hotkey_ss58"],
+                            coldkey_ss58=coldkey_ss58,
+                            netuid=op["netuid"],
+                            block_hash=new_block_hash,
+                        )
+                        console.print(
+                            f"Subnet: [{COLOR_PALETTE.G.SUBHEAD}]{op['netuid']}"
+                            f"[/{COLOR_PALETTE.G.SUBHEAD}] "
+                            f"Hotkey: [{COLOR_PALETTE.G.HK}]{op['hotkey_ss58']}"
+                            f"[/{COLOR_PALETTE.G.HK}] "
+                            f"Stake:\n  [blue]{op['current_stake_balance']}[/blue] "
+                            f":arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
+                        )
+            else:
+                print_error(
+                    f":cross_mark: [red]Batch unstaking failed[/red]: {err_msg}",
+                    status=status,
+                )
+    else:
+        # Single operation path: use the existing per-operation extrinsics
+        with console.status(
+            "\n:satellite: Performing unstaking operations..."
+        ) as status:
+            for op in unstake_operations:
+                common_args = {
+                    "wallet": wallet,
+                    "subtensor": subtensor,
+                    "netuid": op["netuid"],
+                    "amount": op["amount_to_unstake"],
+                    "hotkey_ss58": op["hotkey_ss58"],
+                    "status": status,
+                    "era": era,
+                    "proxy": proxy,
+                    "mev_protection": mev_protection,
+                }
+
+                if safe_staking and op["netuid"] != 0:
+                    func = _safe_unstake_extrinsic
+                    specific_args = {
+                        "price_limit": op["price_with_tolerance"],
+                        "allow_partial_stake": allow_partial_stake,
+                    }
+                else:
+                    func = _unstake_extrinsic
+                    specific_args = {"current_stake": op["current_stake_balance"]}
+
+                suc, ext_receipt = await func(**common_args, **specific_args)
+                ext_id = await ext_receipt.get_extrinsic_identifier() if suc else None
+
+                successes.append(
+                    {
+                        "netuid": op["netuid"],
+                        "hotkey_ss58": op["hotkey_ss58"],
+                        "unstake_amount": op["amount_to_unstake"].tao,
+                        "success": suc,
+                        "extrinsic_identifier": ext_id,
+                    }
+                )
 
     console.print(
         f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]Unstaking operations completed."
@@ -369,11 +534,17 @@ async def unstake_all(
     exclude_hotkeys: Optional[list[str]] = None,
     era: int = 3,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
+    proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> None:
     """Unstakes all stakes from all hotkeys in all subnets."""
     include_hotkeys = include_hotkeys or []
     exclude_hotkeys = exclude_hotkeys or []
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    block_hash = await subtensor.substrate.get_chain_head()
     with console.status(
         f"Retrieving stake information & identities from {subtensor.network}...",
         spinner="earth",
@@ -381,15 +552,13 @@ async def unstake_all(
         (
             stake_info,
             ck_hk_identities,
-            old_identities,
             all_sn_dynamic_info_,
             current_wallet_balance,
         ) = await asyncio.gather(
-            subtensor.get_stake_for_coldkey(wallet.coldkeypub.ss58_address),
-            subtensor.fetch_coldkey_hotkey_identities(),
-            subtensor.get_delegate_identities(),
-            subtensor.all_subnets(),
-            subtensor.get_balance(wallet.coldkeypub.ss58_address),
+            subtensor.get_stake_for_coldkey(coldkey_ss58, block_hash=block_hash),
+            subtensor.fetch_coldkey_hotkey_identities(block_hash=block_hash),
+            subtensor.all_subnets(block_hash=block_hash),
+            subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
         )
 
         if all_hotkeys:
@@ -401,157 +570,264 @@ async def unstake_all(
                 exclude_hotkeys=exclude_hotkeys,
                 stake_infos=stake_info,
                 identities=ck_hk_identities,
-                old_identities=old_identities,
             )
         elif not hotkey_ss58_address:
             hotkeys = [(wallet.hotkey_str, get_hotkey_pub_ss58(wallet), None)]
         else:
             hotkeys = [(None, hotkey_ss58_address, None)]
 
-        hotkey_names = {ss58: name for name, ss58, _ in hotkeys if name is not None}
-        hotkey_ss58s = [item[1] for item in hotkeys]
-        stake_info = [
-            stake for stake in stake_info if stake.hotkey_ss58 in hotkey_ss58s
-        ]
-
-        if unstake_all_alpha:
-            stake_info = [stake for stake in stake_info if stake.netuid != 0]
-
-        if not stake_info:
-            console.print("[red]No stakes found to unstake[/red]")
-            return
-
-        all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
-
-        # Create table for unstaking all
-        table_title = (
-            "Unstaking Summary - All Stakes"
-            if not unstake_all_alpha
-            else "Unstaking Summary - All Alpha Stakes"
+        hotkeys_existence = await subtensor.do_hotkeys_exist(
+            [x[1] for x in hotkeys], block_hash=block_hash
         )
-        table = Table(
-            title=(
-                f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{table_title}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
-                f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-                f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet.coldkeypub.ss58_address}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-                f"Network: [{COLOR_PALETTE['GENERAL']['HEADER']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
-            ),
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
-        )
-        table.add_column("Netuid", justify="center", style="grey89")
-        table.add_column(
-            "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
-        )
-        table.add_column(
-            f"Current Stake ({Balance.get_unit(1)})",
-            justify="center",
-            style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
-        )
-        table.add_column(
-            f"Rate ({Balance.unit}/{Balance.get_unit(1)})",
-            justify="center",
-            style=COLOR_PALETTE["POOLS"]["RATE"],
-        )
-        table.add_column(
-            f"Fee ({Balance.get_unit(1)})",
-            justify="center",
-            style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
-        )
-        table.add_column(
-            "Extrinsic Fee (τ)",
-            justify="center",
-            style=COLOR_PALETTE.STAKE.TAO,
-        )
-        table.add_column(
-            f"Received ({Balance.unit})",
-            justify="center",
-            style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
-        )
-        # table.add_column(
-        #     "Slippage",
-        #     justify="center",
-        #     style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
-        # )
 
-        # Calculate total received
-        total_received_value = Balance(0)
-        for stake in stake_info:
-            if stake.stake.rao == 0:
-                continue
+    hotkeys_to_unstake_from_that_exist = [
+        x for x in hotkeys if hotkeys_existence[x[1]] is True
+    ]
+    if not hotkeys_to_unstake_from_that_exist:
+        err_msg = "No keys existing on chain from which to unstake"
+        if json_output:
+            json_console.print_json(data={"success": False, "error": err_msg})
+        else:
+            print_error(err_msg)
+        return None
 
-            hotkey_display = hotkey_names.get(stake.hotkey_ss58, stake.hotkey_ss58)
-            subnet_info = all_sn_dynamic_info.get(stake.netuid)
-            stake_amount = stake.stake
+    if hotkeys_to_unstake_from_that_exist != hotkeys:
+        difference = set(x[1] for x in hotkeys).symmetric_difference(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        sames = set(x[1] for x in hotkeys).intersection(
+            set(x[1] for x in hotkeys_to_unstake_from_that_exist)
+        )
+        msg = (
+            "Some hotkeys attempting to unstake are not present: "
+            + ", ".join(difference)
+            + ". Using hotkeys:\n"
+            + "\n".join(sames)
+        )
+        console.print(msg)
+        if prompt:
+            if not confirm_action("Do you want to continue?"):
+                return None
+    hotkeys = hotkeys_to_unstake_from_that_exist
 
-            try:
-                current_price = subnet_info.price.tao
-                extrinsic_type = (
-                    "unstake_all" if not unstake_all_alpha else "unstake_all_alpha"
-                )
-                extrinsic_fee = await _get_extrinsic_fee(
-                    extrinsic_type,
-                    wallet,
-                    subtensor,
-                    hotkey_ss58=stake.hotkey_ss58,
-                )
-                sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
-                received_amount = sim_swap.tao_amount - extrinsic_fee
+    hotkey_names = {ss58: name for name, ss58, _ in hotkeys if name is not None}
+    hotkey_ss58s = [item[1] for item in hotkeys]
+    stake_info = [stake for stake in stake_info if stake.hotkey_ss58 in hotkey_ss58s]
 
-                if received_amount < Balance.from_tao(0):
-                    print_error("Not enough Alpha to pay the transaction fee.")
-                    continue
-            except (AttributeError, ValueError):
-                continue
+    if unstake_all_alpha:
+        stake_info = [stake for stake in stake_info if stake.netuid != 0]
 
-            total_received_value += received_amount
+    if not stake_info:
+        console.print("[red]No stakes found to unstake[/red]")
+        return
 
-            table.add_row(
-                str(stake.netuid),
-                hotkey_display,
-                str(stake_amount),
-                f"{float(subnet_info.price):.6f}"
-                + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
-                str(sim_swap.alpha_fee),
-                str(extrinsic_fee),
-                str(received_amount),
+    all_sn_dynamic_info = {info.netuid: info for info in all_sn_dynamic_info_}
+
+    # Create table for unstaking all
+    table_title = (
+        "Unstaking Summary - All Stakes"
+        if not unstake_all_alpha
+        else "Unstaking Summary - All Alpha Stakes"
+    )
+    table = create_table(
+        title=(
+            f"\n[{COLOR_PALETTE.G.HEADER}]{table_title}[/{COLOR_PALETTE.G.HEADER}]\n"
+            f"Wallet: [{COLOR_PALETTE.G.COLDKEY}]{wallet.name}[/{COLOR_PALETTE.G.COLDKEY}], "
+            f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
+            f"Network: [{COLOR_PALETTE.G.HEADER}]{subtensor.network}[/{COLOR_PALETTE.G.HEADER}]\n"
+        ),
+    )
+    table.add_column("Netuid", justify="center", style="grey89")
+    table.add_column(
+        "Hotkey", justify="center", style=COLOR_PALETTE["GENERAL"]["HOTKEY"]
+    )
+    table.add_column(
+        f"Current Stake ({Balance.get_unit(1)})",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_ALPHA"],
+    )
+    table.add_column(
+        f"Rate ({Balance.unit}/{Balance.get_unit(1)})",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["RATE"],
+    )
+    table.add_column(
+        f"Fee ({Balance.get_unit(1)})",
+        justify="center",
+        style=COLOR_PALETTE["STAKE"]["STAKE_AMOUNT"],
+    )
+    table.add_column(
+        "Extrinsic Fee (τ)",
+        justify="center",
+        style=COLOR_PALETTE.STAKE.TAO,
+    )
+    table.add_column(
+        f"Received ({Balance.unit})",
+        justify="center",
+        style=COLOR_PALETTE["POOLS"]["TAO_EQUIV"],
+    )
+    # table.add_column(
+    #     "Slippage",
+    #     justify="center",
+    #     style=COLOR_PALETTE["STAKE"]["SLIPPAGE_PERCENT"],
+    # )
+
+    # Calculate total received
+    total_received_value = Balance(0)
+    for stake in stake_info:
+        if stake.stake.rao == 0:
+            continue
+
+        hotkey_display = hotkey_names.get(stake.hotkey_ss58, stake.hotkey_ss58)
+        subnet_info = all_sn_dynamic_info.get(stake.netuid)
+        stake_amount = stake.stake
+
+        try:
+            _ = subnet_info.price.tao
+            extrinsic_type = (
+                "unstake_all" if not unstake_all_alpha else "unstake_all_alpha"
             )
+            extrinsic_fee = await _get_extrinsic_fee(
+                extrinsic_type,
+                wallet,
+                subtensor,
+                hotkey_ss58=stake.hotkey_ss58,
+                proxy=proxy,
+            )
+            sim_swap = await subtensor.sim_swap(stake.netuid, 0, stake_amount.rao)
+            received_amount = sim_swap.tao_amount
+            if not proxy:
+                received_amount -= extrinsic_fee
+
+            if received_amount < Balance.from_tao(0):
+                print_error("Not enough Alpha to pay the transaction fee.")
+                continue
+        except (AttributeError, ValueError):
+            continue
+
+        total_received_value += received_amount
+
+        table.add_row(
+            str(stake.netuid),
+            hotkey_display,
+            str(stake_amount),
+            f"{float(subnet_info.price):.6f}"
+            + f"({Balance.get_unit(0)}/{Balance.get_unit(stake.netuid)})",
+            str(sim_swap.alpha_fee),
+            str(extrinsic_fee),
+            str(received_amount),
+        )
     console.print(table)
 
     console.print(
         f"Total expected return: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{total_received_value}"
     )
 
-    if prompt and not Confirm.ask(
-        "\nDo you want to proceed with unstaking everything?"
+    if prompt and not confirm_action(
+        "\nDo you want to proceed with unstaking everything?",
+        decline=decline,
+        quiet=quiet,
     ):
         return
 
     if not unlock_key(wallet).success:
         return
     successes = {}
-    with console.status("Unstaking all stakes...") as status:
-        for hotkey_ss58 in hotkey_ss58s:
-            success, ext_receipt = await _unstake_all_extrinsic(
+    use_batch = len(hotkey_ss58s) > 1
+
+    if use_batch:
+        # Batch path: compose unstake_all calls for all hotkeys into one transaction
+        with console.status(
+            f"Batching unstake-all for {len(hotkey_ss58s)} hotkeys..."
+        ) as status:
+            batch_block_hash = await subtensor.substrate.get_chain_head()
+            call_function = "unstake_all_alpha" if unstake_all_alpha else "unstake_all"
+            # compose_call with a block_hash does no I/O, so no need for gather
+            calls = []
+            for hk in hotkey_ss58s:
+                calls.append(
+                    await subtensor.substrate.compose_call(
+                        call_module="SubtensorModule",
+                        call_function=call_function,
+                        call_params={"hotkey": hk},
+                        block_hash=batch_block_hash,
+                    )
+                )
+
+            success, err_msg, response = await subtensor.sign_and_send_batch_extrinsic(
+                calls=list(calls),
                 wallet=wallet,
-                subtensor=subtensor,
-                hotkey_ss58=hotkey_ss58,
-                hotkey_name=hotkey_names.get(hotkey_ss58, hotkey_ss58),
-                unstake_all_alpha=unstake_all_alpha,
-                status=status,
-                era=era,
+                era={"period": era},
+                proxy=proxy,
+                mev_protection=mev_protection,
+                block_hash=batch_block_hash,
             )
-            ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
-            successes[hotkey_ss58] = {
-                "success": success,
-                "extrinsic_identifier": ext_id,
-            }
+
+            if success and mev_protection:
+                inner_hash = err_msg
+                success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not success:
+                    err_msg = mev_error
+
+            ext_id = (
+                await response.get_extrinsic_identifier()
+                if success and response
+                else None
+            )
+
+            for hk in hotkey_ss58s:
+                successes[hk] = {
+                    "success": success,
+                    "extrinsic_identifier": ext_id,
+                }
+
+            if success:
+                await print_extrinsic_id(response)
+                msg_modifier = "Alpha " if unstake_all_alpha else ""
+                new_block_hash = await subtensor.substrate.get_chain_head()
+                new_balance = await subtensor.get_balance(
+                    coldkey_ss58, block_hash=new_block_hash
+                )
+                print_success(
+                    f"Batch finalized. Unstaked all {msg_modifier}stakes "
+                    f"from {len(hotkey_ss58s)} hotkeys."
+                )
+                console.print(
+                    f"Balance:\n  [blue]{current_wallet_balance}[/blue] "
+                    f":arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
+                )
+            else:
+                print_error(
+                    f":cross_mark: [red]Batch unstake-all failed[/red]: {err_msg}",
+                    status=status,
+                )
+    else:
+        # Single hotkey path: use existing per-hotkey extrinsic
+        with console.status("Unstaking all stakes...") as status:
+            for hotkey_ss58 in hotkey_ss58s:
+                success, ext_receipt = await _unstake_all_extrinsic(
+                    wallet=wallet,
+                    subtensor=subtensor,
+                    hotkey_ss58=hotkey_ss58,
+                    hotkey_name=hotkey_names.get(hotkey_ss58, hotkey_ss58),
+                    unstake_all_alpha=unstake_all_alpha,
+                    status=status,
+                    era=era,
+                    proxy=proxy,
+                    mev_protection=mev_protection,
+                )
+                ext_id = (
+                    await ext_receipt.get_extrinsic_identifier() if success else None
+                )
+                successes[hotkey_ss58] = {
+                    "success": success,
+                    "extrinsic_identifier": ext_id,
+                }
     if json_output:
         json_console.print(json.dumps({"success": successes}))
 
@@ -566,6 +842,8 @@ async def _unstake_extrinsic(
     hotkey_ss58: str,
     status=None,
     era: int = 3,
+    proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a standard unstake extrinsic.
 
@@ -578,19 +856,24 @@ async def _unstake_extrinsic(
         subtensor: Subtensor interface
         status: Optional status for console updates
         era: blocks for which the transaction is valid
+        proxy: Optional proxy to use for this extrinsic submission
+
     """
     err_out = partial(print_error, status=status)
     failure_prelude = (
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
             f"\n:satellite: Unstaking {amount} from {hotkey_ss58} on netuid: {netuid} ..."
         )
 
-    current_balance, call = await asyncio.gather(
-        subtensor.get_balance(wallet.coldkeypub.ss58_address),
+    current_balance, next_nonce, call = await asyncio.gather(
+        subtensor.get_balance(coldkey_ss58),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.substrate.compose_call(
             call_module="SubtensorModule",
             call_function="remove_stake",
@@ -601,45 +884,52 @@ async def _unstake_extrinsic(
             },
         ),
     )
-    extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, era={"period": era}
-    )
 
-    try:
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-        )
-        if not await response.is_success:
-            err_out(
-                f"{failure_prelude} with error: "
-                f"{format_error_message(await response.error_message)}"
+    success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+        # TODO I think this should handle announce-only
+        call=call,
+        wallet=wallet,
+        era={"period": era},
+        proxy=proxy,
+        mev_protection=mev_protection,
+        nonce=next_nonce,
+    )
+    if success:
+        if mev_protection:
+            inner_hash = err_msg
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                submit_block_hash=response.block_hash,
+                status=status,
             )
-            return False, None
-        # Fetch latest balance and stake
+            if not mev_success:
+                status.stop()
+                print_error(f"\nFailed: {mev_error}")
+                return False, None
         await print_extrinsic_id(response)
         block_hash = await subtensor.substrate.get_chain_head()
         new_balance, new_stake = await asyncio.gather(
-            subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
+            subtensor.get_balance(coldkey_ss58, block_hash),
             subtensor.get_stake(
                 hotkey_ss58=hotkey_ss58,
-                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                coldkey_ss58=coldkey_ss58,
                 netuid=netuid,
                 block_hash=block_hash,
             ),
         )
 
-        console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+        print_success("Finalized")
         console.print(
-            f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
         console.print(
-            f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
+            f"Subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+            f" Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
         )
         return True, response
-
-    except Exception as e:
-        err_out(f"{failure_prelude} with error: {str(e)}")
+    else:
+        err_out(f"{failure_prelude} with error: {err_msg}")
         return False, None
 
 
@@ -653,6 +943,8 @@ async def _safe_unstake_extrinsic(
     allow_partial_stake: bool,
     status=None,
     era: int = 3,
+    proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute a safe unstake extrinsic with price limit.
 
@@ -665,11 +957,15 @@ async def _safe_unstake_extrinsic(
         subtensor: Subtensor interface
         allow_partial_stake: Whether to allow partial unstaking
         status: Optional status for console updates
+        proxy: Optional proxy to use for unstake extrinsic
+
     """
     err_out = partial(print_error, status=status)
     failure_prelude = (
         f":cross_mark: [red]Failed[/red] to unstake {amount} on Netuid {netuid}"
     )
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -679,11 +975,11 @@ async def _safe_unstake_extrinsic(
     block_hash = await subtensor.substrate.get_chain_head()
 
     current_balance, next_nonce, current_stake, call = await asyncio.gather(
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
-        subtensor.substrate.get_account_next_index(wallet.coldkeypub.ss58_address),
+        subtensor.get_balance(coldkey_ss58, block_hash),
+        subtensor.substrate.get_account_next_index(signer_ss58),
         subtensor.get_stake(
             hotkey_ss58=hotkey_ss58,
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
+            coldkey_ss58=coldkey_ss58,
             netuid=netuid,
             block_hash=block_hash,
         ),
@@ -700,63 +996,68 @@ async def _safe_unstake_extrinsic(
             block_hash=block_hash,
         ),
     )
-
-    extrinsic = await subtensor.substrate.create_signed_extrinsic(
-        call=call, keypair=wallet.coldkey, nonce=next_nonce, era={"period": era}
+    success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+        call=call,
+        wallet=wallet,
+        nonce=next_nonce,
+        era={"period": era},
+        proxy=proxy,
+        mev_protection=mev_protection,
     )
-
-    try:
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic, wait_for_inclusion=True, wait_for_finalization=False
-        )
-    except SubstrateRequestException as e:
-        if "Custom error: 8" in str(e):
-            print_error(
-                f"\n{failure_prelude}: Price exceeded tolerance limit. "
-                f"Transaction rejected because partial unstaking is disabled. "
-                f"Either increase price tolerance or enable partial unstaking.",
+    if success:
+        if mev_protection:
+            inner_hash = err_msg
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                submit_block_hash=response.block_hash,
                 status=status,
             )
-        else:
-            err_out(f"\n{failure_prelude} with error: {format_error_message(e)}")
-        return False, None
-
-    if not await response.is_success:
-        err_out(
-            f"\n{failure_prelude} with error: {format_error_message(await response.error_message)}"
+            if not mev_success:
+                status.stop()
+                print_error(f"\nFailed: {mev_error}")
+                return False, None
+        await print_extrinsic_id(response)
+        block_hash = await subtensor.substrate.get_chain_head()
+        new_balance, new_stake = await asyncio.gather(
+            subtensor.get_balance(coldkey_ss58, block_hash),
+            subtensor.get_stake(
+                hotkey_ss58=hotkey_ss58,
+                coldkey_ss58=coldkey_ss58,
+                netuid=netuid,
+                block_hash=block_hash,
+            ),
         )
-        return False, None
-    await print_extrinsic_id(response)
-    block_hash = await subtensor.substrate.get_chain_head()
-    new_balance, new_stake = await asyncio.gather(
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash),
-        subtensor.get_stake(
-            hotkey_ss58=hotkey_ss58,
-            coldkey_ss58=wallet.coldkeypub.ss58_address,
-            netuid=netuid,
-            block_hash=block_hash,
-        ),
-    )
 
-    console.print(":white_heavy_check_mark: [green]Finalized[/green]")
-    console.print(
-        f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
-    )
-
-    amount_unstaked = current_stake - new_stake
-    if allow_partial_stake and (amount_unstaked != amount):
+        print_success("Finalized")
         console.print(
-            "Partial unstake transaction. Unstaked:\n"
-            f"  [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{amount_unstaked.set_unit(netuid=netuid)}[/{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}] "
-            f"instead of "
-            f"[blue]{amount}[/blue]"
+            f"Balance:\n  [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
 
-    console.print(
-        f"Subnet: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}] "
-        f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_stake}"
-    )
-    return True, response
+        amount_unstaked = current_stake - new_stake
+        if allow_partial_stake and (amount_unstaked != amount):
+            console.print(
+                "Partial unstake transaction. Unstaked:\n"
+                f"  [{COLOR_PALETTE.S.AMOUNT}]{amount_unstaked.set_unit(netuid=netuid)}[/{COLOR_PALETTE.S.AMOUNT}] "
+                f"instead of "
+                f"[blue]{amount}[/blue]"
+            )
+
+        console.print(
+            f"Subnet: [{COLOR_PALETTE.G.SUBHEAD}]{netuid}[/{COLOR_PALETTE.G.SUBHEAD}] "
+            f"Stake:\n  [blue]{current_stake}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_stake}"
+        )
+        return True, response
+    elif "Custom error: 8" in err_msg:
+        print_error(
+            f"\n{failure_prelude}: Price exceeded tolerance limit. "
+            f"Transaction rejected because partial unstaking is disabled. "
+            f"Either increase price tolerance or enable partial unstaking.",
+            status=status,
+        )
+    else:
+        err_out(f"\n{failure_prelude} with error: {err_msg}")
+    return False, None
 
 
 async def _unstake_all_extrinsic(
@@ -767,6 +1068,8 @@ async def _unstake_all_extrinsic(
     unstake_all_alpha: bool,
     status=None,
     era: int = 3,
+    proxy: Optional[str] = None,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[AsyncExtrinsicReceipt]]:
     """Execute an unstake all extrinsic.
 
@@ -782,6 +1085,8 @@ async def _unstake_all_extrinsic(
     failure_prelude = (
         f":cross_mark: [red]Failed[/red] to unstake all from {hotkey_name}"
     )
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
+    signer_ss58 = wallet.coldkeypub.ss58_address
 
     if status:
         status.update(
@@ -793,44 +1098,56 @@ async def _unstake_all_extrinsic(
         previous_root_stake, current_balance = await asyncio.gather(
             subtensor.get_stake(
                 hotkey_ss58=hotkey_ss58,
-                coldkey_ss58=wallet.coldkeypub.ss58_address,
+                coldkey_ss58=coldkey_ss58,
                 netuid=0,
                 block_hash=block_hash,
             ),
-            subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, block_hash=block_hash
-            ),
+            subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
         )
     else:
         current_balance = await subtensor.get_balance(
-            wallet.coldkeypub.ss58_address, block_hash=block_hash
+            coldkey_ss58, block_hash=block_hash
         )
         previous_root_stake = None
 
     call_function = "unstake_all_alpha" if unstake_all_alpha else "unstake_all"
-    call = await subtensor.substrate.compose_call(
-        call_module="SubtensorModule",
-        call_function=call_function,
-        call_params={"hotkey": hotkey_ss58},
+    call, next_nonce = await asyncio.gather(
+        subtensor.substrate.compose_call(
+            call_module="SubtensorModule",
+            call_function=call_function,
+            call_params={"hotkey": hotkey_ss58},
+        ),
+        subtensor.substrate.get_account_next_index(signer_ss58),
     )
-
     try:
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic=await subtensor.substrate.create_signed_extrinsic(
-                call=call, keypair=wallet.coldkey, era={"period": era}
-            ),
-            wait_for_inclusion=True,
-            wait_for_finalization=False,
+        success_, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
+            era={"period": era},
+            nonce=next_nonce,
+            proxy=proxy,
+            mev_protection=mev_protection,
         )
 
-        if not await response.is_success:
-            err_out(
-                f"{failure_prelude} with error: "
-                f"{format_error_message(await response.error_message)}"
-            )
+        if not success_:
+            err_out(f"{failure_prelude} with error: {err_msg}")
             return False, None
-        else:
-            await print_extrinsic_id(response)
+
+        if mev_protection:
+            inner_hash = err_msg
+            mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                subtensor=subtensor,
+                extrinsic_hash=inner_hash,
+                submit_block_hash=response.block_hash,
+                status=status,
+            )
+            if not mev_success:
+                status.stop()
+                err_msg = f"{failure_prelude}: {mev_error}"
+                err_out("\n" + err_msg)
+                return False, None
+
+        await print_extrinsic_id(response)
 
         # Fetch latest balance and stake
         block_hash = await subtensor.substrate.get_chain_head()
@@ -838,35 +1155,33 @@ async def _unstake_all_extrinsic(
             new_root_stake, new_balance = await asyncio.gather(
                 subtensor.get_stake(
                     hotkey_ss58=hotkey_ss58,
-                    coldkey_ss58=wallet.coldkeypub.ss58_address,
+                    coldkey_ss58=coldkey_ss58,
                     netuid=0,
                     block_hash=block_hash,
                 ),
-                subtensor.get_balance(
-                    wallet.coldkeypub.ss58_address, block_hash=block_hash
-                ),
+                subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
             )
         else:
             new_balance = await subtensor.get_balance(
-                wallet.coldkeypub.ss58_address, block_hash=block_hash
+                coldkey_ss58, block_hash=block_hash
             )
             new_root_stake = None
 
+        msg_modifier = "Alpha " if unstake_all_alpha else ""
         success_message = (
-            ":white_heavy_check_mark: [green]Finalized: Successfully unstaked all stakes[/green]"
-            if not unstake_all_alpha
-            else ":white_heavy_check_mark: [green]Finalized: Successfully unstaked all Alpha stakes[/green]"
+            f":white_heavy_check_mark: [green]Included:"
+            f" Successfully unstaked all {msg_modifier}stakes[/green]"
         )
         console.print(f"{success_message} from {hotkey_name}")
         console.print(
-            f"Balance:\n [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_balance}"
+            f"Balance:\n [blue]{current_balance}[/blue] :arrow_right: [{COLOR_PALETTE.S.AMOUNT}]{new_balance}"
         )
 
         if unstake_all_alpha:
             console.print(
                 f"Root Stake for {hotkey_name}:\n "
                 f"[blue]{previous_root_stake}[/blue] :arrow_right: "
-                f"[{COLOR_PALETTE['STAKE']['STAKE_AMOUNT']}]{new_root_stake}"
+                f"[{COLOR_PALETTE.S.AMOUNT}]{new_root_stake}"
             )
         return True, response
 
@@ -884,6 +1199,7 @@ async def _get_extrinsic_fee(
     amount: Optional[Balance] = None,
     price_limit: Optional[Balance] = None,
     allow_partial_stake: bool = False,
+    proxy: Optional[str] = None,
 ) -> Balance:
     """
     Retrieves the extrinsic fee for a given unstaking call.
@@ -916,7 +1232,7 @@ async def _get_extrinsic_fee(
                 "hotkey": hotkey_ss58,
                 "netuid": netuid,
                 "amount_unstaked": amount.rao,
-                "limit_price": price_limit,
+                "limit_price": price_limit.rao if price_limit is not None else None,
                 "allow_partial": allow_partial_stake,
             },
         ),
@@ -929,14 +1245,13 @@ async def _get_extrinsic_fee(
         call_function=call_fn,
         call_params=call_params,
     )
-    return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub)
+    return await subtensor.get_extrinsic_fee(call, wallet.coldkeypub, proxy=proxy)
 
 
 # Helpers
 async def _unstake_selection(
     dynamic_info,
     identities,
-    old_identities,
     stake_infos,
     netuid: Optional[int] = None,
 ) -> tuple[list[tuple[str, str, int]], bool]:
@@ -966,7 +1281,6 @@ async def _unstake_selection(
         hotkey_name = get_hotkey_identity(
             hotkey_ss58=hotkey_ss58,
             identities=identities,
-            old_identities=old_identities,
         )
         hotkeys_info.append(
             {
@@ -979,21 +1293,13 @@ async def _unstake_selection(
 
     # Display existing hotkeys, id, and staked netuids.
     subnet_filter = f" for Subnet {netuid}" if netuid is not None else ""
-    table = Table(
-        title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Hotkeys with Stakes{subnet_filter}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
+    table = create_table(
+        title=f"\n[{COLOR_PALETTE.G.HEADER}]Hotkeys with Stakes{subnet_filter}\n",
     )
     table.add_column("Index", justify="right")
-    table.add_column("Identity", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"])
-    table.add_column("Netuids", style=COLOR_PALETTE["GENERAL"]["NETUID"])
-    table.add_column("Hotkey Address", style=COLOR_PALETTE["GENERAL"]["HOTKEY"])
+    table.add_column("Identity", style=COLOR_PALETTE.G.SUBHEAD)
+    table.add_column("Netuids", style=COLOR_PALETTE.G.NETUID)
+    table.add_column("Hotkey Address", style=COLOR_PALETTE.G.HK)
 
     for hotkey_info in hotkeys_info:
         index = str(hotkey_info["index"])
@@ -1016,18 +1322,10 @@ async def _unstake_selection(
     netuid_stakes = hotkey_stakes[selected_hotkey_ss58]
 
     # Display hotkey's staked netuids with amount.
-    table = Table(
+    table = create_table(
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Stakes for hotkey \n"
         f"[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{selected_hotkey_name}\n"
         f"{selected_hotkey_ss58}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     table.add_column("Subnet", justify="right")
     table.add_column("Symbol", style=COLOR_PALETTE["GENERAL"]["SYMBOL"])
@@ -1066,7 +1364,8 @@ async def _unstake_selection(
                     invalid_netuids = [n for n in netuid_list if n not in netuid_stakes]
                     if invalid_netuids:
                         print_error(
-                            f"The following netuids are invalid or not available: {', '.join(map(str, invalid_netuids))}. Please try again."
+                            f"The following netuids are invalid or not available: "
+                            f"{', '.join(map(str, invalid_netuids))}. Please try again."
                         )
                     else:
                         selected_netuids = netuid_list
@@ -1173,7 +1472,6 @@ def _get_hotkeys_to_unstake(
     exclude_hotkeys: list[str],
     stake_infos: list,
     identities: dict,
-    old_identities: dict,
 ) -> list[tuple[Optional[str], str, None]]:
     """Get list of hotkeys to unstake from based on input parameters.
 
@@ -1204,7 +1502,7 @@ def _get_hotkeys_to_unstake(
         wallet_hotkey_addresses = {hk[1] for hk in wallet_hotkeys}
         chain_hotkeys = [
             (
-                get_hotkey_identity(stake_info.hotkey_ss58, identities, old_identities),
+                get_hotkey_identity(stake_info.hotkey_ss58, identities),
                 stake_info.hotkey_ss58,
                 None,
             )
@@ -1259,21 +1557,13 @@ def _create_unstake_table(
         Rich Table object configured for unstake summary
     """
     title = (
-        f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Unstaking to: \n"
-        f"Wallet: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet_name}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}], "
-        f"Coldkey ss58: [{COLOR_PALETTE['GENERAL']['COLDKEY']}]{wallet_coldkey_ss58}[/{COLOR_PALETTE['GENERAL']['COLDKEY']}]\n"
-        f"Network: {network}[/{COLOR_PALETTE['GENERAL']['HEADER']}]\n"
+        f"\n[{COLOR_PALETTE.G.HEADER}]Unstaking to: \n"
+        f"Wallet: [{COLOR_PALETTE.G.CK}]{wallet_name}[/{COLOR_PALETTE.G.CK}], "
+        f"Coldkey ss58: [{COLOR_PALETTE.G.CK}]{wallet_coldkey_ss58}[/{COLOR_PALETTE.G.CK}]\n"
+        f"Network: {network}[/{COLOR_PALETTE.G.HEADER}]\n"
     )
-    table = Table(
+    table = create_table(
         title=title,
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
 
     table.add_column("Netuid", justify="center", style="grey89")
@@ -1338,10 +1628,11 @@ def _print_table_and_slippage(
     if max_float_slippage > 5:
         console.print(
             "\n"
-            f"[{COLOR_PALETTE['STAKE']['SLIPPAGE_TEXT']}]-------------------------------------------------------------------------------------------------------------------\n"
-            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: [{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}]{max_float_slippage} %[/{COLOR_PALETTE['STAKE']['SLIPPAGE_PERCENT']}],"
+            f"[{COLOR_PALETTE.S.SLIPPAGE_TEXT}]{'-' * console.width}\n"
+            f"[bold]WARNING:[/bold]  The slippage on one of your operations is high: "
+            f"[{COLOR_PALETTE.S.SLIPPAGE_PERCENT}]{max_float_slippage} %[/{COLOR_PALETTE.S.SLIPPAGE_PERCENT}],"
             " this may result in a loss of funds.\n"
-            f"-------------------------------------------------------------------------------------------------------------------\n"
+            f"{'-' * console.width}\n"
         )
     base_description = """
 [bold white]Description[/bold white]:
@@ -1365,23 +1656,16 @@ The columns are as follows:
 def get_hotkey_identity(
     hotkey_ss58: str,
     identities: dict,
-    old_identities: dict,
 ) -> str:
-    """Get identity name for a hotkey from identities or old_identities.
+    """Get identity name for a hotkey from the V2-backed identity map.
 
     Args:
         hotkey_ss58 (str): The hotkey SS58 address
         identities (dict): Current identities from fetch_coldkey_hotkey_identities
-        old_identities (dict): Old identities from get_delegate_identities
 
     Returns:
         str: Identity name or truncated address
     """
-    if hk_identity := identities["hotkeys"].get(hotkey_ss58):
-        return hk_identity.get("identity", {}).get("name", "") or hk_identity.get(
-            "display", "~"
-        )
-    elif old_identity := old_identities.get(hotkey_ss58):
-        return old_identity.display
-    else:
-        return f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    return get_hotkey_identity_name(identities, hotkey_ss58) or (
+        f"{hotkey_ss58[:4]}...{hotkey_ss58[-4:]}"
+    )

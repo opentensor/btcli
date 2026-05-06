@@ -17,13 +17,11 @@
 
 import asyncio
 import hashlib
-import time
 from typing import Union, List, TYPE_CHECKING, Optional
 
 from bittensor_wallet import Wallet, Keypair
 import numpy as np
 from numpy.typing import NDArray
-from rich.prompt import Confirm
 from rich.table import Table, Column
 from scalecodec import ScaleBytes, U16, Vec
 from async_substrate_interface.errors import SubstrateRequestException
@@ -31,8 +29,10 @@ from async_substrate_interface.errors import SubstrateRequestException
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.extrinsics.registration import is_hotkey_registered
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
-    err_console,
+    print_error,
+    print_success,
     u16_normalized_float,
     print_verbose,
     format_error_message,
@@ -46,6 +46,34 @@ if TYPE_CHECKING:
 
 U32_MAX = 4294967295
 U16_MAX = 65535
+
+
+async def get_current_weights_for_uid(
+    subtensor: SubtensorInterface,
+    netuid: int,
+    uid: int,
+) -> dict[int, float]:
+    """
+    Fetches the current weights set by a specific UID on a subnet.
+
+    Args:
+        subtensor: The SubtensorInterface instance.
+        netuid: The network UID (0 for root network).
+        uid: The UID of the neuron whose weights to fetch.
+
+    Returns:
+        A dictionary mapping destination netuid to normalized weight (0.0-1.0).
+    """
+    weights_data = await subtensor.weights(netuid=netuid)
+    current_weights: dict[int, float] = {}
+
+    for validator_uid, weight_list in weights_data:
+        if validator_uid == uid:
+            for dest_netuid, raw_weight in weight_list:
+                current_weights[dest_netuid] = u16_normalized_float(raw_weight)
+            break
+
+    return current_weights
 
 
 async def get_limits(subtensor: SubtensorInterface) -> tuple[int, float]:
@@ -292,6 +320,7 @@ async def root_register_extrinsic(
     wallet: Wallet,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = True,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, str, Optional[str]]:
     r"""Registers the wallet to root network.
 
@@ -301,7 +330,7 @@ async def root_register_extrinsic(
                                `False` if the extrinsic fails to enter the block within the timeout.
     :param wait_for_finalization: If set, waits for the extrinsic to be finalized on the chain before returning `True`,
                                   or returns `False` if the extrinsic fails to be finalized within the timeout.
-    :param prompt: If `True`, the call waits for confirmation from the user before proceeding.
+    :param proxy: Optional proxy to use for making the call.
 
     :return: (success, msg), with success being `True` if extrinsic was finalized or included in the block. If we did
         not wait for finalization/inclusion, the response is `True`.
@@ -315,9 +344,7 @@ async def root_register_extrinsic(
         subtensor, netuid=0, hotkey_ss58=get_hotkey_pub_ss58(wallet)
     )
     if is_registered:
-        console.print(
-            ":white_heavy_check_mark: [green]Already registered on root network.[/green]"
-        )
+        print_success("Already registered on root network.")
         return True, "Already registered on root network", None
 
     with console.status(":satellite: Registering to root network...", spinner="earth"):
@@ -331,10 +358,11 @@ async def root_register_extrinsic(
             wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
         if not success:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err_msg}")
+            print_error(f"Failed: {err_msg}")
             await asyncio.sleep(0.5)
             return False, err_msg, None
 
@@ -348,15 +376,11 @@ async def root_register_extrinsic(
                 params=[0, get_hotkey_pub_ss58(wallet)],
             )
             if uid is not None:
-                console.print(
-                    f":white_heavy_check_mark: [green]Registered with UID {uid}[/green]"
-                )
+                print_success(f"Registered with UID {uid}")
                 return True, f"Registered with UID {uid}", ext_id
             else:
                 # neuron not found, try again
-                err_console.print(
-                    ":cross_mark: [red]Unknown error. Neuron not found.[/red]"
-                )
+                print_error("Unknown error. Neuron not found.")
                 return False, "Unknown error. Neuron not found.", ext_id
 
 
@@ -369,6 +393,8 @@ async def set_root_weights_extrinsic(
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = False,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Sets the given weights and values on chain for wallet hotkey account.
 
@@ -423,7 +449,7 @@ async def set_root_weights_extrinsic(
     )
 
     if my_uid is None:
-        err_console.print("Your hotkey is not registered to the root network")
+        print_error("Your hotkey is not registered to the root network")
         return False
 
     if not unlock_key(wallet).success:
@@ -457,20 +483,46 @@ async def set_root_weights_extrinsic(
 
     # Ask before moving on.
     if prompt:
+        # Fetch current weights for comparison
+        print_verbose("Fetching current weights for comparison")
+        current_weights = await get_current_weights_for_uid(
+            subtensor, netuid=0, uid=my_uid
+        )
+
         table = Table(
             Column("[dark_orange]Netuid", justify="center", style="bold green"),
-            Column(
-                "[dark_orange]Weight", justify="center", style="bold light_goldenrod2"
-            ),
+            Column("[dark_orange]Current", justify="center", style="dim"),
+            Column("[dark_orange]New", justify="center", style="bold light_goldenrod2"),
+            Column("[dark_orange]Change", justify="center"),
             expand=False,
             show_edge=False,
         )
 
-        for netuid, weight in zip(netuids, formatted_weights):
-            table.add_row(str(netuid), f"{weight:.8f}")
+        for netuid, new_weight in zip(netuids, formatted_weights):
+            current_weight = current_weights.get(netuid, 0.0)
+            diff = new_weight - current_weight
+
+            # Format the difference with color and sign
+            if diff > 0.00000001:
+                diff_str = f"[green]+{diff:.8f}[/green]"
+            elif diff < -0.00000001:
+                diff_str = f"[red]{diff:.8f}[/red]"
+            else:
+                diff_str = "[dim]0.00000000[/dim]"
+
+            table.add_row(
+                str(netuid),
+                f"{current_weight:.8f}",
+                f"{new_weight:.8f}",
+                diff_str,
+            )
 
         console.print(table)
-        if not Confirm.ask("\nDo you want to set these root weights?"):
+        if not confirm_action(
+            "\nDo you want to set these root weights?",
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     try:
@@ -485,14 +537,14 @@ async def set_root_weights_extrinsic(
                 return True
 
             if success is True:
-                console.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                print_success("Finalized")
                 return True
             else:
                 fmt_err = format_error_message(error_message)
-                err_console.print(f":cross_mark: [red]Failed[/red]: {fmt_err}")
+                print_error(f"Failed: {fmt_err}")
                 return False
 
     except SubstrateRequestException as e:
         fmt_err = format_error_message(e)
-        err_console.print(":cross_mark: [red]Failed[/red]: error:{}".format(fmt_err))
+        print_error("Failed: error:{}".format(fmt_err))
         return False

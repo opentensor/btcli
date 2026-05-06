@@ -1,11 +1,15 @@
 import ast
+import json
 from collections import namedtuple
 import math
 import os
 import sqlite3
+import sys
 import webbrowser
+from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable
+from typing import TYPE_CHECKING, Any, Collection, Optional, Union, Callable, Generator
 from urllib.parse import urlparse
 from functools import partial
 import re
@@ -21,14 +25,15 @@ from markupsafe import Markup
 import numpy as np
 from numpy.typing import NDArray
 from rich.console import Console
-from rich.prompt import Prompt
-from scalecodec.utils.ss58 import ss58_encode, ss58_decode
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
+from scalecodec import GenericCall
 import typer
 
 
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src import defaults, Constants
-
+from scalecodec.utils.math import fixed_to_float
 
 if TYPE_CHECKING:
     from bittensor_cli.src.bittensor.chain_data import SubnetHyperparameters
@@ -37,11 +42,133 @@ if TYPE_CHECKING:
 BT_DOCS_LINK = "https://docs.learnbittensor.org"
 
 GLOBAL_MAX_SUBNET_COUNT = 4096
+MEV_SHIELD_PUBLIC_KEY_SIZE = 1184
 
-console = Console()
-json_console = Console()
-err_console = Console(stderr=True)
-verbose_console = Console(quiet=True)
+# Detect if we're in a test environment (pytest captures stdout, making it non-TTY)
+# or if NO_COLOR is set, disable colors
+# Also check for pytest environment variables
+_is_pytest = "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") is not None
+_no_color = os.getenv("NO_COLOR", "") != "" or not sys.stdout.isatty() or _is_pytest
+# Force no terminal detection when in pytest or when stdout is not a TTY
+_force_terminal = False if (_is_pytest or not sys.stdout.isatty()) else None
+console = Console(no_color=_no_color, force_terminal=_force_terminal)
+json_console = Console(
+    markup=False, highlight=False, force_terminal=False, no_color=True
+)
+err_console = Console(stderr=True, no_color=_no_color, force_terminal=_force_terminal)
+verbose_console = Console(
+    quiet=True, no_color=_no_color, force_terminal=_force_terminal
+)
+
+
+def confirm_action(
+    message: str,
+    default: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+) -> bool:
+    """
+    Ask for user confirmation with support for auto-decline via --no flag.
+
+    When decline=True (--no flag is set):
+    - Prints the prompt message (unless quiet=True / --quiet is specified)
+    - Automatically returns False (declines)
+
+    Args:
+        message: The confirmation message to display.
+        default: Default value if user just presses Enter (only used in interactive mode).
+        decline: If True, automatically decline without prompting.
+        quiet: If True, suppresses the prompt message when auto-declining.
+
+    Returns:
+        True if confirmed, False if declined.
+    """
+    if decline:
+        if not quiet:
+            console.print(f"{message} [Auto-declined via --no flag]")
+        return False
+    return Confirm.ask(message, default=default)
+
+
+def create_table(*columns, title: str = "", **overrides) -> Table:
+    """
+    Creates a Rich Table with consistent CLI styling.
+
+    Default styling: no edge borders, bold white headers, bright black borders,
+    footer enabled, center-aligned title, and no lines between rows.
+
+    Args:
+        *columns: Optional Column objects to add to the table upfront.
+        title: Table title with rich markup support.
+        **overrides: Any Table() parameter to override defaults (e.g., show_footer,
+                     border_style, box, expand).
+
+    Returns:
+        Configured Rich Table ready for adding columns/rows.
+
+    Examples:
+        Basic usage (add columns later):
+            >>> table = create_table(title="My Subnets")
+            >>> table.add_column("Netuid", justify="center")
+            >>> table.add_row("1")
+
+        With Column objects upfront:
+            >>> from rich.table import Column
+            >>> table = create_table(
+            ...     Column("Name", justify="left"),
+            ...     Column("Value", justify="right"),
+            ...     title="Settings"
+            ... )
+            >>> table.add_row("Timeout", "30s")
+
+        Custom styling:
+            >>> from rich import box
+            >>> table = create_table(
+            ...     title="Custom",
+            ...     border_style="blue",
+            ...     box=box.ROUNDED
+            ... )
+    """
+    defaults = {
+        "title": title,
+        "show_footer": True,
+        "show_edge": False,
+        "header_style": "bold white",
+        "border_style": "bright_black",
+        "style": "bold",
+        "title_justify": "center",
+        "show_lines": False,
+        "pad_edge": True,
+    }
+
+    # Merge overrides into defaults
+    config = {**defaults, **overrides}
+
+    return Table(*columns, **config)
+
+
+def get_hotkey_identity_name(
+    identities: dict[str, Any], hotkey_ss58: str
+) -> Optional[str]:
+    """Return a hotkey display name from the V2 identity map, if present."""
+    hotkey_identity = identities.get("hotkeys", {}).get(hotkey_ss58, {})
+    identity_data = hotkey_identity.get("identity", {})
+    if isinstance((id_name := identity_data.get("name")), list):
+        if len(id_name) != 0:
+            return bytes(id_name).decode("utf-8")
+    elif isinstance(id_name, str):
+        return id_name
+    return identity_data.get("display") or None
+
+
+def get_coldkey_identity_name(
+    identities: dict[str, Any], coldkey_ss58: str
+) -> Optional[str]:
+    """Return a coldkey display name from the V2 identity map, if present."""
+    coldkey_identity = identities.get("coldkeys", {}).get(coldkey_ss58, {})
+    identity_data = coldkey_identity.get("identity", {})
+    return identity_data.get("name") or identity_data.get("display") or None
+
 
 jinja_env = Environment(
     loader=PackageLoader("bittensor_cli", "src/bittensor/templates"),
@@ -84,30 +211,77 @@ class WalletLike:
         return self._coldkeypub
 
 
-def print_console(message: str, colour: str, title: str, console_: Console):
-    console_.print(
-        f"[bold {colour}][{title}]:[/bold {colour}] [{colour}]{message}[/{colour}]\n"
-    )
+def print_console(message: str, colour: str, console_: Console, title: str = ""):
+    title_part = f"[bold {colour}][{title}]:[/bold {colour}] " if title else ""
+    console_.print(f"{title_part}[{colour}]{message}[/{colour}]\n")
 
 
 def print_verbose(message: str, status=None):
     """Print verbose messages while temporarily pausing the status spinner."""
     if status:
         status.stop()
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
         status.start()
     else:
-        print_console(message, "green", "Verbose", verbose_console)
+        print_console(message, "green", verbose_console, "Verbose")
 
 
 def print_error(message: str, status=None):
     """Print error messages while temporarily pausing the status spinner."""
+    error_message = f":cross_mark: {message}"
     if status:
         status.stop()
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
         status.start()
     else:
-        print_console(message, "red", "Error", err_console)
+        print_console(error_message, "red", err_console)
+
+
+def print_success(message: str, status=None):
+    """Print success messages while temporarily pausing the status spinner."""
+    success_message = f":white_heavy_check_mark: {message}"
+    if status:
+        status.stop()
+        print_console(success_message, "green", console)
+        status.start()
+    else:
+        print_console(success_message, "green", console)
+
+
+def print_protection_warnings(
+    mev_protection: bool,
+    safe_staking: Optional[bool] = None,
+    command_name: str = "",
+) -> None:
+    """
+    Print warnings about missing MEV protection and/or limit price protection.
+
+    Args:
+        mev_protection: Whether MEV protection is enabled.
+        safe_staking: Whether safe staking (limit price protection) is enabled.
+                      None if limit price protection is not available for this command.
+        command_name: Name of the command (e.g., "stake add") for context.
+    """
+    warnings = []
+
+    if not mev_protection:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] MEV protection is disabled. "
+            "This transaction may be exposed to MEV attacks.[/dim]"
+        )
+
+    if safe_staking is not None and not safe_staking:
+        warnings.append(
+            "⚠️  [dim][yellow]Warning:[/yellow] Limit price protection (safe staking) is disabled. "
+            "This transaction may be subject to slippage.[/dim]"
+        )
+
+    if warnings:
+        if command_name:
+            console.print(f"\n[dim]Protection status for '{command_name}':[/dim]")
+        for warning in warnings:
+            console.print(warning)
+        console.print()
 
 
 RAO_PER_TAO = 1e9
@@ -128,6 +302,14 @@ def u64_normalized_float(x: int) -> float:
 def string_to_u64(value: str) -> int:
     """Converts a string to u64"""
     return float_to_u64(float(value))
+
+
+def string_to_u64f64(value: str) -> int:
+    """Converts a string to a U64F64 fixed-point raw u128 value."""
+    d = Decimal(value)
+    if not (0 <= d < 2**64):
+        raise ValueError("Input value must be in the range [0, 2**64)")
+    return int(d * (Decimal(2) ** 64))
 
 
 def float_to_u64(value: float) -> int:
@@ -153,6 +335,20 @@ def u64_to_float(value: int) -> float:
 def string_to_u16(value: str) -> int:
     """Converts a string to a u16 int"""
     return float_to_u16(float(value))
+
+
+def string_to_i16(value: str) -> int:
+    """Converts a stringified float to a u16 int"""
+    return float_to_i16(float(value))
+
+
+def float_to_i16(value: float) -> int:
+    """Converts a float to a 16-bit signed integer"""
+    if not (-1 <= value <= 1):
+        raise ValueError("Input value must be between -1 and 1")
+
+    i16_max = 32767
+    return int(value * i16_max)
 
 
 def float_to_u16(value: float) -> int:
@@ -404,6 +600,15 @@ def is_valid_ss58_address(address: str) -> bool:
         return False
 
 
+def is_valid_ss58_address_prompt(text: str) -> str:
+    valid = False
+    address = ""
+    while not valid:
+        address = Prompt.ask(text).strip()
+        valid = is_valid_ss58_address(address)
+    return address
+
+
 def is_valid_ed25519_pubkey(public_key: Union[str, bytes]) -> bool:
     """
     Checks if the given public_key is a valid ed25519 key.
@@ -453,30 +658,6 @@ def is_valid_bittensor_address_or_public_key(address: Union[str, bytes]) -> bool
     else:
         # Invalid address type
         return False
-
-
-def decode_account_id(account_id_bytes: Union[tuple[int], tuple[tuple[int]]]):
-    if isinstance(account_id_bytes, tuple) and isinstance(account_id_bytes[0], tuple):
-        account_id_bytes = account_id_bytes[0]
-    # Convert the AccountId bytes to a Base64 string
-    return ss58_encode(bytes(account_id_bytes).hex(), SS58_FORMAT)
-
-
-def encode_account_id(ss58_address: str) -> bytes:
-    return bytes.fromhex(ss58_decode(ss58_address, SS58_FORMAT))
-
-
-def ss58_to_vec_u8(ss58_address: str) -> list[int]:
-    """
-    Converts an SS58 address to a list of integers (vector of u8).
-
-    :param ss58_address: The SS58 address to be converted.
-
-    :return: A list of integers representing the byte values of the SS58 address.
-    """
-    ss58_bytes: bytes = encode_account_id(ss58_address)
-    encoded_address: list[int] = [int(byte) for byte in ss58_bytes]
-    return encoded_address
 
 
 def get_explorer_root_url_by_network_from_map(
@@ -646,47 +827,21 @@ def decode_hex_identity_dict(info_dictionary) -> dict[str, Any]:
     Examples:
         input_dict = {
              "name": {"value": "0x6a6f686e"},
-             "additional": [
-                 {"data1": "0x64617461"},
-                 ("data2", "0x64617461")
-             ]
+             "additional": "0x64617461"
          }
         decode_hex_identity_dict(input_dict)
-        {'name': 'john', 'additional': [('data1', 'data'), ('data2', 'data')]}
+        {'name': 'john', 'additional': "data"]}
     """
-
-    def get_decoded(data: Optional[str]) -> str:
-        """Decodes a hex-encoded string."""
-        if data is None:
-            return ""
-        try:
-            return hex_to_bytes(data).decode()
-        except (UnicodeDecodeError, ValueError):
-            print(f"Could not decode: {key}: {item}")
 
     for key, value in info_dictionary.items():
         if isinstance(value, dict):
             item = list(value.values())[0]
-            if isinstance(item, str) and item.startswith("0x"):
-                try:
-                    info_dictionary[key] = get_decoded(item)
-                except UnicodeDecodeError:
-                    print(f"Could not decode: {key}: {item}")
-            else:
-                info_dictionary[key] = item
-        if key == "additional":
-            additional = []
-            for item in value:
-                if isinstance(item, dict):
-                    for k, v in item.items():
-                        additional.append((k, get_decoded(v)))
-                else:
-                    if isinstance(item, (tuple, list)) and len(item) == 2:
-                        k_, v = item
-                        k = k_ if k_ is not None else ""
-                        additional.append((k, get_decoded(v)))
-            info_dictionary[key] = additional
-
+        else:
+            item = value
+        if isinstance(item, str) and item.startswith("0x"):
+            info_dictionary[key] = hex_to_bytes(item.removeprefix("0x")).decode()
+        else:
+            info_dictionary[key] = item
     return info_dictionary
 
 
@@ -780,6 +935,8 @@ def normalize_hyperparameters(
         "alpha_sigmoid_steepness": u16_normalized_float,
         "min_burn": Balance.from_rao,
         "max_burn": Balance.from_rao,
+        "burn_increase_mult": fixed_to_float,
+        "burn_half_life": u16_normalized_float,
     }
 
     normalized_values: list[tuple[str, str, str]] = []
@@ -795,7 +952,7 @@ def normalize_hyperparameters(
                     norm_value = norm_value.to_dict()
             else:
                 norm_value = value
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             # bittensor.logging.warning(f"Error normalizing parameter '{param}': {e}")
             norm_value = "-"
         if not json_output:
@@ -806,16 +963,312 @@ def normalize_hyperparameters(
     return normalized_values
 
 
+class TableDefinition:
+    """
+    Base class for address book table definitions/functions
+    """
+
+    name: str
+    cols: tuple[tuple[str, str], ...]
+
+    @staticmethod
+    @contextmanager
+    def get_db() -> Generator[tuple[sqlite3.Connection, sqlite3.Cursor], None, None]:
+        """
+        Helper function to get a DB connection
+        """
+        with DB() as (conn, cursor):
+            yield conn, cursor
+
+    @classmethod
+    def create_if_not_exists(cls, conn: sqlite3.Connection, _: sqlite3.Cursor) -> None:
+        """
+        Creates the table if it doesn't exist.
+        Args:
+            conn: sqlite3 connection
+            _: sqlite3 cursor
+        """
+        columns_ = ", ".join([" ".join(x) for x in cls.cols])
+        conn.execute(f"CREATE TABLE IF NOT EXISTS {cls.name} ({columns_})")
+        conn.commit()
+
+    @classmethod
+    def read_rows(
+        cls,
+        _: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        include_header: bool = True,
+    ) -> list[tuple[Union[str, int], ...]]:
+        """
+        Reads rows from a table.
+
+        Args:
+            _: sqlite3 connection
+            cursor: sqlite3 cursor
+            include_header: Whether to include the header row
+
+        Returns:
+            rows of the table, with column names as the header row if `include_header` is set
+
+        """
+        header = tuple(x[0] for x in cls.cols)
+        cols = ", ".join(header)
+        cursor.execute(f"SELECT {cols} FROM {cls.name}")
+        rows = cursor.fetchall()
+        if not include_header:
+            return rows
+        else:
+            return [header] + rows
+
+    @classmethod
+    def clear_table(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+    ):
+        """Truncates the table. Use with caution."""
+        cursor.execute(f"DELETE FROM {cls.name}")
+        conn.commit()
+
+    @classmethod
+    def update_entry(cls, *args, **kwargs):
+        """
+        Updates an existing entry in the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def add_entry(cls, *args, **kwargs):
+        """
+        Adds an entry to the table.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def delete_entry(cls, *args, **kwargs):
+        """
+        Deletes an entry from the table.
+        """
+        raise NotImplementedError()
+
+
+class AddressBook(TableDefinition):
+    name = "address_book"
+    cols = (("name", "TEXT"), ("ss58_address", "TEXT"), ("note", "TEXT"))
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, note) VALUES (?, ?, ?)",
+            (name, ss58_address, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        note: Optional[str] = None,
+    ):
+        cursor.execute(
+            f"SELECT ss58_address, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()
+        ss58_address_ = ss58_address or row[0]
+        note_ = note or row[1]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, note = ? WHERE name = ?",
+            (ss58_address_, note_, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls, conn: sqlite3.Connection, cursor: sqlite3.Cursor, *, name: str
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAddressBook(TableDefinition):
+    name = "proxy_address_book"
+    cols = (
+        ("name", "TEXT"),
+        ("ss58_address", "TEXT"),
+        ("delay", "INTEGER"),
+        ("spawner", "TEXT"),
+        ("proxy_type", "TEXT"),
+        ("note", "TEXT"),
+    )
+
+    @classmethod
+    def update_entry(
+        cls,
+        conn: sqlite3.Connection,
+        cursor: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: Optional[str] = None,
+        delay: Optional[int] = None,
+        spawner: Optional[str] = None,
+        proxy_type: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> None:
+        cursor.execute(
+            f"SELECT ss58_address, spawner, proxy_type, delay, note FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()
+        ss58_address_ = ss58_address or row[0]
+        spawner_ = spawner or row[1]
+        proxy_type_ = proxy_type or row[2]
+        delay = delay if delay is not None else row[3]
+        note_ = note or row[4]
+        conn.execute(
+            f"UPDATE {cls.name} SET ss58_address = ?, spawner = ?, proxy_type = ?, delay = ?, note = ? WHERE name = ?",
+            (ss58_address_, spawner_, proxy_type_, delay, note_, name),
+        )
+        conn.commit()
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+        ss58_address: str,
+        delay: int,
+        spawner: str,
+        proxy_type: str,
+        note: str,
+    ) -> None:
+        conn.execute(
+            f"INSERT INTO {cls.name} (name, ss58_address, delay, spawner, proxy_type, note) VALUES (?, ?, ?, ?, ?, ?)",
+            (name, ss58_address, delay, spawner, proxy_type, note),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        name: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE name = ?",
+            (name,),
+        )
+        conn.commit()
+
+
+class ProxyAnnouncements(TableDefinition):
+    name = "proxy_announcements"
+    cols = (
+        ("id", "INTEGER PRIMARY KEY"),
+        ("address", "TEXT"),
+        ("epoch_time", "INTEGER"),
+        ("block", "INTEGER"),
+        ("call_hash", "TEXT"),
+        ("call", "TEXT"),
+        ("call_serialized", "TEXT"),
+        ("executed", "INTEGER"),
+    )
+
+    @classmethod
+    def add_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+        call: GenericCall,
+        executed: bool = False,
+    ) -> None:
+        call_hex = call.data.to_hex()
+        call_serialized = json.dumps(call.serialize())
+        executed_int = int(executed)
+        conn.execute(
+            f"INSERT INTO {cls.name} (address, epoch_time, block, call_hash, call, call_serialized, executed)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                address,
+                epoch_time,
+                block,
+                call_hash,
+                call_hex,
+                call_serialized,
+                executed_int,
+            ),
+        )
+        conn.commit()
+
+    @classmethod
+    def delete_entry(
+        cls,
+        conn: sqlite3.Connection,
+        _: sqlite3.Cursor,
+        *,
+        address: str,
+        epoch_time: int,
+        block: int,
+        call_hash: str,
+    ):
+        conn.execute(
+            f"DELETE FROM {cls.name} WHERE call_hash = ? AND address = ? AND epoch_time = ? AND block = ?",
+            (call_hash, address, epoch_time, block),
+        )
+        conn.commit()
+
+    @classmethod
+    def mark_as_executed(cls, conn: sqlite3.Connection, _: sqlite3.Cursor, idx: int):
+        conn.execute(
+            f"UPDATE {cls.name} SET executed = ? WHERE id = ?",
+            (1, idx),
+        )
+        conn.commit()
+
+
 class DB:
     """
     For ease of interaction with the SQLite database used for --reuse-last and --html outputs of tables
+
+    Also for address book
     """
 
     def __init__(
         self,
-        db_path: str = os.path.expanduser("~/.bittensor/bittensor.db"),
+        db_path: Optional[str] = None,
         row_factory=None,
     ):
+        if db_path is None:
+            if path_from_env := os.getenv("BTCLI_PROXIES_PATH"):
+                db_path = path_from_env
+            else:
+                db_path = os.path.join(
+                    os.path.expanduser(defaults.config.base_path), "bittensor.db"
+                )
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.row_factory = row_factory
@@ -830,9 +1283,14 @@ class DB:
             self.conn.close()
 
 
-def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -> None:
+def create_and_populate_table(
+    title: str, columns: list[tuple[str, str]], rows: list[list]
+) -> None:
     """
     Creates and populates the rows of a table in the SQLite database.
+
+    Warning:
+        Will overwrite the existing table.
 
     :param title: title of the table
     :param columns: [(column name, column type), ...]
@@ -853,8 +1311,7 @@ def create_table(title: str, columns: list[tuple[str, str]], rows: list[list]) -
         conn.commit()
         columns_ = ", ".join([" ".join(x) for x in columns])
         creation_query = f"CREATE TABLE IF NOT EXISTS {title} ({columns_})"
-        conn.commit()
-        cursor.execute(creation_query)
+        conn.execute(creation_query)
         conn.commit()
         query = f"INSERT INTO {title} ({', '.join([x[0] for x in columns])}) VALUES ({', '.join(['?'] * len(columns))})"
         cursor.executemany(query, rows)
@@ -1026,6 +1483,17 @@ def render_tree(
         webbrowser.open(f"file://{output_file}")
 
 
+def ensure_address_book_tables_exist():
+    """
+    Creates address book tables if they don't exist.
+
+    Should be run at startup to ensure that the address book tables exist.
+    """
+    with DB() as (conn, cursor):
+        for table in (AddressBook, ProxyAddressBook, ProxyAnnouncements):
+            table.create_if_not_exists(conn, cursor)
+
+
 def group_subnets(registrations):
     if not registrations:
         return ""
@@ -1049,6 +1517,58 @@ def group_subnets(registrations):
         ranges.append(f"{start}-{registrations[-1]}")
 
     return ", ".join(ranges)
+
+
+def parse_subnet_range(input_str: str, total_subnets: int) -> list[int]:
+    """
+    Parse subnet range input like "1-24, 30-40, 5".
+
+    Args:
+        input_str: Comma-separated list of subnets and ranges
+                  Examples: "1-5", "1,2,3", "1-5, 10, 20-25"
+        total_subnets: Total number of subnets available
+
+    Returns:
+        Sorted list of unique subnet IDs
+
+    Raises:
+        ValueError: If input format is invalid
+
+    Examples:
+        >>> parse_subnet_range("1-5, 10")
+        [1, 2, 3, 4, 5, 10]
+        >>> parse_subnet_range("5, 3, 1")
+        [1, 3, 5]
+    """
+    subnets = set()
+    parts = [p.strip() for p in input_str.split(",") if p.strip()]
+    for part in parts:
+        if "-" in part:
+            try:
+                start, end = part.split("-", 1)
+                start_num = int(start.strip())
+                end_num = int(end.strip())
+
+                if start_num > end_num:
+                    raise ValueError(f"Invalid range '{part}': start must be ≤ end")
+
+                if end_num - start_num > total_subnets:
+                    raise ValueError(
+                        f"Range '{part}' is not valid (total of {total_subnets} subnets)"
+                    )
+
+                subnets.update(range(start_num, end_num + 1))
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(f"Invalid range '{part}': must be 'start-end'")
+                raise
+        else:
+            try:
+                subnets.add(int(part))
+            except ValueError:
+                raise ValueError(f"Invalid subnet ID '{part}': must be a number")
+
+    return sorted(subnets)
 
 
 def validate_chain_endpoint(endpoint_url) -> tuple[bool, str]:
@@ -1090,7 +1610,7 @@ def retry_prompt(
         if not rejection(var):
             return var
         else:
-            err_console.print(rejection_text)
+            print_error(rejection_text)
 
 
 def validate_netuid(value: int) -> int:
@@ -1234,8 +1754,9 @@ def prompt_for_subnet_identity(
             "github_repo",
             "[blue]GitHub repository URL [dim](optional)[/blue]",
             github_repo,
-            lambda x: x
-            and (not is_valid_github_url(x) or len(x.encode("utf-8")) > 1024),
+            lambda x: (
+                x and (not is_valid_github_url(x) or len(x.encode("utf-8")) > 1024)
+            ),
             "[red]Error:[/red] Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo).",
         ),
         (
@@ -1320,7 +1841,7 @@ def is_valid_github_url(url: str) -> bool:
             return False
 
         return True
-    except Exception:  # TODO figure out the exceptions that can be raised in here
+    except (ValueError, TypeError, AttributeError):
         return False
 
 
@@ -1406,13 +1927,13 @@ def unlock_key(
     except PasswordError:
         err_msg = f"The password used to decrypt your {unlock_type.capitalize()}key Keyfile is invalid."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
             return unlock_key(wallet, unlock_type, print_out)
         return UnlockStatus(False, err_msg)
     except KeyFileError:
         err_msg = f"{unlock_type.capitalize()}key Keyfile is corrupt, non-writable, or non-readable, or non-existent."
         if print_out:
-            err_console.print(f":cross_mark: [red]{err_msg}[/red]")
+            print_error(f"Failed: {err_msg}")
         return UnlockStatus(False, err_msg)
 
 

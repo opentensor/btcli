@@ -3,30 +3,35 @@ import json
 import sqlite3
 from typing import TYPE_CHECKING, Optional, cast
 
+from async_substrate_interface import AsyncExtrinsicReceipt
+from async_substrate_interface.utils.storage import StorageKey
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 from rich.console import Group
 from rich.progress import Progress, BarColumn, TextColumn
 from rich.table import Column, Table
 from rich import box
 
-from bittensor_cli.src import COLOR_PALETTE, Constants
+from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.bittensor.extrinsics.registration import (
-    register_extrinsic,
     burned_register_extrinsic,
 )
 from bittensor_cli.src.bittensor.extrinsics.root import root_register_extrinsic
+from bittensor_cli.src.bittensor.extrinsics.mev_shield import (
+    wait_for_extrinsic_by_hash,
+)
 from rich.live import Live
 from bittensor_cli.src.bittensor.minigraph import MiniGraph
 from bittensor_cli.src.commands.wallets import set_id, get_id
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
+    create_and_populate_table,
     create_table,
-    err_console,
+    print_success,
     print_verbose,
     print_error,
-    format_error_message,
     get_metadata_table,
     millify_tao,
     render_table,
@@ -49,13 +54,75 @@ TAO_WEIGHT = 0.18
 # helpers and extrinsics
 
 
+def format_claim_type_for_root(claim_info: dict, total_subnets: int) -> str:
+    """
+    Format claim type for root network metagraph.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        total_subnets: Total number of subnets in network (excluding netuid 0)
+
+    Returns:
+        Formatted string showing keep/swap counts
+
+    Examples:
+        {"type": "Keep"} → "Keep all"
+        {"type": "Swap"} → "Swap all"
+        {"type": "KeepSubnets", "subnets": [1,2,3]} → "Keep (3), Swap (54)"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep all"
+    elif claim_type == "Swap":
+        return "Swap all"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        keep_count = len(keep_subnets)
+        swap_count = total_subnets - keep_count
+        return f"Keep ({keep_count}), Swap ({swap_count})"
+
+
+def format_claim_type_for_subnet(claim_info: dict, current_netuid: int) -> str:
+    """
+    Format claim type for specific subnet metagraph.
+    Shows whether THIS subnet's emissions are kept or swapped.
+
+    Args:
+        claim_info: Claim type dict {"type": "...", "subnets": [...]}
+        current_netuid: The netuid being viewed
+
+    Returns:
+        "Keep" if this subnet is kept, "Swap" if swapped
+
+    Examples:
+        {"type": "Keep"}, netuid=5 → "Keep"
+        {"type": "Swap"}, netuid=5 → "Swap"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=5 → "Keep"
+        {"type": "KeepSubnets", "subnets": [1,5,10]}, netuid=3 → "Swap"
+    """
+    claim_type = claim_info.get("type", "Swap")
+
+    if claim_type == "Keep":
+        return "Keep"
+    elif claim_type == "Swap":
+        return "Swap"
+    else:
+        keep_subnets = claim_info.get("subnets", [])
+        return "Keep" if current_netuid in keep_subnets else "Swap"
+
+
 async def register_subnetwork_extrinsic(
     subtensor: "SubtensorInterface",
     wallet: Wallet,
     subnet_identity: dict,
+    proxy: Optional[str],
     wait_for_inclusion: bool = False,
     wait_for_finalization: bool = True,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+    mev_protection: bool = True,
 ) -> tuple[bool, Optional[int], Optional[str]]:
     """Registers a new subnetwork.
 
@@ -75,8 +142,9 @@ async def register_subnetwork_extrinsic(
         extrinsic_identifier: Optional extrinsic identifier, if the extrinsic was included.
     """
 
+    # TODO why doesn't this have an era?
     async def _find_event_attributes_in_extrinsic_receipt(
-        response_, event_name: str
+        response_: AsyncExtrinsicReceipt, event_name: str
     ) -> list:
         """
         Searches for the attributes of a specified event within an extrinsic receipt.
@@ -93,18 +161,19 @@ async def register_subnetwork_extrinsic(
             if event_details["event_id"] == event_name:
                 # Once found, you can access the attributes of the event_name
                 return event_details["attributes"]
-        return [-1]
+        return []
 
     print_verbose("Fetching balance")
-    your_balance = await subtensor.get_balance(wallet.coldkeypub.ss58_address)
+
+    your_balance = await subtensor.get_balance(proxy or wallet.coldkeypub.ss58_address)
 
     print_verbose("Fetching burn_cost")
     sn_burn_cost = await burn_cost(subtensor)
     if sn_burn_cost > your_balance:
-        err_console.print(
-            f"Your balance of: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}[{COLOR_PALETTE['POOLS']['TAO']}]"
+        print_error(
+            f"Your balance of: [{COLOR_PALETTE.POOLS.TAO}]{your_balance}[{COLOR_PALETTE.POOLS.TAO}]"
             f" is not enough to burn "
-            f"[{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost}[{COLOR_PALETTE['POOLS']['TAO']}] "
+            f"[{COLOR_PALETTE.POOLS.TAO}]{sn_burn_cost}[{COLOR_PALETTE.POOLS.TAO}] "
             f"to register a subnet."
         )
         return False, None, None
@@ -113,8 +182,10 @@ async def register_subnetwork_extrinsic(
         console.print(
             f"Your balance is: [{COLOR_PALETTE['POOLS']['TAO']}]{your_balance}"
         )
-        if not Confirm.ask(
-            f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?"
+        if not confirm_action(
+            f"Do you want to burn [{COLOR_PALETTE['POOLS']['TAO']}]{sn_burn_cost} to register a subnet?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None, None
 
@@ -157,8 +228,8 @@ async def register_subnetwork_extrinsic(
         for field, value in identity_data.items():
             max_size = 64  # bytes
             if len(value) > max_size:
-                err_console.print(
-                    f"[red]Error:[/red] Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
+                print_error(
+                    f"Error: Identity field [white]{field}[/white] must be <= {max_size} bytes.\n"
                     f"Value '{value.decode()}' is {len(value)} bytes."
                 )
                 return False, None, None
@@ -166,44 +237,67 @@ async def register_subnetwork_extrinsic(
     if not unlock_key(wallet).success:
         return False, None, None
 
-    with console.status(":satellite: Registering subnet...", spinner="earth"):
+    coldkey_ss58 = wallet.coldkeypub.ss58_address
+
+    with console.status(":satellite: Registering subnet...", spinner="earth") as status:
         substrate = subtensor.substrate
-        # create extrinsic call
-        call = await substrate.compose_call(
-            call_module="SubtensorModule",
-            call_function=call_function,
-            call_params=call_params,
+        call, next_nonce = await asyncio.gather(
+            substrate.compose_call(
+                call_module="SubtensorModule",
+                call_function=call_function,
+                call_params=call_params,
+            ),
+            substrate.get_account_next_index(coldkey_ss58),
         )
-        extrinsic = await substrate.create_signed_extrinsic(
-            call=call, keypair=wallet.coldkey
-        )
-        response = await substrate.submit_extrinsic(
-            extrinsic,
+        success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+            call=call,
+            wallet=wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
+            nonce=next_nonce,
+            mev_protection=mev_protection,
         )
 
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
             return True, None, None
 
-        if not await response.is_success:
-            err_console.print(
-                f":cross_mark: [red]Failed[/red]: {format_error_message(await response.error_message)}"
-            )
-            await asyncio.sleep(0.5)
+        if not success:
+            print_error(f"Failed: {err_msg}")
             return False, None, None
-
-        # Successful registration, final check for membership
         else:
+            # Check for MEV shield execution
+            if mev_protection:
+                inner_hash = err_msg
+                mev_success, mev_error, response = await wait_for_extrinsic_by_hash(
+                    subtensor=subtensor,
+                    extrinsic_hash=inner_hash,
+                    submit_block_hash=response.block_hash,
+                    status=status,
+                )
+                if not mev_success:
+                    status.stop()
+                    print_error(f"Failed: MEV execution failed: {mev_error}")
+                    return False, None, None
+
+            # Successful registration, final check for membership
+
             attributes = await _find_event_attributes_in_extrinsic_receipt(
                 response, "NetworkAdded"
             )
             await print_extrinsic_id(response)
             ext_id = await response.get_extrinsic_identifier()
-            console.print(
-                f":white_heavy_check_mark: [dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
-            )
+            if not attributes:
+                console.print(
+                    ":exclamation: [yellow]A possible error has occurred[/yellow]. The extrinsic reports success, but "
+                    "we are unable to locate the 'NetworkAdded' event inside the extrinsic's events."
+                    ""
+                )
+            else:
+                print_success(
+                    f"[dark_sea_green3]Registered subnetwork with netuid: {attributes[0]}"
+                )
             return True, int(attributes[0]), ext_id
 
 
@@ -267,17 +361,9 @@ async def subnets_list(
         tao_emission_percentage: str,
         total_tao_flow_ema: float,
     ):
-        defined_table = Table(
+        defined_table = create_table(
             title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnets"
             f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}\n\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         defined_table.add_column(
@@ -505,7 +591,7 @@ async def subnets_list(
             tao_flow_ema = None
             if netuid in ema_tao_inflow:
                 tao_flow_ema = ema_tao_inflow[netuid].tao
-                total_tao_flow_ema += tao_flow_ema.tao
+                total_tao_flow_ema += tao_flow_ema
             subnet_rows[netuid] = {
                 "netuid": netuid,
                 "subnet_name": subnet_name,
@@ -837,7 +923,7 @@ async def subnets_list(
         current_block = None
         previous_data = None
 
-        with Live(console=console, screen=True, auto_refresh=True) as live:
+        with Live(console=console, auto_refresh=True) as live:
             try:
                 while True:
                     (
@@ -974,13 +1060,11 @@ async def show(
                 all_subnets,
                 root_state,
                 identities,
-                old_identities,
                 root_claim_types,
             ) = await asyncio.gather(
                 subtensor.all_subnets(block_hash=block_hash),
                 subtensor.get_subnet_state(netuid=0, block_hash=block_hash),
                 subtensor.query_all_identities(block_hash=block_hash),
-                subtensor.get_delegate_identities(block_hash=block_hash),
                 subtensor.get_all_coldkeys_claim_type(block_hash=block_hash),
             )
         root_info = next((s for s in all_subnets if s.netuid == 0), None)
@@ -989,28 +1073,18 @@ async def show(
             return False
 
         if root_state is None:
-            err_console.print("The root subnet does not exist")
+            print_error("The root subnet does not exist")
             return
 
         if len(root_state.hotkeys) == 0:
-            err_console.print(
-                "The root-subnet is currently empty with 0 UIDs registered."
-            )
+            print_error("The root-subnet is currently empty with 0 UIDs registered.")
             return
 
         tao_sum = sum(root_state.tao_stake).tao
 
-        table = Table(
+        table = create_table(
             title=f"[{COLOR_PALETTE.G.HEADER}]Root Network\n[{COLOR_PALETTE.G.SUBHEAD}]"
             f"Network: {subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         table.add_column("[bold white]Position", style="white", justify="center")
@@ -1069,12 +1143,12 @@ async def show(
             coldkey_identity = identities.get(root_state.coldkeys[idx], {}).get(
                 "name", ""
             )
-            hotkey_identity = old_identities.get(root_state.hotkeys[idx])
-            validator_identity = (
-                coldkey_identity
-                if coldkey_identity
-                else (hotkey_identity.display if hotkey_identity else "")
-            )
+            validator_identity = coldkey_identity
+
+            coldkey_ss58 = root_state.coldkeys[idx]
+            claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+            total_subnets = len([n for n in all_subnets if n != 0])
+            claim_type = format_claim_type_for_root(claim_type_info, total_subnets)
 
             coldkey_ss58 = root_state.coldkeys[idx]
             claim_type = root_claim_types.get(coldkey_ss58, "Swap")
@@ -1151,7 +1225,8 @@ async def show(
             - Emission: The emission accrued to this hotkey across all subnets every block measured in TAO.
             - Hotkey: The hotkey ss58 address.
             - Coldkey: The coldkey ss58 address.
-            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions.
+            - Root Claim: The root claim type for this coldkey. 'Swap' converts Alpha to TAO every epoch. 'Keep' keeps Alpha emissions. 
+                        'Keep (count)' indicates how many subnets this coldkey is keeping Alpha emissions for.
     """
             )
         if delegate_selection:
@@ -1176,12 +1251,7 @@ async def show(
                 coldkey_identity = identities.get(
                     root_state.coldkeys[original_idx], {}
                 ).get("name", "")
-                hotkey_identity = old_identities.get(selected_hotkey)
-                validator_identity = (
-                    coldkey_identity
-                    if coldkey_identity
-                    else (hotkey_identity.display if hotkey_identity else "")
-                )
+                validator_identity = coldkey_identity
                 identity_str = f" ({validator_identity})" if validator_identity else ""
 
                 console.print(
@@ -1197,19 +1267,17 @@ async def show(
         with console.status(":satellite: Retrieving subnet information..."):
             block_hash = await subtensor.substrate.get_chain_head()
             if not await subtensor.subnet_exists(netuid=netuid_, block_hash=block_hash):
-                err_console.print(f"[red]Subnet {netuid_} does not exist[/red]")
+                print_error(f"Subnet {netuid_} does not exist")
                 return False
             (
                 subnet_info,
                 identities,
-                old_identities,
                 current_burn_cost,
                 root_claim_types,
                 ema_tao_inflow,
             ) = await asyncio.gather(
                 subtensor.subnet(netuid=netuid_, block_hash=block_hash),
                 subtensor.query_all_identities(block_hash=block_hash),
-                subtensor.get_delegate_identities(block_hash=block_hash),
                 subtensor.get_hyperparameter(
                     param_name="Burn", netuid=netuid_, block_hash=block_hash
                 ),
@@ -1242,18 +1310,10 @@ async def show(
         # Define table properties
         mechanism_label = f"Mechanism {selected_mechanism_id}"
 
-        table = Table(
+        table = create_table(
             title=f"[{COLOR_PALETTE['GENERAL']['HEADER']}]Subnet [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{netuid_}"
             f"{': ' + get_subnet_name(subnet_info)}"
             f"\n[{COLOR_PALETTE['GENERAL']['SUBHEADING']}]Network: {subtensor.network} • {mechanism_label}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
         )
 
         # For table footers
@@ -1268,12 +1328,6 @@ async def show(
             owner_hotkeys.append(subnet_info.owner_hotkey)
 
         owner_identity = identities.get(subnet_info.owner_coldkey, {}).get("name", "")
-        if not owner_identity:
-            # If no coldkey identity found, try each owner hotkey
-            for hotkey in owner_hotkeys:
-                if hotkey_identity := old_identities.get(hotkey):
-                    owner_identity = hotkey_identity.display
-                    break
 
         sorted_indices = sorted(
             range(len(metagraph_info.hotkeys)),
@@ -1301,12 +1355,7 @@ async def show(
             coldkey_identity = identities.get(metagraph_info.coldkeys[idx], {}).get(
                 "name", ""
             )
-            hotkey_identity = old_identities.get(metagraph_info.hotkeys[idx])
-            uid_identity = (
-                coldkey_identity
-                if coldkey_identity
-                else (hotkey_identity.display if hotkey_identity else "~")
-            )
+            uid_identity = coldkey_identity or "~"
 
             if (
                 metagraph_info.coldkeys[idx] == subnet_info.owner_coldkey
@@ -1326,11 +1375,12 @@ async def show(
 
             # Get claim type for this coldkey if applicable TAO stake
             coldkey_ss58 = metagraph_info.coldkeys[idx]
-            if tao_stake.tao > 0:
-                claim_type = root_claim_types.get(coldkey_ss58, "Swap")
-            else:
-                claim_type = "-"
+            claim_type_info = {"type": "Swap"}  # Default
+            claim_type = "-"
 
+            if tao_stake.tao > 0:
+                claim_type_info = root_claim_types.get(coldkey_ss58, {"type": "Swap"})
+                claim_type = format_claim_type_for_subnet(claim_type_info, netuid_)
             rows.append(
                 (
                     str(idx),  # UID
@@ -1370,7 +1420,12 @@ async def show(
                     "hotkey": metagraph_info.hotkeys[idx],
                     "coldkey": metagraph_info.coldkeys[idx],
                     "identity": uid_identity,
-                    "claim_type": claim_type,
+                    "claim_type": claim_type_info.get("type")
+                    if tao_stake.tao > 0
+                    else None,
+                    "claim_type_subnets": claim_type_info.get("subnets")
+                    if claim_type_info.get("type") == "KeepSubnets"
+                    else None,
                 }
             )
 
@@ -1610,9 +1665,7 @@ async def burn_cost(
                     )
                 )
             else:
-                err_console.print(
-                    "Subnet burn cost: [red]Failed to get subnet burn cost[/red]"
-                )
+                print_error("Subnet burn cost: Failed to get subnet burn cost")
             return None
 
 
@@ -1620,14 +1673,25 @@ async def create(
     wallet: Wallet,
     subtensor: "SubtensorInterface",
     subnet_identity: dict,
+    proxy: Optional[str],
     json_output: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
+    mev_protection: bool = True,
 ):
     """Register a subnetwork"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Call register command.
     success, netuid, ext_id = await register_subnetwork_extrinsic(
-        subtensor, wallet, subnet_identity, prompt=prompt
+        subtensor=subtensor,
+        wallet=wallet,
+        subnet_identity=subnet_identity,
+        prompt=prompt,
+        decline=decline,
+        quiet=quiet,
+        proxy=proxy,
+        mev_protection=mev_protection,
     )
     if json_output:
         # technically, netuid can be `None`, but only if not wait for finalization/inclusion. However, as of present
@@ -1640,20 +1704,24 @@ async def create(
         return success
     if success and prompt:
         # Prompt for user to set identity.
-        do_set_identity = Confirm.ask(
-            "Would you like to set your own [blue]identity?[/blue]"
+        do_set_identity = confirm_action(
+            "Would you like to set your own [blue]identity?[/blue]",
+            decline=decline,
+            quiet=quiet,
         )
 
         if do_set_identity:
             current_identity = await get_id(
-                subtensor, wallet.coldkeypub.ss58_address, "Current on-chain identity"
+                subtensor, coldkey_ss58, "Current on-chain identity"
             )
             if prompt:
-                if not Confirm.ask(
+                if not confirm_action(
                     "\nCost to register an [blue]Identity[/blue] is [blue]0.1 TAO[/blue],"
-                    " are you sure you wish to continue?"
+                    " are you sure you wish to continue?",
+                    decline=decline,
+                    quiet=quiet,
                 ):
-                    console.print(":cross_mark: Aborted!")
+                    print_error("Aborted!")
                     return False
 
             identity = prompt_for_identity(
@@ -1668,47 +1736,17 @@ async def create(
             )
 
             await set_id(
-                wallet,
-                subtensor,
-                identity["name"],
-                identity["url"],
-                identity["image"],
-                identity["discord"],
-                identity["description"],
-                identity["additional"],
-                identity["github_repo"],
-                prompt,
+                wallet=wallet,
+                subtensor=subtensor,
+                name=identity["name"],
+                web_url=identity["url"],
+                image_url=identity["image"],
+                discord=identity["discord"],
+                description=identity["description"],
+                additional=identity["additional"],
+                github_repo=identity["github_repo"],
+                proxy=proxy,
             )
-
-
-async def pow_register(
-    wallet: Wallet,
-    subtensor: "SubtensorInterface",
-    netuid,
-    processors,
-    update_interval,
-    output_in_place,
-    verbose,
-    use_cuda,
-    dev_id,
-    threads_per_block,
-    prompt: bool,
-):
-    """Register neuron."""
-
-    await register_extrinsic(
-        subtensor,
-        wallet=wallet,
-        netuid=netuid,
-        prompt=prompt,
-        tpb=threads_per_block,
-        update_interval=update_interval,
-        num_processes=processors,
-        cuda=use_cuda,
-        dev_id=dev_id,
-        output_in_place=output_in_place,
-        log_verbose=verbose,
-    )
 
 
 async def register(
@@ -1718,16 +1756,32 @@ async def register(
     era: Optional[int],
     json_output: bool,
     prompt: bool,
+    decline: bool = False,
+    quiet: bool = False,
+    proxy: Optional[str] = None,
+    limit: Optional[float] = None,
 ):
     """Register neuron by recycling some TAO."""
 
+    async def _storage_key(storage_fn: str) -> StorageKey:
+        """
+        Generates a SubtensorModule storage key with [netuid] as the param for a given storage function
+        """
+        return await subtensor.substrate.create_storage_key(
+            pallet="SubtensorModule",
+            storage_function=storage_fn,
+            params=[netuid],
+            block_hash=block_hash,
+        )
+
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     # Verify subnet exists
     print_verbose("Checking subnet status")
     block_hash = await subtensor.substrate.get_chain_head()
     if not await subtensor.subnet_exists(netuid=netuid, block_hash=block_hash):
-        err_console.print(f"[red]Subnet {netuid} does not exist[/red]")
+        print_error(f"Subnet {netuid} does not exist")
         if json_output:
-            json_console.print(
+            json_console.print_json(
                 data={
                     "success": False,
                     "msg": f"Subnet {netuid} does not exist",
@@ -1742,7 +1796,7 @@ async def register(
         subtensor.get_hyperparameter(
             param_name="Burn", netuid=netuid, block_hash=block_hash
         ),
-        subtensor.get_balance(wallet.coldkeypub.ss58_address, block_hash=block_hash),
+        subtensor.get_balance(coldkey_ss58, block_hash=block_hash),
     )
     current_recycle = (
         Balance.from_rao(int(current_recycle_)) if current_recycle_ else Balance(0)
@@ -1751,27 +1805,28 @@ async def register(
     # Check balance is sufficient
     if balance < current_recycle:
         err_msg = f"Insufficient balance {balance} to register neuron. Current recycle is {current_recycle} TAO"
-        err_console.print(f"[red]{err_msg}[/red]")
+        print_error(err_msg)
         if json_output:
             json_console.print_json(
                 data={"success": False, "msg": err_msg, "extrinsic_identifier": None}
             )
         return
 
+    if limit is not None:
+        with_limit = current_recycle.tao * (1 + limit)
+    else:
+        with_limit = None
+
+    print_verbose(f"Recycle price: {current_recycle}")
+
     if prompt and not json_output:
-        # TODO make this a reusable function, also used in subnets list
         # Show creation table.
-        table = Table(
-            title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Register to [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]netuid: {netuid}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]"
-            f"\nNetwork: [{COLOR_PALETTE['GENERAL']['SUBHEADING']}]{subtensor.network}[/{COLOR_PALETTE['GENERAL']['SUBHEADING']}]\n",
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
+        table = create_table(
+            title=(
+                f"\n[{COLOR_PALETTE.G.HEADER}]"
+                f"Register to [{COLOR_PALETTE.G.SUBHEAD}]netuid: {netuid}[/{COLOR_PALETTE.G.SUBHEAD}]"
+                f"\nNetwork: [{COLOR_PALETTE.G.SUBHEAD}]{subtensor.network}[/{COLOR_PALETTE.G.SUBHEAD}]\n"
+            ),
         )
         table.add_column(
             "Netuid", style="rgb(253,246,227)", no_wrap=True, justify="center"
@@ -1788,6 +1843,13 @@ async def register(
             no_wrap=True,
             justify="center",
         )
+        if with_limit is not None and limit is not None:
+            table.add_column(
+                f"Limit Cost (+{limit * 100:g}%)",
+                style=COLOR_PALETTE["POOLS"]["TAO"],
+                no_wrap=True,
+                justify="center",
+            )
         table.add_column(
             "Hotkey",
             style=COLOR_PALETTE["GENERAL"]["HOTKEY"],
@@ -1800,27 +1862,38 @@ async def register(
             no_wrap=True,
             justify="center",
         )
-        table.add_row(
+        row = [
             str(netuid),
             f"{Balance.get_unit(netuid)}",
             f"τ {current_recycle.tao:.4f}",
-            f"{get_hotkey_pub_ss58(wallet)}",
-            f"{wallet.coldkeypub.ss58_address}",
+        ]
+        if with_limit is not None:
+            row.append(f"τ {with_limit:,.9f}".rstrip("0").rstrip("."))
+        row.extend(
+            [
+                f"{get_hotkey_pub_ss58(wallet)}",
+                f"{coldkey_ss58}",
+            ]
         )
+        table.add_row(*row)
         console.print(table)
         if not (
-            Confirm.ask(
+            confirm_action(
                 f"Your balance is: [{COLOR_PALETTE.G.BAL}]{balance}[/{COLOR_PALETTE.G.BAL}]\n"
                 f"The cost to register by recycle is "
-                f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}]\n"
+                f"[{COLOR_PALETTE.G.COST}]{current_recycle}[/{COLOR_PALETTE.G.COST}].\n"
                 f"Do you want to continue?",
                 default=False,
+                decline=decline,
+                quiet=quiet,
             )
         ):
             return
 
     if netuid == 0:
-        success, msg, ext_id = await root_register_extrinsic(subtensor, wallet=wallet)
+        success, msg, ext_id = await root_register_extrinsic(
+            subtensor, wallet=wallet, proxy=proxy
+        )
     else:
         success, msg, ext_id = await burned_register_extrinsic(
             subtensor,
@@ -1828,14 +1901,65 @@ async def register(
             netuid=netuid,
             old_balance=balance,
             era=era,
+            proxy=proxy,
+            limit=with_limit,
         )
+    if not success:
+        print_error(f"Failure: {msg}")
+        print_verbose("Checking registration allowed and limits")
+        storage_key_results, current_block = await asyncio.gather(
+            subtensor.substrate.query_multi(
+                [
+                    await _storage_key("NetworkRegistrationAllowed"),
+                    await _storage_key("TargetRegistrationsPerInterval"),
+                    await _storage_key("RegistrationsThisInterval"),
+                    await _storage_key("LastAdjustmentBlock"),
+                    await _storage_key("AdjustmentInterval"),
+                ]
+            ),
+            subtensor.substrate.get_block_number(block_hash),
+        )
+        (
+            registration_allowed,
+            target_registrations_per_interval,
+            registrations_this_interval,
+            last_adjustment_block,
+            adjustment_interval,
+        ) = [x[1] for x in storage_key_results]
+
+        if not registration_allowed:
+            print_error(f"Registration to subnet {netuid} is not allowed")
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "msg": f"Registration to subnet {netuid} is not allowed",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return
+
+        if registrations_this_interval >= target_registrations_per_interval * 3:
+            next_adjustment_block = last_adjustment_block + adjustment_interval
+            remaining_blocks = next_adjustment_block - current_block
+            print_error(
+                f"Registration to subnet {netuid} is full for this interval. "
+                f"Try again in {remaining_blocks} blocks."
+            )
+            if json_output:
+                json_console.print_json(
+                    data={
+                        "success": False,
+                        "msg": f"Registration to subnet {netuid} is full for this interval. "
+                        f"Try again in {remaining_blocks} blocks.",
+                        "extrinsic_identifier": None,
+                    }
+                )
+            return
     if json_output:
         json_console.print(
             json.dumps({"success": success, "msg": msg, "extrinsic_identifier": ext_id})
         )
-    else:
-        if not success:
-            err_console.print(f"Failure: {msg}")
 
 
 # TODO: Confirm emissions, incentive, Dividends are to be fetched from subnet_state or keep NeuronInfo
@@ -1982,7 +2106,7 @@ async def metagraph_cmd(
         }
         if not no_cache:
             update_metadata_table("metagraph", metadata_info)
-            create_table(
+            create_and_populate_table(
                 "metagraph",
                 columns=[
                     ("UID", "INTEGER"),
@@ -2010,8 +2134,8 @@ async def metagraph_cmd(
             metadata_info = get_metadata_table("metagraph")
             table_data = json.loads(metadata_info["table_data"])
         except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This is usually caused by attempting to use "
+            print_error(
+                "Error: Unable to retrieve table data. This is usually caused by attempting to use "
                 "`--reuse-last` before running the command a first time. In rare cases, this could also be due to "
                 "a corrupted database. Re-run the command (do not use `--reuse-last`) and see if that resolves your "
                 "issue."
@@ -2098,8 +2222,8 @@ async def metagraph_cmd(
                 ],
             )
         except sqlite3.OperationalError:
-            err_console.print(
-                "[red]Error[/red] Unable to retrieve table data. This may indicate that your database is corrupted, "
+            print_error(
+                "Error: Unable to retrieve table data. This may indicate that your database is corrupted, "
                 "or was not able to load with the most recent data."
             )
             return
@@ -2286,16 +2410,8 @@ async def metagraph_cmd(
                 table_cols_indices.append(idx)
                 table_cols.append(v)
 
-        table = Table(
+        table = create_table(
             *table_cols,
-            show_footer=True,
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_style="bold white",
-            title_justify="center",
-            show_lines=False,
             expand=True,
             title=(
                 f"[underline dark_orange]Metagraph[/underline dark_orange]\n\n"
@@ -2306,7 +2422,6 @@ async def metagraph_cmd(
                 f"Issuance: [bright_blue]{metadata_info['issuance']}[/bright_blue], "
                 f"Difficulty: [bright_cyan]{metadata_info['difficulty']}[/bright_cyan]\n"
             ),
-            pad_edge=True,
         )
 
         if all(x is False for x in display_cols.values()):
@@ -2331,7 +2446,7 @@ def create_identity_table(title: str = None):
     if not title:
         title = "Subnet Identity"
 
-    table = Table(
+    table = create_table(
         Column(
             "Item",
             justify="right",
@@ -2340,14 +2455,6 @@ def create_identity_table(title: str = None):
         ),
         Column("Value", style=COLOR_PALETTE["GENERAL"]["SUBHEADING"]),
         title=f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]{title}\n",
-        show_footer=True,
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
     )
     return table
 
@@ -2358,6 +2465,9 @@ async def set_identity(
     netuid: int,
     subnet_identity: dict,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
+    proxy: Optional[str] = None,
 ) -> tuple[bool, Optional[str]]:
     """Set identity information for a subnet"""
 
@@ -2370,12 +2480,18 @@ async def set_identity(
         if not img_valid:
             confirmation_msg = f"Are you sure you want to use [blue]{logo_url}[/blue] as your image URL?"
             if err_msg:
-                if not Confirm.ask(f"{err_msg}\n{confirmation_msg}"):
+                if not confirm_action(
+                    f"{err_msg}\n{confirmation_msg}",
+                    decline=decline,
+                    quiet=quiet,
+                ):
                     return False, None
             else:
-                if not Confirm.ask(
+                if not confirm_action(
                     f"The provided image's MIME type is {content_type}, which is not recognized as a valid"
-                    f" image MIME type.\n{confirmation_msg}"
+                    f" image MIME type.\n{confirmation_msg}",
+                    decline=decline,
+                    quiet=quiet,
                 ):
                     return False, None
 
@@ -2383,7 +2499,7 @@ async def set_identity(
         sn_exists = await subtensor.subnet_exists(netuid)
 
     if not sn_exists:
-        err_console.print(f"Subnet {netuid} does not exist")
+        print_error(f"Subnet {netuid} does not exist")
         return False, None
 
     identity_data = {
@@ -2402,8 +2518,10 @@ async def set_identity(
         return False, None
 
     if prompt:
-        if not Confirm.ask(
-            "Are you sure you want to set subnet's identity? This is subject to a fee."
+        if not confirm_action(
+            "Are you sure you want to set subnet's identity? This is subject to a fee.",
+            decline=decline,
+            quiet=quiet,
         ):
             return False, None
 
@@ -2418,17 +2536,15 @@ async def set_identity(
         spinner="earth",
     ):
         success, err_msg, ext_receipt = await subtensor.sign_and_send_extrinsic(
-            call, wallet
+            call, wallet, proxy=proxy
         )
 
         if not success:
-            err_console.print(f"[red]:cross_mark: Failed![/red] {err_msg}")
+            print_error(f"Failed: {err_msg}")
             return False, None
         ext_id = await ext_receipt.get_extrinsic_identifier()
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            ":white_heavy_check_mark: [dark_sea_green3]Successfully set subnet identity\n"
-        )
+        print_success("[dark_sea_green3]Successfully set subnet identity\n")
 
         subnet = await subtensor.subnet(netuid)
         identity = subnet.subnet_identity if subnet else None
@@ -2474,7 +2590,7 @@ async def get_identity(
         identity = subnet.subnet_identity if subnet else None
 
     if not identity:
-        err_console.print(
+        print_error(
             f"Existing subnet identity not found"
             f" for subnet [blue]{netuid}[/blue]"
             f" on {subtensor}"
@@ -2525,7 +2641,7 @@ async def get_start_schedule(
         ),
         subtensor.substrate.get_constant(
             module_name="SubtensorModule",
-            constant_name="DurationOfStartCall",
+            constant_name="InitialStartCallDelay",
             block_hash=block_hash,
         ),
         subtensor.substrate.get_block_number(block_hash=block_hash),
@@ -2561,10 +2677,13 @@ async def start_subnet(
     wallet: "Wallet",
     subtensor: "SubtensorInterface",
     netuid: int,
+    proxy: Optional[str],
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
 ) -> bool:
     """Start a subnet's emission schedule"""
-
+    coldkey_ss58 = proxy or wallet.coldkeypub.ss58_address
     if not await subtensor.subnet_exists(netuid):
         print_error(f"Subnet {netuid} does not exist.")
         return False
@@ -2574,13 +2693,16 @@ async def start_subnet(
         storage_function="SubnetOwner",
         params=[netuid],
     )
-    if subnet_owner != wallet.coldkeypub.ss58_address:
-        print_error(":cross_mark: This wallet doesn't own the specified subnet.")
+    # TODO should this check against proxy as well?
+    if subnet_owner != coldkey_ss58:
+        print_error("This wallet doesn't own the specified subnet.")
         return False
 
     if prompt:
-        if not Confirm.ask(
-            f"Are you sure you want to start subnet {netuid}'s emission schedule?"
+        if not confirm_action(
+            f"Are you sure you want to start subnet {netuid}'s emission schedule?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False
 
@@ -2595,26 +2717,19 @@ async def start_subnet(
             call_function="start_call",
             call_params={"netuid": netuid},
         )
-
-        signed_ext = await subtensor.substrate.create_signed_extrinsic(
+        success, error_msg, response = await subtensor.sign_and_send_extrinsic(
             call=start_call,
-            keypair=wallet.coldkey,
-        )
-
-        response = await subtensor.substrate.submit_extrinsic(
-            extrinsic=signed_ext,
+            wallet=wallet,
             wait_for_inclusion=True,
             wait_for_finalization=True,
+            proxy=proxy,
         )
 
-        if await response.is_success:
+        if success:
             await print_extrinsic_id(response)
-            console.print(
-                f":white_heavy_check_mark: [green]Successfully started subnet {netuid}'s emission schedule.[/green]"
-            )
+            print_success(f"Successfully started subnet {netuid}'s emission schedule.")
             return True
         else:
-            error_msg = format_error_message(await response.error_message)
             if "FirstEmissionBlockNumberAlreadySet" in error_msg:
                 console.print(
                     f"[dark_sea_green3]Subnet {netuid} already has an emission schedule.[/dark_sea_green3]"
@@ -2622,7 +2737,7 @@ async def start_subnet(
                 return True
 
             await get_start_schedule(subtensor, netuid)
-            print_error(f":cross_mark: Failed to start subnet: {error_msg}")
+            print_error(f"Failed to start subnet: {error_msg}")
             return False
 
 
@@ -2631,7 +2746,11 @@ async def set_symbol(
     subtensor: "SubtensorInterface",
     netuid: int,
     symbol: str,
+    proxy: Optional[str],
+    period: int,
     prompt: bool = False,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """
@@ -2647,13 +2766,15 @@ async def set_symbol(
                 data={"success": False, "message": err, "extrinsic_identifier": None}
             )
         else:
-            err_console.print(err)
+            print_error(err)
         return False
 
     if prompt and not json_output:
         sn_info = await subtensor.subnet(netuid=netuid)
-        if not Confirm.ask(
-            f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?"
+        if not confirm_action(
+            f"Your current subnet symbol for SN{netuid} is {sn_info.symbol}. Do you want to update it to {symbol}?",
+            decline=decline,
+            quiet=quiet,
         ):
             return False
 
@@ -2671,16 +2792,11 @@ async def set_symbol(
         call_params={"netuid": netuid, "symbol": symbol.encode("utf-8")},
     )
 
-    signed_ext = await subtensor.substrate.create_signed_extrinsic(
-        call=start_call,
-        keypair=wallet.coldkey,
+    success, err_msg, response = await subtensor.sign_and_send_extrinsic(
+        call=start_call, wallet=wallet, proxy=proxy, era={"period": period}
     )
 
-    response = await subtensor.substrate.submit_extrinsic(
-        extrinsic=signed_ext,
-        wait_for_inclusion=True,
-    )
-    if await response.is_success:
+    if success:
         ext_id = await response.get_extrinsic_identifier()
         await print_extrinsic_id(response)
         message = f"Successfully updated SN{netuid}'s symbol to {symbol}."
@@ -2693,14 +2809,17 @@ async def set_symbol(
                 }
             )
         else:
-            console.print(f":white_heavy_check_mark:[dark_sea_green3] {message}\n")
+            print_success(f"[dark_sea_green3] {message}\n")
         return True
     else:
-        err = format_error_message(await response.error_message)
         if json_output:
             json_console.print_json(
-                data={"success": False, "message": err, "extrinsic_identifier": None}
+                data={
+                    "success": False,
+                    "message": err_msg,
+                    "extrinsic_identifier": None,
+                }
             )
         else:
-            err_console.print(f":cross_mark: [red]Failed[/red]: {err}")
+            print_error(f"Failed: {err_msg}")
         return False

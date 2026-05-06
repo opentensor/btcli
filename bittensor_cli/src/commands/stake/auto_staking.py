@@ -4,19 +4,21 @@ from typing import Optional, TYPE_CHECKING
 
 from bittensor_wallet import Wallet
 from rich import box
-from rich.table import Table
-from rich.prompt import Confirm
 
 from bittensor_cli.src import COLOR_PALETTE
 from bittensor_cli.src.bittensor.utils import (
+    confirm_action,
     console,
+    create_table,
     json_console,
+    print_success,
     get_subnet_name,
     is_valid_ss58_address,
     print_error,
-    err_console,
     unlock_key,
     print_extrinsic_id,
+    get_hotkey_identity_name,
+    get_coldkey_identity_name,
 )
 
 if TYPE_CHECKING:
@@ -45,45 +47,28 @@ async def show_auto_stake_destinations(
             subnet_info,
             auto_destinations,
             identities,
-            delegate_identities,
         ) = await asyncio.gather(
             subtensor.all_subnets(block_hash=chain_head),
             subtensor.get_auto_stake_destinations(
                 coldkey_ss58=coldkey_ss58,
                 block_hash=chain_head,
-                reuse_block=True,
             ),
             subtensor.fetch_coldkey_hotkey_identities(block_hash=chain_head),
-            subtensor.get_delegate_identities(block_hash=chain_head),
         )
 
     subnet_map = {info.netuid: info for info in subnet_info}
     auto_destinations = auto_destinations or {}
     identities = identities or {}
-    delegate_identities = delegate_identities or {}
-    hotkey_identities = identities.get("hotkeys", {})
 
     def resolve_identity(hotkey: str) -> Optional[str]:
         if not hotkey:
             return None
 
-        identity_entry = hotkey_identities.get(hotkey, {}).get("identity")
-        if identity_entry:
-            display_name = identity_entry.get("name") or identity_entry.get("display")
-            if display_name:
-                return display_name
-
-        delegate_info = delegate_identities.get(hotkey)
-        if delegate_info and getattr(delegate_info, "display", ""):
-            return delegate_info.display
-
-        return None
+        return get_hotkey_identity_name(identities, hotkey)
 
     coldkey_display = wallet_name
     if not coldkey_display:
-        coldkey_identity = identities.get("coldkeys", {}).get(coldkey_ss58, {})
-        if identity_data := coldkey_identity.get("identity"):
-            coldkey_display = identity_data.get("name") or identity_data.get("display")
+        coldkey_display = get_coldkey_identity_name(identities, coldkey_ss58)
         if not coldkey_display:
             coldkey_display = f"{coldkey_ss58[:6]}...{coldkey_ss58[-6:]}"
 
@@ -127,7 +112,7 @@ async def show_auto_stake_destinations(
         json_console.print(json.dumps(data_output))
         return data_output
 
-    table = Table(
+    table = create_table(
         title=(
             f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Auto Stake Destinations"
             f" for [bold]{coldkey_display}[/bold]\n"
@@ -135,13 +120,6 @@ async def show_auto_stake_destinations(
             f"Coldkey: {coldkey_ss58}\n"
             f"[/{COLOR_PALETTE['GENERAL']['HEADER']}]"
         ),
-        show_edge=False,
-        header_style="bold white",
-        border_style="bright_black",
-        style="bold",
-        title_justify="center",
-        show_lines=False,
-        pad_edge=True,
         box=box.SIMPLE_HEAD,
     )
 
@@ -174,9 +152,12 @@ async def set_auto_stake_destination(
     subtensor: "SubtensorInterface",
     netuid: int,
     hotkey_ss58: str,
+    proxy: Optional[str] = None,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt_user: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> bool:
     """Set the auto-stake destination hotkey for a coldkey on a subnet."""
@@ -187,10 +168,9 @@ async def set_auto_stake_destination(
 
     try:
         chain_head = await subtensor.substrate.get_chain_head()
-        subnet_info, identities, delegate_identities = await asyncio.gather(
+        subnet_info, identities = await asyncio.gather(
             subtensor.subnet(netuid, block_hash=chain_head),
             subtensor.fetch_coldkey_hotkey_identities(block_hash=chain_head),
-            subtensor.get_delegate_identities(block_hash=chain_head),
         )
     except ValueError:
         print_error(f"Subnet with netuid {netuid} does not exist")
@@ -198,31 +178,15 @@ async def set_auto_stake_destination(
 
     hotkey_identity = ""
     identities = identities or {}
-    delegate_identities = delegate_identities or {}
 
-    hotkey_identity_entry = identities.get("hotkeys", {}).get(hotkey_ss58, {})
-    if identity_data := hotkey_identity_entry.get("identity"):
-        hotkey_identity = (
-            identity_data.get("name") or identity_data.get("display") or ""
-        )
-    if not hotkey_identity:
-        delegate_info = delegate_identities.get(hotkey_ss58)
-        if delegate_info and getattr(delegate_info, "display", ""):
-            hotkey_identity = delegate_info.display
+    hotkey_identity = get_hotkey_identity_name(identities, hotkey_ss58) or ""
 
     if prompt_user and not json_output:
-        table = Table(
+        table = create_table(
             title=(
                 f"\n[{COLOR_PALETTE['GENERAL']['HEADER']}]Confirm Auto-Stake Destination"
                 f"[/{COLOR_PALETTE['GENERAL']['HEADER']}]"
             ),
-            show_edge=False,
-            header_style="bold white",
-            border_style="bright_black",
-            style="bold",
-            title_justify="center",
-            show_lines=False,
-            pad_edge=True,
             box=box.SIMPLE_HEAD,
         )
         table.add_column(
@@ -245,7 +209,12 @@ async def set_auto_stake_destination(
         )
         console.print(table)
 
-        if not Confirm.ask("\nSet this auto-stake destination?", default=True):
+        if not confirm_action(
+            "\nSet this auto-stake destination?",
+            default=True,
+            decline=decline,
+            quiet=quiet,
+        ):
             return False
 
     if not unlock_key(wallet).success:
@@ -269,6 +238,7 @@ async def set_auto_stake_destination(
             wallet,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
+            proxy=proxy,
         )
 
     ext_id = await ext_receipt.get_extrinsic_identifier() if success else None
@@ -288,10 +258,10 @@ async def set_auto_stake_destination(
 
     if success:
         await print_extrinsic_id(ext_receipt)
-        console.print(
-            f":white_heavy_check_mark: [dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
+        print_success(
+            f"[dark_sea_green3]Auto-stake destination set for netuid {netuid}[/dark_sea_green3]"
         )
         return True
 
-    err_console.print(f":cross_mark: [red]Failed[/red]: {error_message}")
+    print_error(f"Failed: {error_message}")
     return False

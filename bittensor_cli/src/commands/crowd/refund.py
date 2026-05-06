@@ -1,14 +1,14 @@
 import asyncio
 import json
+from typing import Optional
 
 from bittensor_wallet import Wallet
-from rich.prompt import Confirm
 from rich.table import Table, Column, box
 
 from bittensor_cli.src import COLORS
 from bittensor_cli.src.bittensor.subtensor_interface import SubtensorInterface
 from bittensor_cli.src.bittensor.utils import (
-    blocks_to_duration,
+    confirm_action,
     console,
     json_console,
     print_extrinsic_id,
@@ -22,10 +22,13 @@ from bittensor_cli.src.commands.crowd.utils import get_constant
 async def refund_crowdloan(
     subtensor: SubtensorInterface,
     wallet: Wallet,
+    proxy: Optional[str],
     crowdloan_id: int,
     wait_for_inclusion: bool = True,
     wait_for_finalization: bool = False,
     prompt: bool = True,
+    decline: bool = False,
+    quiet: bool = False,
     json_output: bool = False,
 ) -> tuple[bool, str]:
     """Refund contributors of a non-finalized crowdloan.
@@ -40,10 +43,12 @@ async def refund_crowdloan(
     Args:
         subtensor: SubtensorInterface object for chain interaction
         wallet: Wallet object containing coldkey (any wallet can call this)
+        proxy: Optional proxy to use for extrinsic submission
         crowdloan_id: ID of the crowdloan to refund
         wait_for_inclusion: Wait for transaction inclusion
         wait_for_finalization: Wait for transaction finalization
         prompt: Whether to prompt for confirmation
+        json_output: Whether to output as JSON or human-readable
 
     Returns:
         tuple[bool, str]: Success status and message
@@ -144,9 +149,11 @@ async def refund_crowdloan(
             f"  Each call will refund up to {refund_limit:,} contributors until all are processed.\n"
         )
 
-    if prompt and not Confirm.ask(
+    if prompt and not confirm_action(
         f"\n[bold]Proceed with refunding contributors of Crowdloan #{crowdloan_id}?[/bold]",
         default=False,
+        decline=decline,
+        quiet=quiet,
     ):
         if json_output:
             json_console.print(
@@ -183,6 +190,7 @@ async def refund_crowdloan(
         ) = await subtensor.sign_and_send_extrinsic(
             call=call,
             wallet=wallet,
+            proxy=proxy,
             wait_for_inclusion=wait_for_inclusion,
             wait_for_finalization=wait_for_finalization,
         )
