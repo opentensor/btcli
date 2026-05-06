@@ -405,21 +405,23 @@ def test_stake_movement(local_chain, wallet_setup):
 
     ################################
     # TEST 3: Swap stake command
-    # Swap stake between subnets while keeping the same coldkey-hotkey pair
+    # Swap stake between subnets while keeping the same coldkey-hotkey pair.
+    # Use Bob (non-owner) so the swap-source stake isn't auto-locked by the
+    # subnet-owner lock added on devnet-ready (subnet.rs do_lock_stake call).
     ################################
 
-    swap_seed_stake_result = exec_command_alice(
+    swap_seed_stake_result = exec_command_bob(
         command="stake",
         sub_command="add",
         extra_args=[
             "--netuid",
             "4",
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--hotkey",
-            wallet_alice.hotkey_str,
+            wallet_bob.hotkey_str,
             "--chain",
             "ws://127.0.0.1:9945",
             "--amount",
@@ -435,15 +437,15 @@ def test_stake_movement(local_chain, wallet_setup):
         swap_seed_stake_result.stderr
     )
 
-    # Ensure stake was added to Alice's hotkey on netuid 4
-    alice_stake_list_before_swap_cmd = exec_command_alice(
+    # Ensure stake was added to Bob's hotkey on netuid 4
+    bob_stake_list_before_swap_cmd = exec_command_bob(
         command="stake",
         sub_command="list",
         extra_args=[
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
@@ -452,28 +454,29 @@ def test_stake_movement(local_chain, wallet_setup):
         ],
     )
 
-    alice_stake_list_before_swap = json.loads(alice_stake_list_before_swap_cmd.stdout)
-    alice_stakes_before_swap = find_stake_entries(
-        alice_stake_list_before_swap,
+    bob_stake_list_before_swap = json.loads(bob_stake_list_before_swap_cmd.stdout)
+    bob_stakes_before_swap = find_stake_entries(
+        bob_stake_list_before_swap,
         netuid=4,
+        hotkey_ss58=wallet_bob.hotkey.ss58_address,
     )
-    if not alice_stakes_before_swap:
+    if not bob_stakes_before_swap:
         pytest.fail("Stake not found in netuid 4 before swap")
 
-    # Swap stake from Alice's hotkey on netuid 4 -> netuid 0
+    # Swap stake from Bob's hotkey on netuid 4 -> netuid 0
     # Without safe staking
-    swap_result = exec_command_alice(
+    swap_result = exec_command_bob(
         command="stake",
         sub_command="swap",
         extra_args=[
             "--origin-netuid",
             "4",
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--wallet-hotkey",
-            wallet_alice.hotkey_str,
+            wallet_bob.hotkey_str,
             "--dest-netuid",
             "0",
             "--all",
@@ -485,15 +488,15 @@ def test_stake_movement(local_chain, wallet_setup):
     )
     assert "✅ Sent" in swap_result.stdout, swap_result.stderr
 
-    # Check Alice's stakes after swap
-    alice_stake_list_after_swap_cmd = exec_command_alice(
+    # Check Bob's stakes after swap
+    bob_stake_list_after_swap_cmd = exec_command_bob(
         command="stake",
         sub_command="list",
         extra_args=[
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
@@ -502,28 +505,29 @@ def test_stake_movement(local_chain, wallet_setup):
         ],
     )
 
-    alice_stake_list_after_swap = json.loads(alice_stake_list_after_swap_cmd.stdout)
-    alice_stakes_after_swap = find_stake_entries(
-        alice_stake_list_after_swap,
+    bob_stake_list_after_swap = json.loads(bob_stake_list_after_swap_cmd.stdout)
+    bob_stakes_after_swap = find_stake_entries(
+        bob_stake_list_after_swap,
         netuid=4,
+        hotkey_ss58=wallet_bob.hotkey.ss58_address,
     )
-    if alice_stakes_after_swap:
+    if bob_stakes_after_swap:
         pytest.fail("Stake found in netuid 4 after swap")
 
-    # Swap stake from Alice's hotkey back on netuid 0 -> netuid 4
+    # Swap stake from Bob's hotkey back on netuid 0 -> netuid 4
     # With safe staking
-    swap_with_limit_result = exec_command_alice(
+    swap_with_limit_result = exec_command_bob(
         command="stake",
         sub_command="swap",
         extra_args=[
             "--origin-netuid",
             "0",
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--wallet-hotkey",
-            wallet_alice.hotkey_str,
+            wallet_bob.hotkey_str,
             "--dest-netuid",
             "4",
             "--all",
@@ -535,15 +539,15 @@ def test_stake_movement(local_chain, wallet_setup):
     )
     assert "✅ Sent" in swap_with_limit_result.stdout, swap_with_limit_result.stderr
 
-    # Check Alice's stakes after swap with limit
-    alice_stake_list_after_swap_limit_cmd = exec_command_alice(
+    # Check Bob's stakes after swap with limit
+    bob_stake_list_after_swap_limit_cmd = exec_command_bob(
         command="stake",
         sub_command="list",
         extra_args=[
             "--wallet-path",
-            wallet_path_alice,
+            wallet_path_bob,
             "--wallet-name",
-            wallet_alice.name,
+            wallet_bob.name,
             "--chain",
             "ws://127.0.0.1:9945",
             "--no-prompt",
@@ -552,14 +556,15 @@ def test_stake_movement(local_chain, wallet_setup):
         ],
     )
 
-    alice_stake_list_after_swap_with_limit = json.loads(
-        alice_stake_list_after_swap_limit_cmd.stdout
+    bob_stake_list_after_swap_with_limit = json.loads(
+        bob_stake_list_after_swap_limit_cmd.stdout
     )
-    alice_stakes_after_swap_with_limit = find_stake_entries(
-        alice_stake_list_after_swap_with_limit,
+    bob_stakes_after_swap_with_limit = find_stake_entries(
+        bob_stake_list_after_swap_with_limit,
         netuid=0,
+        hotkey_ss58=wallet_bob.hotkey.ss58_address,
     )
-    if alice_stakes_after_swap_with_limit:
+    if bob_stakes_after_swap_with_limit:
         pytest.fail("Stake found in netuid 0 after swap with limit")
 
     print("Passed stake movement commands")
