@@ -380,6 +380,7 @@ class Options:
         None,
         "--tolerance",
         "--rate-tolerance",
+        "--limit",
         help="Set the rate tolerance percentage for transactions (default: 0.05 for 5%).",
         callback=validate_rate_tolerance,
     )
