@@ -135,28 +135,8 @@ async def stake_burn(
     Perform a stake burn (owner-only).
     Stakes TAO into the subnet and immediately burns the acquired alpha.
     """
-    subnet_owner = await subtensor.query(
-        module="SubtensorModule",
-        storage_function="SubnetOwner",
-        params=[netuid],
-    )
-    if subnet_owner != wallet.coldkeypub.ss58_address:
-        err_msg = (
-            f"Coldkey {wallet.coldkeypub.ss58_address} does not own subnet {netuid}."
-        )
-        if json_output:
-            json_console.print_json(
-                data={
-                    "success": False,
-                    "message": err_msg,
-                    "extrinsic_identifier": None,
-                }
-            )
-        else:
-            print_error(err_msg)
-        return False
-
-    subnet_info = await subtensor.subnet(netuid=netuid)
+    block_hash = await subtensor.substrate.get_block_hash(None)
+    subnet_info = await subtensor.subnet(netuid=netuid, block_hash=block_hash)
     stake_burn_amount = Balance.from_tao(amount)
     rate_tolerance = rate_tolerance if rate_tolerance is not None else 0.0
 
@@ -175,6 +155,7 @@ async def stake_burn(
         call_module="SubtensorModule",
         call_function="add_stake_burn",
         call_params=call_params,
+        block_hash=block_hash,
     )
 
     if not json_output:
@@ -186,6 +167,7 @@ async def stake_burn(
             origin_netuid=0,
             destination_netuid=netuid,
             amount=amount_minus_fee.rao,
+            block_hash=block_hash,
         )
 
         received_amount = sim_swap.alpha_amount

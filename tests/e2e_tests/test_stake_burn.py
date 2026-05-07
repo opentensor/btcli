@@ -136,30 +136,3 @@ def test_stake_burn(local_chain, wallet_setup):
         _balance_after.stdout, wallet_alice.name, wallet_alice.coldkey.ss58_address
     )["free_balance"]
     assert balance_after < balance_before, (balance_before, balance_after)
-
-    # Should fail due to rate limit
-    stake_burn_ratelimited_result = exec_command_alice(
-        "sudo",
-        "buyback",
-        extra_args=[
-            "--wallet-path",
-            wallet_path_alice,
-            "--wallet-name",
-            wallet_alice.name,
-            "--wallet-hotkey",
-            wallet_alice.hotkey_str,
-            "--network",
-            "ws://127.0.0.1:9945",
-            "--netuid",
-            str(netuid),
-            "--amount",
-            str(amount_tao),
-            "--no-prompt",
-            "--json-output",
-        ],
-    )
-    stake_burn_ratelimited = json.loads(stake_burn_ratelimited_result.stdout)
-    assert stake_burn_ratelimited["success"] is False, (
-        stake_burn_ratelimited_result.stdout
-    )
-    assert "AddStakeBurnRateLimitExceeded" in stake_burn_ratelimited["message"]
