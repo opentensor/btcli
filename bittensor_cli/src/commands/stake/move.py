@@ -577,9 +577,19 @@ async def move_stake(
         destination_netuid = selection["destination_netuid"]
         destination_hotkey = selection["destination_hotkey"]
 
-    # Get the wallet stake balances.
+    # Get the wallet stake balances together with the hotkey-existence
+    # pre-flight, so the actionable "Hotkey(s) not registered on chain"
+    # error is surfaced from the same round trip as the balance fetches
+    # rather than as a separate sequential RPC.
     block_hash = await subtensor.substrate.get_chain_head()
-    origin_stake_balance, destination_stake_balance = await asyncio.gather(
+    (
+        hotkey_existence,
+        origin_stake_balance,
+        destination_stake_balance,
+    ) = await asyncio.gather(
+        subtensor.do_hotkeys_exist(
+            [origin_hotkey, destination_hotkey], block_hash=block_hash
+        ),
         subtensor.get_stake(
             coldkey_ss58=coldkey_ss58,
             hotkey_ss58=origin_hotkey,
@@ -593,6 +603,23 @@ async def move_stake(
             block_hash=block_hash,
         ),
     )
+
+    missing_hotkeys = [hk for hk, exists in hotkey_existence.items() if not exists]
+    if missing_hotkeys:
+        print_error(f"Hotkey(s) not registered on chain: {', '.join(missing_hotkeys)}")
+        # Hard-fail under `--no-prompt`. Otherwise let the user override —
+        # the extrinsic may still succeed (e.g. the hotkey was registered
+        # between the pre-flight and submit) and we should not block that
+        # path silently.
+        if not prompt:
+            return False, ""
+        if not confirm_action(
+            "Continue with the move anyway? The extrinsic may fail on-chain.",
+            default=False,
+            decline=decline,
+            quiet=quiet,
+        ):
+            return False, ""
 
     if origin_stake_balance.tao == 0:
         print_error(
@@ -806,11 +833,16 @@ async def transfer_stake(
         stake_all = selection["stake_all"]
         origin_hotkey = selection["origin_hotkey"]
 
-    # Check if both subnets exist
+    # Check that both subnets exist and the origin hotkey is registered on
+    # chain in one round trip. The hotkey pre-flight mirrors the existence
+    # checks in stake/add.py and stake/remove.py and lives next to the
+    # subnet existence checks so a single RPC batch covers all pre-extrinsic
+    # validation.
     block_hash = await subtensor.substrate.get_chain_head()
-    dest_exists, origin_exists = await asyncio.gather(
+    dest_exists, origin_exists, origin_hotkey_exists = await asyncio.gather(
         subtensor.subnet_exists(netuid=dest_netuid, block_hash=block_hash),
         subtensor.subnet_exists(netuid=origin_netuid, block_hash=block_hash),
+        subtensor.does_hotkey_exist(origin_hotkey, block_hash=block_hash),
     )
     if not dest_exists:
         print_error(f"Subnet {dest_netuid} does not exist")
@@ -819,6 +851,22 @@ async def transfer_stake(
     if not origin_exists:
         print_error(f"Subnet {origin_netuid} does not exist")
         return False, ""
+
+    if not origin_hotkey_exists:
+        print_error(f"Hotkey not registered on chain: {origin_hotkey}")
+        # Hard-fail under `--no-prompt`. Otherwise let the user override —
+        # the extrinsic may still succeed (e.g. the hotkey was registered
+        # between the pre-flight and submit) and we should not block that
+        # path silently.
+        if not prompt:
+            return False, ""
+        if not confirm_action(
+            "Continue with the transfer anyway? The extrinsic may fail on-chain.",
+            default=False,
+            decline=decline,
+            quiet=quiet,
+        ):
+            return False, ""
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
