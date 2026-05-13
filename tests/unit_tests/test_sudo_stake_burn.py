@@ -6,7 +6,7 @@ import pytest
 from bittensor_cli.src.bittensor.balances import Balance
 from bittensor_cli.src.commands.sudo import stake_burn
 
-from tests.unit_tests.conftest import COLDKEY_SS58 as TEST_SS58, HOTKEY_SS58
+from .conftest import COLDKEY_SS58 as TEST_SS58, HOTKEY_SS58
 
 
 class MockSubnetInfo:
