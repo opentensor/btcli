@@ -607,7 +607,19 @@ async def move_stake(
     missing_hotkeys = [hk for hk, exists in hotkey_existence.items() if not exists]
     if missing_hotkeys:
         print_error(f"Hotkey(s) not registered on chain: {', '.join(missing_hotkeys)}")
-        return False, ""
+        # Hard-fail under `--no-prompt`. Otherwise let the user override —
+        # the extrinsic may still succeed (e.g. the hotkey was registered
+        # between the pre-flight and submit) and we should not block that
+        # path silently.
+        if not prompt:
+            return False, ""
+        if not confirm_action(
+            "Continue with the move anyway? The extrinsic may fail on-chain.",
+            default=False,
+            decline=decline,
+            quiet=quiet,
+        ):
+            return False, ""
 
     if origin_stake_balance.tao == 0:
         print_error(
@@ -842,7 +854,19 @@ async def transfer_stake(
 
     if not origin_hotkey_exists:
         print_error(f"Hotkey not registered on chain: {origin_hotkey}")
-        return False, ""
+        # Hard-fail under `--no-prompt`. Otherwise let the user override —
+        # the extrinsic may still succeed (e.g. the hotkey was registered
+        # between the pre-flight and submit) and we should not block that
+        # path silently.
+        if not prompt:
+            return False, ""
+        if not confirm_action(
+            "Continue with the transfer anyway? The extrinsic may fail on-chain.",
+            default=False,
+            decline=decline,
+            quiet=quiet,
+        ):
+            return False, ""
 
     # Get current stake balances
     with console.status(f"Retrieving stake data from {subtensor.network}..."):
