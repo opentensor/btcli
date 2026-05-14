@@ -487,8 +487,8 @@ def test_staking(local_chain, wallet_setup):
                 wallet_alice.hotkey.ss58_address
             ]
 
-        assert line("staking_success") is True
         assert line("error_messages") == ""
+        assert line("staking_success") is True
         assert isinstance(line("extrinsic_ids"), str)
 
     # Fetch the hyperparameters of the subnet
