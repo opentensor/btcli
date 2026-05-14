@@ -131,6 +131,27 @@ def extract_ss58_address(output: str, wallet_name: str) -> str:
     raise ValueError(f"ss58 address not found for wallet {wallet_name}")
 
 
+def extract_json(output: str) -> dict:
+    """Extract the trailing JSON object from stdout.
+
+    bittensor-wallet may prepend a human-readable mnemonic warning to stdout
+    when built with the ``python-bindings`` feature (it routes prints through
+    Python's ``sys.stdout``, which Click's ``CliRunner`` captures into
+    ``result.stdout``). The published 4.0.1 wheel writes that warning to the
+    OS-level fd 1 instead, so ``result.stdout`` is clean. Strip whatever
+    prefix is present and decode the JSON object that btcli emitted.
+    """
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(output):
+        if ch == "{":
+            try:
+                obj, _ = decoder.raw_decode(output, i)
+                return obj
+            except json.JSONDecodeError:
+                continue
+    raise ValueError(f"No JSON object found in output: {output!r}")
+
+
 def extract_mnemonics_from_commands(output: str) -> Dict[str, Optional[str]]:
     """
     Extracts mnemonics of coldkeys & hotkeys from the given output for a specified wallet.
@@ -204,7 +225,7 @@ def test_wallet_creations(wallet_setup):
         sub_command="list",
         extra_args=["--wallet-path", wallet_path, "--json-output"],
     )
-    json_wallet = json.loads(json_result.stdout)["wallets"][0]
+    json_wallet = extract_json(json_result.stdout)["wallets"][0]
     assert json_wallet["ss58_address"] == wallet.coldkey.ss58_address
     assert json_wallet["hotkeys"][0]["ss58_address"] == wallet.hotkey.ss58_address
 
@@ -294,7 +315,7 @@ def test_wallet_creations(wallet_setup):
             "--json-output",
         ],
     )
-    json_creation_output = json.loads(json_creation.stdout)
+    json_creation_output = extract_json(json_creation.stdout)
     assert json_creation_output["success"] is True
     assert json_creation_output["data"]["name"] == "new_json_coldkey"
     assert "coldkey_ss58" in json_creation_output["data"]
@@ -353,7 +374,7 @@ def test_wallet_creations(wallet_setup):
             "--json-output",
         ],
     )
-    new_hotkey_json_output = json.loads(new_hotkey_json.stdout)
+    new_hotkey_json_output = extract_json(new_hotkey_json.stdout)
     assert new_hotkey_json_output["success"] is True
     assert new_hotkey_json_output["data"]["name"] == "new_json_coldkey"
     assert new_hotkey_json_output["data"]["hotkey"] == "new_json_hotkey"
@@ -399,8 +420,12 @@ def test_wallet_regen(wallet_setup, capfd):
     # Verify the command has output, as expected
     assert result.stdout is not None
 
+    # Depending on how bittensor-wallet was built, the mnemonic is printed either
+    # to the OS-level stdout (Rust `print!`, captured by capfd) or to Python's
+    # sys.stdout (pyo3 `python-bindings` feature, captured by Click's CliRunner
+    # into result.stdout). Read both so the test is robust to either build.
     captured = capfd.readouterr()
-    mnemonics = extract_mnemonics_from_commands(captured.out)
+    mnemonics = extract_mnemonics_from_commands(captured.out + (result.stdout or ""))
 
     wallet_status, message = verify_wallet_dir(
         wallet_path,
@@ -463,7 +488,7 @@ def test_wallet_regen(wallet_setup, capfd):
         ],
     )
 
-    json_result_out = json.loads(json_result.stdout)
+    json_result_out = extract_json(json_result.stdout)
     assert json_result_out["success"] is True
     assert json_result_out["data"]["name"] == "new_wallet"
     assert json_result_out["data"]["coldkey_ss58"] == initial_coldkey_ss58
@@ -646,7 +671,7 @@ def test_wallet_balance_all(local_chain, wallet_setup, capfd):
             "ws://127.0.0.1:9945",
         ],
     )
-    json_results_output = json.loads(json_results.stdout)
+    json_results_output = extract_json(json_results.stdout)
     for wallet_name in wallet_names:
         assert wallet_name in json_results_output["balances"].keys()
         assert json_results_output["balances"][wallet_name]["total"] == 0.0
