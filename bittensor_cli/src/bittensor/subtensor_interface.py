@@ -1182,7 +1182,10 @@ class SubtensorInterface:
             if era is None or era["period"] > max_mev_era:
                 era = {"period": max_mev_era}
             shield_nonce = call_args["nonce"]
-            inner_extrinsic = await create_signed(call, shield_nonce + 1)
+            inner_nonce = await self.substrate.get_account_next_index(
+                keypair.ss58_address
+            )
+            inner_extrinsic = await create_signed(call, inner_nonce)
             inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
             shield_call = await encrypt_extrinsic(self, inner_extrinsic)
             extrinsic = await create_signed(shield_call, shield_nonce)
