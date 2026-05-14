@@ -161,8 +161,10 @@ async def regen_coldkey(
     """Creates a new coldkey under this wallet"""
     json_str: Optional[str] = None
     if json_path:
+        json_path = os.path.expanduser(json_path)
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
-            raise ValueError("File {} does not exist".format(json_path))
+            print_error(f"File {json_path} does not exist")
+            return False
         with open(json_path, "r") as f:
             json_str = f.read()
     try:
@@ -267,6 +269,7 @@ async def regen_hotkey(
     """Creates a new hotkey under this wallet."""
     json_str: Optional[str] = None
     if json_path:
+        json_path = os.path.expanduser(json_path)
         if not os.path.exists(json_path) or not os.path.isfile(json_path):
             print_error(f"File {json_path} does not exist")
             return False
