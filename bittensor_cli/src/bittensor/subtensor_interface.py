@@ -1181,13 +1181,14 @@ class SubtensorInterface:
             max_mev_era = 8
             if era is None or era["period"] > max_mev_era:
                 era = {"period": max_mev_era}
-            next_nonce = await self.substrate.get_account_next_index(
+            shield_nonce = call_args["nonce"]
+            inner_nonce = await self.substrate.get_account_next_index(
                 keypair.ss58_address
             )
-            inner_extrinsic = await create_signed(call, next_nonce)
+            inner_extrinsic = await create_signed(call, inner_nonce)
             inner_hash = f"0x{inner_extrinsic.extrinsic_hash.hex()}"
             shield_call = await encrypt_extrinsic(self, inner_extrinsic)
-            extrinsic = await create_signed(shield_call, nonce)
+            extrinsic = await create_signed(shield_call, shield_nonce)
         else:
             extrinsic = await self.substrate.create_signed_extrinsic(**call_args)
         try:
@@ -1221,6 +1222,9 @@ class SubtensorInterface:
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
+            # The extrinsic was rejected before inclusion, so the nonce was not consumed
+            # on-chain. Clear the cached next-index so subsequent calls refetch the truth.
+            self.substrate.clear_nonce_cache_for_account(keypair.ss58_address)
             err_msg = format_error_message(e)
             if mev_protection and "'result': 'invalid'" in str(e).lower():
                 err_msg = (
