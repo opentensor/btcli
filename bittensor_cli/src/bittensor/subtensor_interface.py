@@ -1222,6 +1222,9 @@ class SubtensorInterface:
             else:
                 return False, format_error_message(await response.error_message), None
         except SubstrateRequestException as e:
+            # The extrinsic was rejected before inclusion, so the nonce was not consumed
+            # on-chain. Clear the cached next-index so subsequent calls refetch the truth.
+            self.substrate.clear_nonce_cache_for_account(keypair.ss58_address)
             err_msg = format_error_message(e)
             if mev_protection and "'result': 'invalid'" in str(e).lower():
                 err_msg = (
