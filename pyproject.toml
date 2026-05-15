@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "vanta-cli"
-version = "2.2.1"
+version = "2.2.2"
 description = "Vanta Network CLI"
 readme = "README.md"
 authors = [
@@ -48,7 +48,7 @@ dependencies = [
     "plotille>=5.0.0",
     "plotly>=6.0.0",
     "bittensor-cli==9.21.0",
-    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.8",
+    "collateral_sdk @ git+https://github.com/taoshidev/collateral_sdk.git@1.0.9",
 ]
 
 [project.optional-dependencies]

@@ -145,7 +145,7 @@ async def register(
             console.print(success_table)
 
             success_panel = Panel.fit(
-                f"🎉 Entity registration completed!\nYou can now create subaccounts using 'vanta entity create-subaccount'",
+                f"🎉 Entity registration completed!\nYou can now create subaccounts using 'vanta entity create-subaccount'\nCreate your API key using 'vanta entity apikey'",
                 style="bold green",
                 border_style="green"
             )
