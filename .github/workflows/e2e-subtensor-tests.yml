@@ -10,10 +10,10 @@ permissions:
 
 on:
   push:
-    branches: [main, development, staging]
+    branches: [ main, development, staging ]
 
   pull_request:
-    branches: [main, development, staging]
+    branches: [ main, development, staging ]
     types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
 
   workflow_dispatch:
@@ -39,9 +39,17 @@ env:
 
 jobs:
 
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && (github.head_ref == '' || !startsWith(github.head_ref, 'changelog/'))) }}
+    steps:
+      - run: 'true'
+
   find-tests:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && (github.head_ref == '' || !startsWith(github.head_ref, 'changelog/'))) }}
+    timeout-minutes: 5
+    needs: gate
     outputs:
       test-files: ${{ steps.get-tests.outputs.test-files }}
     steps:
@@ -53,11 +61,11 @@ jobs:
         run: |
           test_files=$(find tests/e2e_tests -name "test*.py" | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "test-files=$test_files" >> "$GITHUB_OUTPUT"
-        shell: bash
 
-  pull-docker-image:
+  resolve-image:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft == false && (github.head_ref == '' || !startsWith(github.head_ref, 'changelog/'))) }}
+    timeout-minutes: 5
+    needs: gate
     outputs:
       image-name: ${{ steps.set-image.outputs.image }}
     steps:
@@ -107,7 +115,8 @@ jobs:
 
           image=""
 
-          for label in $labels; do
+          while IFS= read -r label; do
+            [[ -z "$label" ]] && continue
             echo "Found label: $label"
             case "$label" in
               "subtensor-localnet:main")
@@ -123,7 +132,7 @@ jobs:
                 break
                 ;;
             esac
-          done
+          done <<< "$labels"
 
           if [[ -z "$image" ]]; then
             # fallback to default based on branch
@@ -148,36 +157,21 @@ jobs:
           echo "✅ Final selected image: $image"
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
-
-      - name: Pull Docker Image
-        run: docker pull ${{ steps.set-image.outputs.image }}
-
-      - name: Save Docker Image to Cache
-        run: docker save -o subtensor-localnet.tar ${{ steps.set-image.outputs.image }}
-
-      - name: Upload Docker Image as Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: subtensor-localnet
-          path: subtensor-localnet.tar
-
   run-e2e-tests:
     name: ${{ matrix.test-file }} / Python ${{ matrix.python-version }}
     needs:
       - find-tests
-      - pull-docker-image
+      - resolve-image
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false  # Allow other matrix jobs to run even if this job fails
-      max-parallel: 32  # Set the maximum number of parallel jobs (same as we have cores in SubtensorCI runner)
+      max-parallel: 64  # Cap concurrent matrix legs (each runs on its own GitHub-hosted runner)
       matrix:
         os:
           - ubuntu-latest
         test-file: ${{ fromJson(needs.find-tests.outputs.test-files) }}
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
     steps:
       - name: Check-out repository
         uses: actions/checkout@v6
@@ -185,19 +179,18 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.0.0
         with:
-          python-version: 3.13
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
-      - name: Download Cached Docker Image
-        uses: actions/download-artifact@v8
-        with:
-          name: subtensor-localnet
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
 
-      - name: Load Docker Image
-        run: docker load -i subtensor-localnet.tar
+      - name: Pull Docker Image
+        run: docker pull ${{ needs.resolve-image.outputs.image-name }}
 
       - name: Run tests
         env:
-          LOCALNET_IMAGE_NAME: ${{ needs.pull-docker-image.outputs.image-name }}
+          LOCALNET_IMAGE_NAME: ${{ needs.resolve-image.outputs.image-name }}
           SKIP_PULL: "1"
         run: |
           uv run pytest ${{ matrix.test-file }} -s

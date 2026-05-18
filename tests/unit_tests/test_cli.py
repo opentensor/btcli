@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 import typer
 from async_substrate_interface import AsyncSubstrateInterface
@@ -708,8 +707,8 @@ async def test_set_root_weights_fetches_current_weights_with_prompt():
         mock_get_current.return_value = {0: 0.5, 1: 0.3, 2: 0.2}
         mock_confirm.return_value = False
 
-        netuids = np.array([0, 1, 2], dtype=np.int64)
-        weights = np.array([0.4, 0.3, 0.3], dtype=np.float32)
+        netuids = [0, 1, 2]
+        weights = [0.4, 0.3, 0.3]
 
         await set_root_weights_extrinsic(
             subtensor=mock_subtensor,
@@ -746,8 +745,8 @@ async def test_set_root_weights_skips_current_weights_without_prompt():
         mock_unlock.return_value = MagicMock(success=True)
         mock_limits.return_value = (1, 0.5)
 
-        netuids = np.array([0, 1, 2], dtype=np.int64)
-        weights = np.array([0.4, 0.3, 0.3], dtype=np.float32)
+        netuids = [0, 1, 2]
+        weights = [0.4, 0.3, 0.3]
 
         await set_root_weights_extrinsic(
             subtensor=mock_subtensor,

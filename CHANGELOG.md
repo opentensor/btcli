@@ -1,5 +1,35 @@
 # Changelog
 
+## 9.21.2 /2026-05-15
+
+## What's Changed
+
+* Bumps wheel for CVE-2026-24049 by @thewhaleking in https://github.com/latent-to/btcli/pull/950
+* Improves the speed of the e2e runner by @thewhaleking in https://github.com/latent-to/btcli/pull/951
+* Removes torch + faucet by @thewhaleking in https://github.com/latent-to/btcli/pull/952
+* Removes numpy by @thewhaleking in https://github.com/latent-to/btcli/pull/953
+* update error link to link to updated docs page by @chideraao in https://github.com/latent-to/btcli/pull/954
+* Adjusts for the breaking change in devnet-ready by @thewhaleking in https://github.com/latent-to/btcli/pull/956
+* Feat: Adds `limit` alias to tolerance by @ibraheem-abe in https://github.com/latent-to/btcli/pull/957
+* test_stake_burn rate limit check fix by @thewhaleking in https://github.com/latent-to/btcli/pull/958
+* fix(axon): validate ip_type and ip-version match before submitting set_axon by @boskodev790
+  in https://github.com/latent-to/btcli/pull/941
+* fix(sudo): guard stake_burn rate inversions on zero prices by @boskodev790
+  in https://github.com/latent-to/btcli/pull/927
+* Fixes test import by @thewhaleking in https://github.com/latent-to/btcli/pull/959
+* fix(stake): validate hotkey existence in move and transfer commands by @boskodev790
+  in https://github.com/latent-to/btcli/pull/939
+* Fix nonce assignment in mev protection by @thewhaleking in https://github.com/latent-to/btcli/pull/960
+* Wallet creation test fixes by @thewhaleking in https://github.com/latent-to/btcli/pull/961
+* Reverts prev mev protection change by @thewhaleking in https://github.com/latent-to/btcli/pull/962
+* Clears the nonce cache on extrinsic submission failure by @thewhaleking in https://github.com/latent-to/btcli/pull/964
+
+## New Contributors
+
+* @boskodev790 made their first contribution in https://github.com/latent-to/btcli/pull/941
+
+**Full Changelog**: https://github.com/latent-to/btcli/compare/v9.21.1...v9.21.2
+
 ## 9.21.1 /2026-04-29
 
 ## What's Changed
