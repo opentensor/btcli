@@ -1805,7 +1805,7 @@ class CLIManager:
                     decline=decline,
                     quiet=quiet,
                 ):
-                    typer.Exit()
+                    raise typer.Exit()
             else:
                 valid_endpoint, error = validate_chain_endpoint(n)
                 if valid_endpoint:
