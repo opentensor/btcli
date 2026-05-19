@@ -2532,7 +2532,6 @@ class CLIManager:
         if wallet_path:
             wallet_path = os.path.expanduser(wallet_path)
         wallet = Wallet(name=wallet_name, path=wallet_path, hotkey=wallet_hotkey)
-        logger.debug(f"Using wallet {wallet}")
 
         # Validate the wallet if required
         if validate == WV.WALLET or validate == WV.WALLET_AND_HOTKEY:
@@ -2700,8 +2699,8 @@ class CLIManager:
             f"all_wallets: {all_wallets}\n"
             f"sort_by: {sort_by}\n"
             f"sort_order: {sort_order}\n"
-            f"include_hotkeys: {include_hotkeys}\n"
-            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"netuids: {netuids}\n"
         )
 
@@ -2798,7 +2797,7 @@ class CLIManager:
             amount = FloatPrompt.ask("Enter amount (in TAO) to transfer.")
         logger.debug(
             "args:\n"
-            f"destination: {destination_ss58_address}\n"
+            f"destination: {type(destination_ss58_address)}\n"
             f"amount: {amount}\n"
             f"transfer_all: {transfer_all}\n"
             f"allow_death: {allow_death}\n"
@@ -2912,8 +2911,8 @@ class CLIManager:
         )
         logger.debug(
             "args:\n"
-            f"original_wallet: {original_wallet}\n"
-            f"new_wallet: {new_wallet}\n"
+            f"original_wallet: {original_wallet.name}\n"
+            f"new_wallet: {new_wallet.name}\n"
             f"netuid: {netuid}\n"
             f"prompt: {prompt}\n"
         )
@@ -3418,7 +3417,7 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"network {network}\n"
-            f"hotkey_ss58 {hotkey_ss58}\n"
+            f"hotkey_ss58 {type(hotkey_ss58)}\n"
             f"hotkey_display {hotkey_display}\n"
             f"prompt {prompt}\n"
         )
@@ -3569,7 +3568,7 @@ class CLIManager:
             )
             ss58_address = wallet.coldkeypub.ss58_address
 
-        logger.debug(f"args:\nss58_address {ss58_address}\nnetwork {network}\n")
+        logger.debug(f"args:\nss58_address {type(ss58_address)}\nnetwork {network}\n")
         return self._run_command(
             wallets.check_swap_status(
                 self.subtensor, ss58_address, json_output=json_output
@@ -3745,7 +3744,7 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"all_balances {all_balances}\n"
-            f"ss58_addresses {ss58_addresses}\n"
+            f"ss58_addresses {type(ss58_addresses)}\n"
             f"network {network}"
         )
         subtensor = self.initialize_chain(network)
@@ -4221,7 +4220,7 @@ class CLIManager:
             f"args:\n"
             f"action: {action}\n"
             f"network: {network}\n"
-            f"new_coldkey_ss58: {new_wallet_coldkey_ss58}"
+            f"new_coldkey_ss58: {type(new_wallet_coldkey_ss58)}"
         )
 
         if action == "announce":
@@ -4325,7 +4324,7 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"netuid: {netuid}\n"
-            f"wallet: {wallet}\n"
+            f"wallet: {wallet.name}\n"
             f"prompt: {prompt}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
@@ -4416,7 +4415,7 @@ class CLIManager:
             f"port: {port}\n"
             f"ip_type: {ip_type}\n"
             f"protocol: {protocol}\n"
-            f"wallet: {wallet}\n"
+            f"wallet: {wallet.name}\n"
             f"prompt: {prompt}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
@@ -4626,7 +4625,7 @@ class CLIManager:
                 )
         logger.debug(
             "args:\n"
-            f"coldkey_ss58 {coldkey_ss58}\n"
+            f"coldkey_ss58 {type(coldkey_ss58)}\n"
             f"network {network}\n"
             f"live: {live}\n"
             f"no_prompt: {no_prompt}\n"
@@ -4936,8 +4935,8 @@ class CLIManager:
             f"amount: {amount}\n"
             f"prompt: {prompt}\n"
             f"all_hotkeys: {all_hotkeys}\n"
-            f"include_hotkeys: {include_hotkeys}\n"
-            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"safe_staking: {safe_staking}\n"
             f"rate_tolerance: {rate_tolerance}\n"
             f"allow_partial_stake: {allow_partial_stake}\n"
@@ -5229,12 +5228,12 @@ class CLIManager:
             logger.debug(
                 "args:\n"
                 f"network: {network}\n"
-                f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+                f"hotkey_ss58_address: {type(hotkey_ss58_address)}\n"
                 f"unstake_all: {unstake_all}\n"
                 f"unstake_all_alpha: {unstake_all_alpha}\n"
                 f"all_hotkeys: {all_hotkeys}\n"
-                f"include_hotkeys: {include_hotkeys}\n"
-                f"exclude_hotkeys: {exclude_hotkeys}\n"
+                f"include_hotkeys: {type(include_hotkeys)}\n"
+                f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
                 f"era: {period}\n"
                 f"mev_protection: {mev_protection}"
             )
@@ -5295,10 +5294,10 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"network: {network}\n"
-            f"hotkey_ss58_address: {hotkey_ss58_address}\n"
+            f"hotkey_ss58_address: {type(hotkey_ss58_address)}\n"
             f"all_hotkeys: {all_hotkeys}\n"
-            f"include_hotkeys: {include_hotkeys}\n"
-            f"exclude_hotkeys: {exclude_hotkeys}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"amount: {amount}\n"
             f"prompt: {prompt}\n"
             f"interactive: {interactive}\n"
@@ -5507,8 +5506,8 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"origin_netuid: {origin_netuid}\n"
-            f"origin_hotkey: {origin_hotkey}\n"
-            f"destination_hotkey: {destination_hotkey}\n"
+            f"origin_hotkey: {type(origin_hotkey)}\n"
+            f"destination_hotkey: {type(destination_hotkey)}\n"
             f"destination_netuid: {destination_netuid}\n"
             f"amount: {amount}\n"
             f"stake_all: {stake_all}\n"
@@ -5714,11 +5713,11 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"network: {network}\n"
-            f"origin_hotkey: {origin_hotkey}\n"
+            f"origin_hotkey: {type(origin_hotkey)}\n"
             f"origin_netuid: {origin_netuid}\n"
             f"dest_netuid: {dest_netuid}\n"
-            f"dest_hotkey: {origin_hotkey}\n"
-            f"dest_coldkey_ss58: {dest_ss58}\n"
+            f"dest_hotkey: {type(origin_hotkey)}\n"
+            f"dest_coldkey_ss58: {type(dest_ss58)}\n"
             f"amount: {amount}\n"
             f"era: {period}\n"
             f"stake_all: {stake_all}\n"
@@ -6330,7 +6329,7 @@ class CLIManager:
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"proxy: {proxy}\n"
-            f"children: {children}\n"
+            f"children: {type(children)}\n"
             f"proportions: {proportions}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
@@ -7020,7 +7019,7 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
-            f"proxy: {proxy}\n"
+            f"proxy: {type(proxy)}\n"
             f"param_name: {param_name}\n"
             f"param_value: {param_value}"
         )
@@ -7251,7 +7250,7 @@ class CLIManager:
                 f"Take value must be between {min_value} and {max_value}. Provided value: {take}"
             )
             raise typer.Exit(1)
-        logger.debug(f"args:\nnetwork: {network}\ntake: {take}\nproxy: {proxy}\n")
+        logger.debug(f"args:\nnetwork: {network}\ntake: {take}\nproxy: {type(proxy)}\n")
         result, ext_id = self._run_command(
             sudo.set_take(
                 wallet=wallet,
@@ -7795,7 +7794,7 @@ class CLIManager:
             additional=additional_info,
         )
         logger.debug(
-            f"args:\nnetwork: {network}\nidentity: {identity}\nproxy: {proxy}\n"
+            f"args:\nnetwork: {network}\nidentity: {identity}\nproxy: {type(proxy)}\n"
         )
         self._run_command(
             subnets.create(
@@ -7869,7 +7868,9 @@ class CLIManager:
             ],
             validate=WV.WALLET,
         )
-        logger.debug(f"args:\nnetwork: {network}\nnetuid: {netuid}\nproxy: {proxy}\n")
+        logger.debug(
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nproxy: {type(proxy)}\n"
+        )
         return self._run_command(
             subnets.start_subnet(
                 wallet=wallet,
@@ -7992,7 +7993,7 @@ class CLIManager:
             additional=additional_info,
         )
         logger.debug(
-            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}\nproxy: {proxy}\n"
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nidentity: {identity}\nproxy: {type(proxy)}\n"
         )
         success, ext_id = self._run_command(
             subnets.set_identity(
@@ -8069,7 +8070,7 @@ class CLIManager:
             validate=WV.WALLET_AND_HOTKEY,
         )
         logger.debug(
-            f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\nproxy: {proxy}\n"
+            f"args:\nnetwork: {network}\nnetuid: {netuid}\nperiod: {period}\nproxy: {type(proxy)}\n"
         )
         return self._run_command(
             subnets.register(
@@ -8231,7 +8232,7 @@ class CLIManager:
             "args:\n"
             f"network: {network}\n"
             f"netuid: {netuid}\n"
-            f"proxy: {proxy}\n"
+            f"proxy: {type(proxy)}\n"
             f"symbol: {symbol}\n"
         )
         return self._run_command(
@@ -8591,12 +8592,12 @@ class CLIManager:
             return False
         logger.debug(
             f"args:\n"
-            f"hotkey: {hotkey}\n"
+            f"hotkey: {type(hotkey)}\n"
             f"netuid: {netuid}\n"
             f"liquidity: {liquidity_}\n"
             f"price_low: {price_low}\n"
             f"price_high: {price_high}\n"
-            f"proxy: {proxy}\n"
+            f"proxy: {type(proxy)}\n"
         )
         return self._run_command(
             liquidity.add_liquidity(
@@ -8706,7 +8707,7 @@ class CLIManager:
         logger.debug(
             f"args:\n"
             f"network: {network}\n"
-            f"hotkey: {hotkey}\n"
+            f"hotkey: {type(hotkey)}\n"
             f"netuid: {netuid}\n"
             f"position_id: {position_id}\n"
             f"all_liquidity_ids: {all_liquidity_ids}\n"
@@ -8784,11 +8785,11 @@ class CLIManager:
         logger.debug(
             f"args:\n"
             f"network: {network}\n"
-            f"hotkey: {hotkey}\n"
+            f"hotkey: {type(hotkey)}\n"
             f"netuid: {netuid}\n"
             f"position_id: {position_id}\n"
             f"liquidity_delta: {liquidity_delta}\n"
-            f"proxy: {proxy}\n"
+            f"proxy: {type(proxy)}\n"
         )
 
         return self._run_command(
@@ -9841,8 +9842,8 @@ class CLIManager:
             f"height: {height}\n"
             f"ext_index: {ext_index}\n"
             f"proxy_type: {proxy_type}\n"
-            f"spawner: {spawner}\n"
-            f"proxy: {proxy}\n"
+            f"spawner: {type(spawner)}\n"
+            f"proxy: {type(proxy)}\n"
             f"network: {network}\n"
             f"idx: {idx}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
