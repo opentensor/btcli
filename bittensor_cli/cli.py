@@ -2699,8 +2699,8 @@ class CLIManager:
             f"all_wallets: {all_wallets}\n"
             f"sort_by: {sort_by}\n"
             f"sort_order: {sort_order}\n"
-            f"include_hotkeys: {len(include_hotkeys)}\n"
-            f"exclude_hotkeys: {len(exclude_hotkeys)}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"netuids: {netuids}\n"
         )
 
@@ -3744,7 +3744,7 @@ class CLIManager:
         logger.debug(
             "args:\n"
             f"all_balances {all_balances}\n"
-            f"ss58_addresses {len(ss58_addresses)}\n"
+            f"ss58_addresses {type(ss58_addresses)}\n"
             f"network {network}"
         )
         subtensor = self.initialize_chain(network)
@@ -4935,8 +4935,8 @@ class CLIManager:
             f"amount: {amount}\n"
             f"prompt: {prompt}\n"
             f"all_hotkeys: {all_hotkeys}\n"
-            f"include_hotkeys: {len(include_hotkeys)}\n"
-            f"exclude_hotkeys: {len(exclude_hotkeys)}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"safe_staking: {safe_staking}\n"
             f"rate_tolerance: {rate_tolerance}\n"
             f"allow_partial_stake: {allow_partial_stake}\n"
@@ -5232,8 +5232,8 @@ class CLIManager:
                 f"unstake_all: {unstake_all}\n"
                 f"unstake_all_alpha: {unstake_all_alpha}\n"
                 f"all_hotkeys: {all_hotkeys}\n"
-                f"include_hotkeys: {len(include_hotkeys)}\n"
-                f"exclude_hotkeys: {len(exclude_hotkeys)}\n"
+                f"include_hotkeys: {type(include_hotkeys)}\n"
+                f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
                 f"era: {period}\n"
                 f"mev_protection: {mev_protection}"
             )
@@ -5296,8 +5296,8 @@ class CLIManager:
             f"network: {network}\n"
             f"hotkey_ss58_address: {type(hotkey_ss58_address)}\n"
             f"all_hotkeys: {all_hotkeys}\n"
-            f"include_hotkeys: {len(include_hotkeys)}\n"
-            f"exclude_hotkeys: {len(exclude_hotkeys)}\n"
+            f"include_hotkeys: {type(include_hotkeys)}\n"
+            f"exclude_hotkeys: {type(exclude_hotkeys)}\n"
             f"amount: {amount}\n"
             f"prompt: {prompt}\n"
             f"interactive: {interactive}\n"
@@ -6329,7 +6329,7 @@ class CLIManager:
             f"network: {network}\n"
             f"netuid: {netuid}\n"
             f"proxy: {proxy}\n"
-            f"children: {len(children)}\n"
+            f"children: {type(children)}\n"
             f"proportions: {proportions}\n"
             f"wait_for_inclusion: {wait_for_inclusion}\n"
             f"wait_for_finalization: {wait_for_finalization}\n"
